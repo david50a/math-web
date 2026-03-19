@@ -21,8 +21,8 @@ def matrix_rank(A:[[int]])->[[int]]:
 def rank_of_matrix(x)->int:
     rows,cols=len(x),len(x[0])
     rank=rows
-    for i in range(0,rows,-1):
-        for j in range(0,cols,-1):
+    for i in range(rows-1, -1, -1):
+        for j in range(cols-1, -1, -1):
             if x[i][j]!=0:
                 return rank
         rank-=1
