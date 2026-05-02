@@ -3,3 +3,7 @@ SOLVER + EXPLANATOR
 UNDERSTANDS QUITION
 SOLVES QUQETIONS
 CYBER PROTECTED
+detect malicious inputs
+rate-limit abuse
+log weird queries
+prevent prompt injection
