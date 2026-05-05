@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from math_models import MathStep, Node, Const, Var, Add, Mul, Pow, to_string, to_latex, simplify
+from math_models import MathStep, Node, Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_string, to_latex, simplify
 
 def derive(node: Node) -> Tuple[Node, List[MathStep]]:
     steps = []
@@ -40,12 +40,42 @@ def derive(node: Node) -> Tuple[Node, List[MathStep]]:
         
         steps.append(MathStep(f"Deriving {to_string(node)} with Power Rule", to_latex(simplified), "equation", data=node))
         return simplified, steps
+    if isinstance(node, Sin):
+        inner_derive, inner_steps = derive(node.inner)
+        steps.extend(inner_steps)
+        res = Mul(Cos(node.inner), inner_derive)
+        simplified = simplify(res)
+        steps.append(MathStep(f"Deriving {to_string(node)} with Chain Rule", to_latex(simplified), "equation", data=node))
+        return simplified, steps
+    if isinstance(node, Cos):
+        inner_derive, inner_steps = derive(node.inner)
+        steps.extend(inner_steps)
+        res = Mul(Mul(Const(-1.0), Sin(node.inner)), inner_derive)
+        simplified = simplify(res)
+        steps.append(MathStep(f"Deriving {to_string(node)} with Chain Rule", to_latex(simplified), "equation", data=node))
+        return simplified, steps
+    if isinstance(node, Exp):
+        inner_derive, inner_steps = derive(node.inner)
+        steps.extend(inner_steps)
+        res = Mul(Exp(node.inner), inner_derive)
+        simplified = simplify(res)
+        steps.append(MathStep(f"Deriving {to_string(node)} with Chain Rule", to_latex(simplified), "equation", data=node))
+        return simplified, steps
+    if isinstance(node, Ln):
+        inner_derive, inner_steps = derive(node.inner)
+        steps.extend(inner_steps)
+        res = Mul(Pow(node.inner, -1), inner_derive)
+        simplified = simplify(res)
+        steps.append(MathStep(f"Deriving {to_string(node)} with Chain Rule", to_latex(simplified), "equation", data=node))
+        return simplified, steps
+
     raise TypeError(f"Unknown node type: {type(node)}")
 
 if __name__ == "__main__":
+    # Test derivative of x^2 + 3*x + sin(x)
     expr = Add(
-        Pow(Var(), 2),
-        Mul(Const(3), Var())
+        Add(Pow(Var(), 2), Mul(Const(3), Var())),
+        Sin(Var())
     )
 
     solution, steps = derive(expr)

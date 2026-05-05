@@ -1,25 +1,66 @@
 from fractions import Fraction
 import math
+from math_models import MathStep
 
+def matrix_to_latex(matrix):
+    if not matrix:
+        return ""
+    latex = r"\begin{pmatrix} "
+    for row in matrix:
+        latex += " & ".join([f"{val:.2f}" if isinstance(val, float) and abs(val - int(val)) > 1e-9 else str(int(val)) for val in row])
+        latex += r" \\ "
+    latex += r" \end{pmatrix}"
+    return latex
 
-class Step:
-    def __init__(self, matrix=[], description: str = "", extra=None):
-        """
-        matrix      – snapshot of the working matrix at this point
-        description – human-readable explanation of what happened
-        extra       – optional dict for side data (e.g. L, P in LU; det so far)
-        """
-        self.matrix = [row[:] for row in matrix] if matrix else []
-        self.description = description
-        self.extra = extra or {}
+def Step(matrix=[], description: str = "", extra=None):
+    """
+    Creates a MathStep compatible object with LaTeX string for frontend rendering.
+    """
+    latex_str = matrix_to_latex(matrix) if matrix else ""
+    return MathStep(
+        description=description,
+        latex=latex_str,
+        type="matrix" if matrix else "text",
+        data={"matrix": [row[:] for row in matrix] if matrix else [], "extra": extra or {}}
+    )
 
-    def __repr__(self):
-        return self.description
+def matrix_multiplication_fast_python(A, B):
+    if len(A[0]) != len(B):
+        raise ValueError("Invalid dimensions")
+    B_T = list(zip(*B))
+    result = [
+        [sum(a * b for a, b in zip(row_a, col_b)) for col_b in B_T]
+        for row_a in A
+    ]
+    return result
+
+def matrix_rank(A:[[int]])->[[int]]:
+    if len(A) != len(A[0]):
+        raise ValueError("Invalid dimensions")
+    rows,cols=len(A),len(A[0])
+    for i in range(rows):
+        for j in range(i+1,cols):
+            x,y=A[i][i],A[j][i]
+            if x==0 and y==0:
+                continue
+            A[j]=[y*A[i][k]-x*A[j][k] for k in range(cols)]
+    return A
 
 
 # ──────────────────────────────────────────────
 #  Helpers
 # ──────────────────────────────────────────────
+def add(A, B):
+    if len(A) != len(B) or len(A[0]) != len(B[0]):
+        raise ValueError("Invalid dimensions")
+    return [[A[i][j] + B[i][j] for j in range(len(A[0]))] for i in range(len(A))]
+
+def sub(A, B):
+    if len(A) != len(B) or len(A[0]) != len(B[0]):
+        raise ValueError("Invalid dimensions")
+    return [[A[i][j] - B[i][j] for j in range(len(A[0]))] for i in range(len(A))]
+def multiply_by_constant(A, C):
+    return [[A[i][j] * C for j in range(len(A[0]))] for i in range(len(A))]
 
 def _copy(A):
     return [row[:] for row in A]
@@ -40,10 +81,12 @@ def pretty_print(A, title=""):
 def print_steps(steps):
     for i, s in enumerate(steps, 1):
         print(f"  Step {i}: {s.description}")
-        if s.matrix:
-            pretty_print(s.matrix)
-        if s.extra:
-            for k, v in s.extra.items():
+        matrix = s.data.get("matrix", []) if s.data else []
+        extra = s.data.get("extra", {}) if s.data else {}
+        if matrix:
+            pretty_print(matrix)
+        if extra:
+            for k, v in extra.items():
                 print(f"    {k}: {v}")
         print()
 
@@ -234,6 +277,25 @@ def solve_linear_system(A, b):
     steps.append(Step([], f"Solution: x = {[round(v, 6) for v in x]}"))
     return x, steps
 
+def cremer(A, b):
+    """
+    Solve Ax = b using Cramer's Rule.
+    Returns (x, steps).
+    """
+    n = len(A)
+    det_A = determinant(A)
+    if abs(det_A) < 1e-9:
+        raise ValueError("Matrix is singular - no unique solution")
+    steps = []
+    steps.append(Step(_copy(A), "Build augmented matrix [A | b] for Cramer's Rule"))
+    for i in range(n):
+        A_i = [row[:] for row in A]
+        A_i[i] = b[:]  # Replace column i with b
+        det_A_i = determinant(A_i)
+        x_i = det_A_i / det_A
+        steps.append(Step(_copy(A), f"x[{i+1}] = det(A_i) / det(A) = {det_A_i:.4g} / {det_A:.4g} = {x_i:.6g}"))
+    steps.append(Step([], f"Solution: x = {[round(v, 6) for v in x]}"))
+    return x, steps
 
 def rank_of_matrix(A):
     echelon, _ = gaussian_elimination(A)

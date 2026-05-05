@@ -34,6 +34,22 @@ class Pow(Node):
     base: Node
     exp: int
 
+@dataclass
+class Sin(Node):
+    inner: Node
+
+@dataclass
+class Cos(Node):
+    inner: Node
+
+@dataclass
+class Exp(Node):
+    inner: Node
+
+@dataclass
+class Ln(Node):
+    inner: Node
+
 def to_string(node: Node) -> str:
     if isinstance(node, Const):
         return str(node.value)
@@ -45,6 +61,14 @@ def to_string(node: Node) -> str:
         return f"({to_string(node.left)} * {to_string(node.right)})"
     if isinstance(node, Pow):
         return f"({to_string(node.base)}^{node.exp})"
+    if isinstance(node, Sin):
+        return f"sin({to_string(node.inner)})"
+    if isinstance(node, Cos):
+        return f"cos({to_string(node.inner)})"
+    if isinstance(node, Exp):
+        return f"e^({to_string(node.inner)})"
+    if isinstance(node, Ln):
+        return f"ln({to_string(node.inner)})"
     raise TypeError(f"Unknown node type: {type(node)}")
 
 def to_latex(node: Node, prec: int = 0) -> str:
@@ -71,6 +95,14 @@ def to_latex(node: Node, prec: int = 0) -> str:
     if isinstance(node, Pow):
         base_str = to_latex(node.base, 3)
         return rf"{base_str}^{{{node.exp}}}"
+    if isinstance(node, Sin):
+        return rf"\sin\left({to_latex(node.inner, 0)}\right)"
+    if isinstance(node, Cos):
+        return rf"\cos\left({to_latex(node.inner, 0)}\right)"
+    if isinstance(node, Exp):
+        return rf"e^{{{to_latex(node.inner, 0)}}}"
+    if isinstance(node, Ln):
+        return rf"\ln\left({to_latex(node.inner, 0)}\right)"
     raise TypeError(f"Unknown node type: {type(node)}")
 
 def simplify(node: Node) -> Node:
@@ -95,4 +127,8 @@ def simplify(node: Node) -> Node:
         if node.exp == 0: return Const(1)
         if node.exp == 1: return b
         return Pow(b, node.exp)
+    if isinstance(node, Sin): return Sin(simplify(node.inner))
+    if isinstance(node, Cos): return Cos(simplify(node.inner))
+    if isinstance(node, Exp): return Exp(simplify(node.inner))
+    if isinstance(node, Ln): return Ln(simplify(node.inner))
     return node

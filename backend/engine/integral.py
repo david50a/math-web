@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from math_models import MathStep, Node, Const, Var, Add, Mul, Pow, to_string, to_latex, simplify
+from math_models import MathStep, Node, Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_string, to_latex, simplify
 
 def integrate_node(node: Node) -> Tuple[Node, List[MathStep]]:
     steps = []
@@ -40,18 +40,39 @@ def integrate_node(node: Node) -> Tuple[Node, List[MathStep]]:
     if isinstance(node, Pow) and isinstance(node.base, Var):
         n = node.exp
         if n == -1:
-            raise Exception("Use ln(x) rule for x^-1")
+            res = Ln(Var())
+            steps.append(MathStep(f"Apply log rule to x^-1", to_latex(res), "equation", data=node))
+            return res, steps
 
         res = Mul(Const(1 / (n + 1)), Pow(Var(), n + 1))
         steps.append(MathStep(f"Apply power rule to {to_string(node)}", to_latex(res), "equation", data=node))
         return res, steps
 
+    # Sine rule
+    if isinstance(node, Sin) and isinstance(node.inner, Var):
+        res = Mul(Const(-1.0), Cos(Var()))
+        steps.append(MathStep(f"Integral of sin(x) is -cos(x)", to_latex(res), "equation", data=node))
+        return res, steps
+
+    # Cosine rule
+    if isinstance(node, Cos) and isinstance(node.inner, Var):
+        res = Sin(Var())
+        steps.append(MathStep(f"Integral of cos(x) is sin(x)", to_latex(res), "equation", data=node))
+        return res, steps
+
+    # Exponential rule
+    if isinstance(node, Exp) and isinstance(node.inner, Var):
+        res = Exp(Var())
+        steps.append(MathStep(f"Integral of e^x is e^x", to_latex(res), "equation", data=node))
+        return res, steps
+
     raise Exception("Unsupported expression")
 
 if __name__ == "__main__":
+    # Test integral of x^2 + 3*x + sin(x) + e^x
     expr = Add(
-        Pow(Var(), 2),
-        Mul(Const(3), Var())
+        Add(Pow(Var(), 2), Mul(Const(3), Var())),
+        Add(Sin(Var()), Exp(Var()))
     )
 
     result, steps = integrate_node(expr)
