@@ -1,4 +1,4 @@
-from .linear_algebra_solver import add, sub, multiply_by_constant, determinant, _zeros, matrix_to_latex
+from .linear_algebra_solver import add, sub, multiply_by_constant, determinant, _zeros, matrix_to_latex, eigenvalues_qr
 from math_models import Add, Const, Var, Pow, MathStep, to_latex, Node, simplify, Mul
 
 def node_matrix_to_latex(matrix):
@@ -55,6 +55,21 @@ def eigenvalue(A):
     steps.append(MathStep("Calculate the determinant of A - XI", to_latex(equation), "equation"))
     
     equation = simplify(equation)
-    steps.append(MathStep("Set the characteristic equation to 0", to_latex(equation), "equation"))
-    
-    return equation, steps
+    steps.append(MathStep("Set the characteristic equation to 0", to_latex(equation)+'=0', "equation"))
+    eigenvalue,qr_steps=eigenvalues_qr(A)
+    steps.extend(qr_steps)
+    formatted_eigenvalues = [f"\\lambda_{i+1} = {val}" for i, val in enumerate(eigenvalue)]
+    steps.append(MathStep("solve the equation to find the eigenvalues:", ' \\ '.join(formatted_eigenvalues), "equation"))
+    return eigenvalue, steps
+
+def eigenvector(A):
+    eigenvalue, steps = eigenvalue(A)
+    n = len(A)
+    eigenvectors = []
+    for eigenvalue in eigenvalues:
+        matrix = [[sub_nodes(Const(A[i][j]), Const(eigenvalue)) if i == j else Const(A[i][j]) for j in range(n)] for i in range(n)]
+        steps.append(MathStep("Create matrix A - XI", node_matrix_to_latex(matrix), "matrix"))
+        eigenvector = gaussian_elimination(matrix)
+        eigenvectors.append(eigenvector)
+        steps.append(MathStep("Calculate the eigenvector of A - XI", node_matrix_to_latex(eigenvector), "matrix"))
+    return eigenvectors, steps

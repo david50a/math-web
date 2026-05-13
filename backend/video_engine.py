@@ -1,7 +1,6 @@
-from manim import *
-import solvers
-import derivative
-import integral
+import os
+from typing import List
+from manim import config, Scene, FadeIn, FadeOut, ReplacementTransform, MathTex, Matrix, Graph, Tex, Text, UP, DOWN, LEFT, RIGHT, BLUE, GREEN
 from math_models import MathStep, Node, Const, Var, Add, Mul, Pow
 
 def get_tree_data(node, vertices=None, edges=None, labels=None, parent=None):
@@ -39,47 +38,26 @@ def get_tree_data(node, vertices=None, edges=None, labels=None, parent=None):
         
     return vertices, edges, labels
 
-class UniversalMathAnimation(Scene):
+class MathStepsScene(Scene):
+    def __init__(self, steps: List[MathStep], title_str: str, **kwargs):
+        self.steps = steps
+        self.title_str = title_str
+        super().__init__(**kwargs)
+
     def construct(self):
-        # problem_type = "matrix" 
-        problem_type = "integral"
-        # problem_type = "derivative"
-
-        if problem_type == "matrix":
-            A = [[2, 1], [4, 5]]
-            b = [5, 6]
-            solution, steps = solvers.solve_linear_system(A, b)
-            title_str = "Gaussian Elimination"
-        elif problem_type == "integral":
-            expr = Add(
-                Pow(Var(), 2),
-                Mul(Const(3), Var())
-            )
-            from math_models import to_latex as ml_to_latex
-            _, steps = integral.integrate_node(expr)
-            title_str = rf"Integrating $\int ({ml_to_latex(expr)}) dx$"
-        else:
-            expr = Add(
-                Pow(Var(), 2),
-                Mul(Const(3), Var())
-            )
-            from math_models import to_latex as ml_to_latex
-            _, steps = derivative.derive(expr)
-            title_str = rf"Deriving ${ml_to_latex(expr)}$"
-
-        if not steps:
+        if not self.steps:
             return
 
         # Title
-        title = Tex(title_str, font_size=36).to_edge(UP)
+        title = Tex(self.title_str, font_size=36).to_edge(UP)
         self.play(FadeIn(title))
         self.wait(1)
 
         current_equation = None
         current_tree = None
 
-        for i, step in enumerate(steps):
-            # Explanation
+        for i, step in enumerate(self.steps):
+            # Explanation text
             explanation = Text(step.description, font_size=24).to_edge(DOWN)
             self.play(FadeIn(explanation))
 
@@ -89,7 +67,16 @@ class UniversalMathAnimation(Scene):
                 formatted_data = [[(str(int(val)) if abs(val - int(val)) < 1e-9 else f"{val:.2f}") for val in row] for row in matrix_data]
                 new_equation = Matrix(formatted_data, element_to_mobject=Text).scale(0.7).shift(LEFT * 3)
                 new_tree = None
-            else:
+            elif step.type == "text":
+                # For regular text, we use Tex instead of MathTex to avoid latex formatting errors
+                # We replace newlines with Manim's way of handling them or just strip them.
+                clean_text = str(step.latex)
+                if "\\\\" in clean_text:
+                    # Very simple formatting for text steps that might have matrix/equation newlines
+                    clean_text = clean_text.replace("\\\\", "\n")
+                new_equation = Text(clean_text, font_size=24).scale(1.2).shift(LEFT * 3.5)
+                new_tree = None
+            else: # "equation"
                 new_equation = MathTex(step.latex).scale(1.2).shift(LEFT * 3.5)
                 
                 # New Tree Mobject
@@ -135,5 +122,24 @@ class UniversalMathAnimation(Scene):
         self.play(FadeIn(final_text))
         self.wait(2)
 
-if __name__ == "__main__":
-    UniversalMathAnimation().render()
+def generate_solver_video(steps: List[MathStep], title: str, output_path: str):
+    """
+    Generates a Manim video for the given steps.
+    
+    Args:
+        steps: The list of MathStep objects to animate.
+        title: The title of the animation.
+        output_path: The full file path (including .mp4 extension) to save the video.
+    """
+    output_dir = os.path.dirname(output_path)
+    output_file = os.path.basename(output_path)
+    
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+        
+    config.media_dir = output_dir
+    config.output_file = output_file
+    
+    # Render the scene
+    scene = MathStepsScene(steps, title)
+    scene.render()
