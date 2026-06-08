@@ -1,0 +1,59 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/
+npm-debug.log
+yarn-error.log
+yarn.lock
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+.env/
+
+# Database
+math_web.db
+*.sqlite3
+
+# Manim Media
+backend/media/
+
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Vite
+.vite/
+
+# Application Logs
+backend/request_log.txt
+frontend/request_log.txt

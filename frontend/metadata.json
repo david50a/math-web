@@ -1,0 +1,6 @@
+{
+  "name": "Equation Video Solution Studio",
+  "description": "Solve mathematical equations and produce beautifully animated step-by-step whiteboard video solutions with automated narration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
