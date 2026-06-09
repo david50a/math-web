@@ -502,8 +502,59 @@ class UniversalMathAnimation(Scene):
 
         elif problem_type == "statistics":
             try:
+                import sys
+                import os
+                sys.path.append(os.path.join(os.path.dirname(__file__), 'engine'))
                 import stats_engine
-                if "median" in input_str.lower():
+                
+                lower_input = input_str.lower()
+                if "inter_quarterly_range" in lower_input:
+                    data_str = re.search(r'inter_quarterly_range\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.inter_quarterly_range(data_str)
+                    title_str = "Calculating Inter-quartile Range"
+                elif "centile_of_classes" in lower_input:
+                    match = re.search(r'centile_of_classes\((.*),\s*(\d+)\)', input_str, re.I)
+                    data_str, centile = match.groups()
+                    steps = stats_engine.centile_of_classes(data_str, int(centile))
+                    title_str = f"Calculating {centile}th Centile of Classes"
+                elif "std_score" in lower_input:
+                    match = re.search(r'std_score\((.*),\s*(-?\d+\.?\d*)\)', input_str, re.I)
+                    data_str, value = match.groups()
+                    steps = stats_engine.std_score(data_str, float(value))
+                    title_str = f"Calculating Standard Score for {value}"
+                elif "std_dev_of_classes" in lower_input:
+                    data_str = re.search(r'std_dev_of_classes\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.std_dev_of_classes(data_str)
+                    title_str = "Calculating Standard Deviation of Classes"
+                elif "variance_of_classes" in lower_input:
+                    data_str = re.search(r'variance_of_classes\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.variance_of_classes(data_str)
+                    title_str = "Calculating Variance of Classes"
+                elif "mean_of_classes" in lower_input:
+                    data_str = re.search(r'mean_of_classes\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.mean_of_classes(data_str)
+                    title_str = "Calculating Mean of Classes"
+                elif "median_of_classes" in lower_input:
+                    data_str = re.search(r'median_of_classes\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.median_of_classes(data_str)
+                    title_str = "Calculating Median of Classes"
+                elif "mode_of_classes" in lower_input:
+                    data_str = re.search(r'mode_of_classes\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.mode_of_classes(data_str)
+                    title_str = "Calculating Mode of Classes"
+                elif "std_dev" in lower_input:
+                    data_str = re.search(r'std_dev\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.std_dev(data_str)
+                    title_str = "Calculating Standard Deviation"
+                elif "variance" in lower_input:
+                    data_str = re.search(r'variance\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.variance(data_str)
+                    title_str = "Calculating Variance"
+                elif "mode" in lower_input:
+                    data_str = re.search(r'mode\((.*)\)', input_str, re.I).group(1)
+                    steps = stats_engine.mode(data_str)
+                    title_str = "Calculating Mode"
+                elif "median" in lower_input:
                     data_str = re.search(r'median\((.*)\)', input_str, re.I).group(1)
                     steps = stats_engine.median(data_str)
                     title_str = "Calculating Median"
