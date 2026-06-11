@@ -26,6 +26,7 @@ import Whiteboard, { KatexMath } from "./components/Whiteboard";
 import { EquationSolution, VideoScene, ThemeType, NarratorType } from "./types";
 import AuthModal from "./components/AuthModal";
 import PaymentModal from "./components/PaymentModal";
+import AIChat from "./components/AIChat";
 
 // Static reference presets for instant exploration
 const PRESET_EQUATIONS = [
@@ -1083,6 +1084,9 @@ export default function App() {
           localStorage.setItem("math_premium", "true");
         }}
       />
+
+      {/* AI Chat assistant */}
+      <AIChat />
 
     </div>
   );

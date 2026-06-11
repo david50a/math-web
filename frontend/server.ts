@@ -69,7 +69,7 @@ app.post('/api/ocr', express.json({ limit: "10mb" }), async (req, res) => {
             }
           ]
         });
-        let equation = response.text()?.trim() || "";
+        let equation = response.text?.trim() || "";
         console.log("Gemini OCR result:", equation);
         return res.json({ equation });
       } catch (err: any) {
@@ -115,6 +115,41 @@ app.post('/api/ocr', express.json({ limit: "10mb" }), async (req, res) => {
   } catch (err: any) {
     console.error("OCR Error:", err);
     res.status(500).json({ error: "Failed to process image.", details: err.message });
+  }
+});
+
+// AI Chat endpoint using local Ollama (Llama 3)
+app.post('/api/chat', express.json(), async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "messages array is required." });
+    }
+
+    const ollamaUrl = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
+    const ollamaModel = process.env.OLLAMA_MODEL || "llama3";
+
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: ollamaModel,
+        messages: messages,
+        stream: false
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Ollama returned status ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json() as any;
+    const reply = data.message?.content || "";
+    res.json({ reply });
+  } catch (err: any) {
+    console.error("Ollama Chat Error:", err);
+    res.status(500).json({ error: "Failed to generate response from Llama 3.", details: err.message });
   }
 });
 
