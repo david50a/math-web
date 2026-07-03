@@ -11,6 +11,7 @@ import subprocess
 import hashlib
 import uuid
 import sqlite3
+import asyncio
 
 # Add engine to path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,11 +30,11 @@ except ImportError as e:
 
 app = FastAPI()
 
-# Mount media directory to serve videos
+# Secure Media Directory
 MEDIA_DIR = os.path.join(BASE_DIR, "media")
 if not os.path.exists(MEDIA_DIR):
     os.makedirs(MEDIA_DIR)
-app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
+# app.mount removed to prevent public static file access
 
 app.add_middleware(
     CORSMiddleware,
@@ -213,6 +214,23 @@ async def payment_upgrade(req: UpgradeRequest):
         is_premium=True,
         session_token=req.token
     )
+
+from fastapi.responses import FileResponse
+
+@app.get("/api/media/{file_path:path}")
+async def get_media(file_path: str, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication token required to view media")
+        
+    user = get_user_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+        
+    full_path = os.path.join(MEDIA_DIR, file_path)
+    if not os.path.exists(full_path) or not os.path.isfile(full_path):
+        raise HTTPException(status_code=404, detail="Media not found")
+        
+    return FileResponse(full_path)
 
 @app.middleware("http")
 async def log_requests(request, call_next):
@@ -434,6 +452,9 @@ def solve_algebra(input_str: str):
 
 @app.post("/api/render")
 async def render_video(request: SolveRequest, authorization: Optional[str] = Header(None)):
+    def run_manim(cmd,env):
+        subprocess.run(cmd,env=env,cwd=BASE_DIR,capture_output=True,text=True,check=True)
+
     input_str = request.equation.strip()
     quality = request.quality or "medium"
     
@@ -502,14 +523,13 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
     try:
         video_script = os.path.join(BASE_DIR, "video.py")
         cmd = ["python", "-m", "manim", quality_flag, "-o", f"{video_id}.mp4", "--disable_caching", "--media_dir", MEDIA_DIR, video_script, "UniversalMathAnimation"]
-        subprocess.run(cmd, env=env, cwd=BASE_DIR, capture_output=True, text=True, check=True)
-        
+        await asyncio.to_thread(run_manim, cmd, env)        
         expected_file = os.path.join(MEDIA_DIR, "videos", "video", quality_dir, f"{video_id}.mp4")
         default_file = os.path.join(MEDIA_DIR, "videos", "video", quality_dir, "UniversalMathAnimation.mp4")
         if not os.path.exists(expected_file) and os.path.exists(default_file):
             os.rename(default_file, expected_file)
             
-        web_path = f"/media/videos/video/{quality_dir}/{video_id}.mp4"
+        web_path = f"/api/media/videos/video/{quality_dir}/{video_id}.mp4"
         return {"video_url": web_path}
     except subprocess.CalledProcessError as e:
         print(f"Manim error: {e.stderr}")

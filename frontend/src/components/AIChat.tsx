@@ -6,7 +6,12 @@ interface Message {
   content: string;
 }
 
-export default function AIChat() {
+interface AIChatProps {
+  solution?: any;
+  currentSence?: any;
+}
+
+export default function AIChat({ solution, currentSence }: AIChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [history, setHistory] = useState<Message[]>([]);
@@ -31,11 +36,16 @@ export default function AIChat() {
     setLoading(true);
 
     try {
+      const contextStr = solution 
+        ? `The user is currently solving: ${solution.equation}. They are looking at this specific step: "${currentSence?.title} - ${currentSence?.explanation}".` 
+        : "";
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [...history, userMessage]
+          messages: [...history, userMessage],
+          context: contextStr
         })
       });
 
@@ -105,11 +115,10 @@ export default function AIChat() {
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-blue-600 text-white rounded-tr-none"
-                        : "bg-white/5 border border-white/10 text-white/90 rounded-tl-none"
-                    }`}
+                    className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${msg.role === "user"
+                      ? "bg-blue-600 text-white rounded-tr-none"
+                      : "bg-white/5 border border-white/10 text-white/90 rounded-tl-none"
+                      }`}
                   >
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   </div>

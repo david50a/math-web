@@ -365,7 +365,17 @@ export default function App() {
       if (!response.ok) throw new Error("Video rendering service failed.");
 
       const data = await response.json();
-      setVideoUrl(data.video_url);
+      
+      setStatusMessage("Downloading secure stream...");
+      const videoResponse = await fetch(data.video_url, {
+        headers: userToken ? { "Authorization": `Bearer ${userToken}` } : {}
+      });
+      if (!videoResponse.ok) throw new Error("Failed to authenticate video stream.");
+      
+      const blob = await videoResponse.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      setVideoUrl(blobUrl);
       setStatusMessage("Video compiled successfully!");
       setTimeout(() => setStatusMessage(""), 3000);
     } catch (err: any) {
@@ -436,7 +446,12 @@ export default function App() {
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h3 className="text-sm font-black uppercase tracking-tighter">Exported Math Animation</h3>
               <button 
-                onClick={() => setVideoUrl(null)}
+                onClick={() => {
+                  if (videoUrl && videoUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(videoUrl);
+                  }
+                  setVideoUrl(null);
+                }}
                 className="text-white/40 hover:text-white transition-colors"
               >
                 CLOSE [X]
@@ -448,6 +463,8 @@ export default function App() {
                 src={videoUrl} 
                 controls 
                 autoPlay 
+                controlsList="nodownload"
+                onContextMenu={(e) => e.preventDefault()}
                 className="w-full h-full"
               />
             </div>
@@ -1086,7 +1103,7 @@ export default function App() {
       />
 
       {/* AI Chat assistant */}
-      <AIChat />
+      <AIChat solution={solution} currentSence={currentScene} />
 
     </div>
   );
