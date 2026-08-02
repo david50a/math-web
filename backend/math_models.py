@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Union, Tuple, Any, Optional
+import re
+import ast
 
 @dataclass
 class MathStep:
@@ -132,3 +134,62 @@ def simplify(node: Node) -> Node:
     if isinstance(node, Exp): return Exp(simplify(node.inner))
     if isinstance(node, Ln): return Ln(simplify(node.inner))
     return node
+
+def parse_expr(expr_str: str):
+    # Strip y = or f(x) = prefix
+    expr_str = re.sub(r'^(y|f\(x\))\s*=\s*', '', expr_str.strip(), flags=re.IGNORECASE)
+    
+    # Convert implicit multiplication: 2(x+1) -> 2*(x+1), x(x+1) -> x*(x+1), (x+1)(x-2) -> (x+1)*(x-2)
+    expr_str = expr_str.replace(')(', ')*(')
+    expr_str = re.sub(r'(\d)\(', r'\1*(', expr_str)
+    expr_str = re.sub(r'\bx\(', r'x*(', expr_str)
+    
+    # Convert function syntax without parentheses: sin x -> sin(x), cos x -> cos(x), ln x -> ln(x), exp x -> exp(x)
+    for func in ['sin', 'cos', 'ln', 'exp']:
+        expr_str = re.sub(rf'\b{func}\s+([a-zA-Z0-9_]+)', rf'{func}(\1)', expr_str, flags=re.IGNORECASE)
+        
+    expr_str = expr_str.replace('^', '**')
+    # Handle some common math notation differences
+    expr_str = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', expr_str) # 3x -> 3*x
+    
+    tree = ast.parse(expr_str, mode='eval')
+    
+    def transform(node):
+        if isinstance(node, ast.Expression):
+            return transform(node.body)
+        if isinstance(node, ast.BinOp):
+            left = transform(node.left)
+            right = transform(node.right)
+            if isinstance(node.op, ast.Add):
+                return Add(left, right)
+            if isinstance(node.op, ast.Sub):
+                return Add(left, Mul(Const(-1.0), right))
+            if isinstance(node.op, ast.Mult):
+                return Mul(left, right)
+            if isinstance(node.op, ast.Div):
+                return Mul(left, Pow(right, -1))
+            if isinstance(node.op, ast.Pow):
+                if isinstance(right, Const):
+                    return Pow(left, int(right.value))
+                raise ValueError("Exponent must be constant")
+        if isinstance(node, (ast.Num, ast.Constant)):
+            val = node.n if hasattr(node, 'n') else node.value
+            return Const(float(val))
+        if isinstance(node, ast.Name):
+            if node.id == 'x':
+                return Var('x')
+            raise ValueError(f"Unknown variable: {node.id}")
+        if isinstance(node, ast.Call):
+            func = node.func.id.lower()
+            arg = transform(node.args[0])
+            if func == 'sin': return Sin(arg)
+            if func == 'cos': return Cos(arg)
+            if func == 'exp': return Exp(arg)
+            if func == 'ln': return Ln(arg)
+        if isinstance(node, ast.UnaryOp):
+            if isinstance(node.op, ast.USub):
+                return Mul(Const(-1.0), transform(node.operand))
+        raise ValueError(f"Unsupported node type: {type(node)}")
+
+    return transform(tree)
+        
