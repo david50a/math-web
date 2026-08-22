@@ -176,8 +176,68 @@ def solve_equation(equation: str, type_of_equation: str = 'one_variable') -> Tup
     else:
         raise Exception('Invalid equation type')
 
+def quadratic_equation_solver(equation:str):
+    steps = []
+    steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
+    steps.append(MathStep(f"Every Quadratic Equation must have the form of ax^2+bx+c=0 so first we move all the terms to the left side", f"{equation}", "equation"))
+    steps.append(MathStep(f"We will find a,b,c", f"{equation}", "equation"))
+    length=len(equation)
+    for i in range(length):
+        if equation[i]=='=':break
+        elif equation[i]=='x':
+            if length>i+2 and equation[i+1]=='^' and equation[i+2]=='2':
+                j=i-1
+                while equation[j].isdigit() and j>=0:
+                    j-=1
+                if i==j+1:
+                    a=1.0
+                else:
+                    a_str=equation[j+1:i]
+                    a=float(a_str)
+                if j>0 and equation[j-1]=='-':
+                    a=-a
+            else:
+                j=i-1
+                while equation[j].isdigit() and j>=0:
+                    j-=1
+                if i==j:
+                    b=1.0
+                else:
+                    b_str=equation[j:i]
+                    b=float(b_str)
+                if j>0 and equation[j-1]=='-':
+                    b=-b
+        elif equation[i].isdigit(): 
+            j=i
+            while j<length and equation[j].isdigit():
+                j+=1
+            if i==j:
+                c=1.0
+            else:
+                c_str=equation[i:j]
+                c=float(c_str)
+            if j>0 and equation[j-1]=='-':
+                c=-c
+    print(a,b,c)
+    steps.append(MathStep(f"The coefficients are a={a}, b={b}, c={c}", f"{a}x^2+{b}x+{c}=0", "equation"))
+    steps.append(MathStep(f"We will use the quadratic formula to solve for x: x = (-b ± sqrt(b^2 - 4ac)) / 2a", f"{a}x^2+{b}x+{c}=0", "equation"))
+    delta = b**2 - 4*a*c
+    steps.append(MathStep(f"The discriminant is delta = b^2 - 4ac = {delta}", f"{a}x^2+{b}x+{c}=0", "equation"))
+    if delta < 0:
+        steps.append(MathStep(f"The discriminant is negative, so there are no real solutions", f"{a}x^2+{b}x+{c}=0", "equation"))
+        return None, steps
+    elif delta == 0:
+        steps.append(MathStep(f"The discriminant is zero, so there is one real solution", f"{a}x^2+{b}x+{c}=0", "equation"))
+        steps.append(MathStep(f"The solution is x = -b / 2a", f"{a}x^2+{b}x+{c}=0", "equation"))
+        steps.append(MathStep(f"The solution is x = {-b / (2*a)}", f"{a}x^2+{b}x+{c}=0", "equation"))
+        return -b / (2*a), steps
+    else:
+        steps.append(MathStep(f"The discriminant is positive, so there are two real solutions", f"{a}x^2+{b}x+{c}=0", "equation"))
+        steps.append(MathStep(f"The solutions are x = (-b ± sqrt(delta)) / 2a", f"{a}x^2+{b}x+{c}=0", "equation"))
+        steps.append(MathStep(f"The solutions are x = ({-b + delta**0.5}) / {2*a} and x = ({-b - delta**0.5}) / {2*a}", f"{a}x^2+{b}x+{c}=0", "equation"))
+        return (-b + delta**0.5) / (2*a), (-b - delta**0.5) / (2*a), steps
+    
 if __name__ == '__main__':
-    expression = '1+2x+4*3=2'
-    print(solve_equation(expression, 'one_variable'))
-
+    expression = 'x^2-16x-9=0'
+    print(quadratic_equation_solver(expression))
 

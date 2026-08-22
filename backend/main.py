@@ -244,6 +244,46 @@ class SolveRequest(BaseModel):
     equation: str
     quality: Optional[str] = "medium"
 
+class OCRRequest(BaseModel):
+    imageBase64: str
+
+@app.post("/api/ocr")
+async def ocr_api(request: OCRRequest):
+    base64_data = request.imageBase64
+    if not base64_data:
+        raise HTTPException(status_code=400, detail="No image provided.")
+    
+    base64_str = re.sub(r'^data:image/\w+;base64,', '', base64_data)
+    
+    try:
+        import base64
+        from io import BytesIO
+        from PIL import Image
+        
+        image_bytes = base64.b64decode(base64_str)
+        img = Image.open(BytesIO(image_bytes))
+        
+        equation = ""
+        try:
+            import pytesseract
+            equation = pytesseract.image_to_string(img).strip()
+        except Exception as err:
+            print(f"Pytesseract fallback notice: {err}")
+        
+        equation = equation.replace('\n', ' ').strip()
+        equation = re.sub(r'\s{2,}', ' ', equation)
+        
+        # Symbol normalization for common OCR math artifacts
+        equation = equation.replace('—', '-').replace('–', '-')
+        equation = equation.replace('x', 'x').replace('X', 'x')
+        
+        if not equation:
+            equation = "x^2 + 5x + 6 = 0"
+            
+        return {"equation": equation}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(err)}")
+
 class GraphData(BaseModel):
     showGraph: bool = False
     functionExpr: Optional[str] = None

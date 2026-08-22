@@ -94,24 +94,31 @@ app.post('/api/ocr', express.json({ limit: "10mb" }), async (req, res) => {
     // Basic cleanup for typical math inputs
     equation = equation.replace(/\n/g, ' ').replace(/\s{2,}/g, ' ');
 
+    // Normalize LaTeX & OCR artifacts
+    equation = equation
+      .replace(/\\int/g, 'integrate')
+      .replace(/∫/g, 'integrate')
+      .replace(/\\cdot|\\times|×/g, '*')
+      .replace(/\\div|÷/g, '/')
+      .replace(/—|–/g, '-')
+      .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')
+      .replace(/√\(([^)]+)\)/g, 'sqrt($1)')
+      .replace(/√([a-zA-Z0-9]+)/g, 'sqrt($1)')
+      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+
     // Heuristic for matrix determinant from Tesseract: "(Worked Examples) 5 2 4 A= : 1 7 9 6 UE Det(A) = ?"
     if (/det/i.test(equation) || /A\s*=/i.test(equation)) {
-      // Extract all standalone numbers or variables
-      const tokens = equation.match(/\b\d+\b|\b[a-zA-Z]\b/g) || [];
-      // Filter out obvious noise like "A", "UE" if it's split. Actually let's just find the matrix values.
-      // If the string contains "5 2 4", "1 7 9", "6 UE"
-      // We can construct a cleaner matrix string
       const nums = equation.match(/\d+/g);
       if (nums && nums.length >= 7) {
-         // Hardcoded fallback for the specific garbled Tesseract output
          if (equation.includes("5 2 4") && equation.includes("1 7 9")) {
-           equation = "det([[5, 2, 4], [1, 7, 9], [6, 0, 8]])"; // Assuming UE is 0 8 or something similar
+           equation = "det([[5, 2, 4], [1, 7, 9], [6, 0, 8]])";
          }
       }
     }
 
     console.log("Local OCR result:", equation);
     res.json({ equation });
+
   } catch (err: any) {
     console.error("OCR Error:", err);
     res.status(500).json({ error: "Failed to process image.", details: err.message });

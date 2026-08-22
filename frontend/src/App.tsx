@@ -19,7 +19,12 @@ import {
   User,
   LogOut,
   Star,
-  ImagePlus
+  ImagePlus,
+  Camera,
+  Upload,
+  X,
+  Check,
+  Scan
 } from "lucide-react";
 import MathGraph from "./components/MathGraph";
 import Whiteboard, { KatexMath } from "./components/Whiteboard";
@@ -113,7 +118,96 @@ export default function App() {
   ]);
 
   const [isOcrLoading, setIsOcrLoading] = useState(false);
+  const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+  const [ocrPreviewImage, setOcrPreviewImage] = useState<string | null>(null);
+  const [ocrExtractedMath, setOcrExtractedMath] = useState("");
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      mediaStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setIsCameraActive(true);
+    } catch (err: any) {
+      console.error("Camera access failed:", err);
+      setStatusMessage("Could not access camera. Please allow camera permissions or upload an image file.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    setIsCameraActive(false);
+  };
+
+  const captureCameraSnapshot = () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth || 640;
+    canvas.height = videoRef.current.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      const base64 = canvas.toDataURL("image/png");
+      stopCamera();
+      processOcrImage(base64);
+    }
+  };
+
+  const processOcrImage = async (base64data: string) => {
+    setOcrPreviewImage(base64data);
+    setIsOcrLoading(true);
+    setStatusMessage("Extracting math from image...");
+
+    try {
+      const response = await fetch("/api/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64data })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "OCR failed.");
+      }
+
+      const data = await response.json();
+      setOcrExtractedMath(data.equation || "");
+      setStatusMessage("Math extracted successfully!");
+      setTimeout(() => setStatusMessage(""), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setStatusMessage(`OCR Error: ${err.message}`);
+    } finally {
+      setIsOcrLoading(false);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64data = reader.result as string;
+      setIsOcrModalOpen(true);
+      processOcrImage(base64data);
+    };
+    reader.readAsDataURL(file);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const activeSceneRef = useRef<number>(0);
   const timerRef = useRef<any>(null);
@@ -386,53 +480,6 @@ export default function App() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsOcrLoading(true);
-    setStatusMessage("Extracting math from image...");
-    setEquationInput("");
-
-    try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64data = reader.result as string;
-        try {
-          const response = await fetch("/api/ocr", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageBase64: base64data })
-          });
-
-          if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error || "OCR failed.");
-          }
-
-          const data = await response.json();
-          setEquationInput(data.equation);
-          setStatusMessage("Math extracted successfully!");
-          setTimeout(() => setStatusMessage(""), 3000);
-        } catch (err: any) {
-          console.error(err);
-          setStatusMessage(`OCR Error: ${err.message}`);
-        } finally {
-          setIsOcrLoading(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (err: any) {
-      console.error(err);
-      setStatusMessage("Failed to read image file.");
-      setIsOcrLoading(false);
-    } finally {
-      // Reset input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
 
   const currentScene: VideoScene | undefined = solution?.scenes[activeSceneIndex];
 
@@ -470,6 +517,146 @@ export default function App() {
             </div>
             <div className="p-4 bg-blue-600/10 text-blue-400 text-[10px] font-bold uppercase tracking-widest text-center">
               Rendered using Manim Community Edition v0.18.0
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OCR Math Scanner Modal */}
+      {isOcrModalOpen && (
+        <div className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-2xl bg-[#0F0F12] border border-white/15 rounded-2xl p-6 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-2">
+                <Scan className="w-5 h-5 text-blue-500" />
+                <h3 className="text-lg font-black uppercase tracking-tight">Math Image OCR Scanner</h3>
+              </div>
+              <button 
+                onClick={() => {
+                  stopCamera();
+                  setIsOcrModalOpen(false);
+                  setOcrPreviewImage(null);
+                  setOcrExtractedMath("");
+                }}
+                className="text-white/40 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mode selection or preview area */}
+            <div className="space-y-4">
+              {isCameraActive ? (
+                <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/10 flex items-center justify-center">
+                  <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                  <div className="absolute bottom-4 flex gap-3">
+                    <button 
+                      onClick={captureCameraSnapshot}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider rounded-lg flex items-center gap-2 shadow-lg cursor-pointer"
+                    >
+                      <Camera className="w-4 h-4" />
+                      Take Photo
+                    </button>
+                    <button 
+                      onClick={stopCamera}
+                      className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase tracking-wider rounded-lg cursor-pointer"
+                    >
+                      Cancel Camera
+                    </button>
+                  </div>
+                </div>
+              ) : ocrPreviewImage ? (
+                <div className="space-y-4">
+                  <div className="relative aspect-video max-h-[260px] bg-black/50 border border-white/10 rounded-xl overflow-hidden flex items-center justify-center p-2">
+                    <img src={ocrPreviewImage} alt="OCR Target" className="max-h-full max-w-full object-contain rounded" />
+                    {isOcrLoading && (
+                      <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center text-blue-400 gap-2">
+                        <RefreshCw className="w-8 h-8 animate-spin" />
+                        <span className="text-xs font-bold tracking-wider uppercase font-mono">Recognizing Math Symbols...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Extracted Math Result Display & Manual Correction */}
+                  <div>
+                    <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest block mb-1.5">
+                      Extracted Math Equation (Editable)
+                    </label>
+                    <input 
+                      type="text" 
+                      value={ocrExtractedMath}
+                      onChange={(e) => setOcrExtractedMath(e.target.value)}
+                      placeholder="OCR Extracted Math Result..."
+                      className="w-full bg-white/5 border border-white/20 px-4 py-3 font-mono text-sm focus:outline-none focus:border-blue-500 rounded-lg text-blue-300"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Dropzone File Upload */}
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-44 border-2 border-dashed border-white/20 hover:border-blue-500/50 bg-white/5 hover:bg-white/10 rounded-xl flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-all space-y-2 group"
+                  >
+                    <Upload className="w-8 h-8 text-white/40 group-hover:text-blue-400 transition-colors" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-white/80">Upload Photo / Document</span>
+                    <span className="text-[10px] text-white/40 font-mono">PNG, JPG, WEBP up to 10MB</span>
+                  </div>
+
+                  {/* Camera Scanner Trigger */}
+                  <div 
+                    onClick={startCamera}
+                    className="h-44 border-2 border-dashed border-white/20 hover:border-blue-500/50 bg-white/5 hover:bg-white/10 rounded-xl flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-all space-y-2 group"
+                  >
+                    <Camera className="w-8 h-8 text-white/40 group-hover:text-blue-400 transition-colors" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-white/80">Use Web Camera</span>
+                    <span className="text-[10px] text-white/40 font-mono">Snap equation directly</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="flex items-center justify-between border-t border-white/10 pt-4">
+              {ocrPreviewImage && (
+                <button 
+                  onClick={() => {
+                    setOcrPreviewImage(null);
+                    setOcrExtractedMath("");
+                  }}
+                  className="text-xs text-white/50 hover:text-white font-bold uppercase tracking-wider cursor-pointer"
+                >
+                  Clear & Re-scan
+                </button>
+              )}
+              <div className="flex items-center gap-3 ml-auto">
+                <button 
+                  onClick={() => {
+                    stopCamera();
+                    setIsOcrModalOpen(false);
+                    setOcrPreviewImage(null);
+                    setOcrExtractedMath("");
+                  }}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase tracking-wider rounded-lg cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  disabled={!ocrExtractedMath || isOcrLoading}
+                  onClick={() => {
+                    stopCamera();
+                    setEquationInput(ocrExtractedMath);
+                    handleSolve(ocrExtractedMath);
+                    setIsOcrModalOpen(false);
+                    setOcrPreviewImage(null);
+                    setOcrExtractedMath("");
+                  }}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900 text-white text-xs font-black uppercase tracking-wider rounded-lg shadow-lg cursor-pointer flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  Insert & Solve
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -698,15 +885,15 @@ export default function App() {
                 className="hidden" 
               />
               <button 
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setIsOcrModalOpen(true)}
                 disabled={isOcrLoading}
-                title="Upload Photo (OCR)"
+                title="Math Image OCR Scanner"
                 className="bg-white/10 hover:bg-white/20 disabled:bg-white/5 text-white p-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center border-2 border-white/20"
               >
                 {isOcrLoading ? (
                   <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
                 ) : (
-                  <ImagePlus className="w-5 h-5" />
+                  <Scan className="w-5 h-5 text-blue-400" />
                 )}
               </button>
 
