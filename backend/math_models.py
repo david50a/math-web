@@ -83,18 +83,37 @@ def to_latex(node: Node, prec: int = 0) -> str:
     if isinstance(node, Var):
         return node.name
     if isinstance(node, Add):
-        res = f"{to_latex(node.left, 1)} + {to_latex(node.right, 1)}"
-        return f"({res})" if prec > 1 else res
+        # Handle subtraction formatting: A + (-1 * B) -> A - B
+        if isinstance(node.right, Mul) and isinstance(node.right.left, Const) and node.right.left.value < 0:
+            pos_const = Const(-node.right.left.value)
+            pos_right = node.right.right if pos_const.value == 1 else Mul(pos_const, node.right.right)
+            res = f"{to_latex(node.left, 1)} - {to_latex(pos_right, 1)}"
+            return f"({res})" if prec > 1 else res
+        elif isinstance(node.right, Const) and node.right.value < 0:
+            res = f"{to_latex(node.left, 1)} - {to_latex(Const(-node.right.value), 1)}"
+            return f"({res})" if prec > 1 else res
+        else:
+            res = f"{to_latex(node.left, 1)} + {to_latex(node.right, 1)}"
+            return f"({res})" if prec > 1 else res
     if isinstance(node, Mul):
+        # Handle fraction format A / B when right term is Pow(B, -1)
+        if isinstance(node.right, Pow) and node.right.exp == -1:
+            return rf"\frac{{{to_latex(node.left, 0)}}}{{{to_latex(node.right.base, 0)}}}"
+        # Handle -1 * X -> -X
+        if isinstance(node.left, Const) and node.left.value == -1:
+            r_str = to_latex(node.right, 2)
+            return f"-{r_str}"
         l_str = to_latex(node.left, 2)
         r_str = to_latex(node.right, 2)
-        # Omission of \cdot only if right side doesn't start with a digit or dot
-        if isinstance(node.left, Const) and not (r_str[0].isdigit() or r_str[0] == '.'):
+        # Omission of \cdot only if left is Const and right doesn't start with a digit, dot, or minus
+        if isinstance(node.left, Const) and r_str and not (r_str[0].isdigit() or r_str[0] in ['.', '-']):
             res = f"{l_str}{r_str}"
         else:
             res = rf"{l_str} \cdot {r_str}"
         return f"({res})" if prec > 2 else res
     if isinstance(node, Pow):
+        if node.exp == -1:
+            return rf"\frac{{1}}{{{to_latex(node.base, 0)}}}"
         base_str = to_latex(node.base, 3)
         return rf"{base_str}^{{{node.exp}}}"
     if isinstance(node, Sin):

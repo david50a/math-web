@@ -1,9 +1,33 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MessageSquare, Send, X, RefreshCw } from "lucide-react";
+import { KatexMath } from "./Whiteboard";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+function FormattedChatMessage({ content }: { content: string }) {
+  const regex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\(.*?\\\)|(?:\$[^$\n]+\$))/g;
+  const parts = content.split(regex);
+
+  return (
+    <div className="whitespace-pre-wrap leading-relaxed">
+      {parts.map((part, index) => {
+        if (!part) return null;
+        if (
+          part.startsWith("$$") ||
+          part.startsWith("\\[") ||
+          part.startsWith("\\(") ||
+          part.startsWith("$")
+        ) {
+          const isBlock = part.startsWith("$$") || part.startsWith("\\[");
+          return <KatexMath key={index} math={part} block={isBlock} />;
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </div>
+  );
 }
 
 interface AIChatProps {
@@ -120,7 +144,7 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
                       : "bg-white/5 border border-white/10 text-white/90 rounded-tl-none"
                       }`}
                   >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    <FormattedChatMessage content={msg.content} />
                   </div>
                 </div>
               ))

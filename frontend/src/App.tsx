@@ -853,6 +853,32 @@ export default function App() {
 
           {/* New equation entry prompt bar aligned with Bold Typography template */}
           <div className="mt-8 pt-6 border-t border-white/10" id="equation-entry-panel">
+            {/* Quick Math & LaTeX Symbols Toolbar */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400 font-mono mr-1">Insert Symbol:</span>
+              {[
+                { label: "∫ dx", insert: "integrate(x^2)" },
+                { label: "d/dx", insert: "derive(x^2 + sin(x))" },
+                { label: "x²", insert: "^2" },
+                { label: "√x", insert: "sqrt(x)" },
+                { label: "sin", insert: "sin(x)" },
+                { label: "cos", insert: "cos(x)" },
+                { label: "ln", insert: "ln(x)" },
+                { label: "exp", insert: "exp(x)" },
+                { label: "matrix", insert: "[[1, 2], [3, 4]]" },
+                { label: "det", insert: "det([[1, 2], [3, 4]])" },
+                { label: "eigen", insert: "eigen([[4, 2], [2, 3]])" }
+              ].map((sym, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setEquationInput((prev) => prev ? `${prev} ${sym.insert}` : sym.insert)}
+                  className="bg-white/5 hover:bg-blue-600/30 hover:border-blue-500/50 text-white/80 hover:text-white px-2 py-1 text-[10px] font-mono rounded border border-white/10 transition-colors cursor-pointer"
+                >
+                  {sym.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-1 relative">
                 <input 
@@ -871,7 +897,7 @@ export default function App() {
                 />
                 <button
                   onClick={() => setEquationInput("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white text-xs px-2 py-1 bg-white/10 rounded"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white text-xs px-2 py-1 bg-white/10 rounded cursor-pointer"
                 >
                   Clear
                 </button>
@@ -912,6 +938,16 @@ export default function App() {
               </button>
             </div>
             
+            {/* Live KaTeX Equation Preview Card */}
+            {equationInput.trim() && (
+              <div className="mt-3 px-4 py-2.5 bg-blue-950/20 border border-blue-500/30 rounded-lg flex items-center justify-between">
+                <span className="text-[10px] font-mono uppercase text-blue-400 font-bold tracking-wider">Live LaTeX Preview:</span>
+                <div className="text-sm font-medium text-white px-2 py-0.5 bg-black/40 rounded border border-white/5">
+                  <KatexMath math={equationInput} block={false} />
+                </div>
+              </div>
+            )}
+
             {/* Quick-select equations suggestions deck */}
             <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-white/50">
               <span className="font-bold uppercase tracking-wider text-[10px]">Ready Presets:</span>
@@ -922,7 +958,7 @@ export default function App() {
                     setEquationInput(preset.expr);
                     handleSolve(preset.expr);
                   }}
-                  className="bg-white/5 hover:bg-white/15 hover:text-white text-white/70 px-2.5 py-1 rounded font-mono border border-white/5 transition-all text-[11px]"
+                  className="bg-white/5 hover:bg-white/15 hover:text-white text-white/70 px-2.5 py-1 rounded font-mono border border-white/5 transition-all text-[11px] cursor-pointer"
                 >
                   {preset.name}
                 </button>

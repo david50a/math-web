@@ -2,28 +2,37 @@ import React, { useEffect, useRef } from "react";
 import { VideoScene, ThemeType } from "../types";
 import { Sparkles, Terminal, Cpu } from "lucide-react";
 
-export function KatexMath({ math, block = false }: { math: string; block?: boolean }) {
+export function KatexMath({ math = "", block = false }: { math?: string; block?: boolean; key?: React.Key }) {
   const containerRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    if (containerRef.current) {
-      try {
-        if ((window as any).katex) {
-          (window as any).katex.render(math, containerRef.current, {
-            displayMode: block,
-            throwOnError: false,
-          });
-        } else {
-          containerRef.current.textContent = math;
-        }
-      } catch (err) {
-        console.error(err);
-        containerRef.current.textContent = math;
+    if (!containerRef.current) return;
+    const cleanMath = (math || "").trim()
+      .replace(/^\\\[\s*/, "")
+      .replace(/\s*\\\]$/, "")
+      .replace(/^\\\(\s*/, "")
+      .replace(/\s*\\\)$/, "")
+      .replace(/^\$\$\s*/, "")
+      .replace(/\s*\$\$$/, "")
+      .replace(/^\$\s*/, "")
+      .replace(/\s*\$$/, "");
+
+    try {
+      if ((window as any).katex && cleanMath) {
+        (window as any).katex.render(cleanMath, containerRef.current, {
+          displayMode: block,
+          throwOnError: false,
+        });
+      } else {
+        containerRef.current.textContent = cleanMath || "";
       }
+    } catch (err) {
+      console.error("KaTeX rendering error:", err);
+      containerRef.current.textContent = cleanMath || "";
     }
   }, [math, block]);
 
-  return <span ref={containerRef} />;
+  return <span ref={containerRef} className="inline-block" />;
 }
 
 interface WhiteboardProps {
