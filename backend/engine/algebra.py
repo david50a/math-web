@@ -236,7 +236,7 @@ def get_linear_coeffs(node: Node) -> Tuple[float, float]:
         return 0.0, val
     return 0.0, 0.0
 
-def quadratic_equation_solver(equation: str):
+def quadratic_equation_solver(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     steps.append(MathStep("Rearrange terms to standard form ax^2 + bx + c = 0", f"{equation}", "equation"))
@@ -304,7 +304,77 @@ def quadratic_equation_solver(equation: str):
         steps.append(MathStep("Calculate the two real roots", rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
         return sol1, sol2, steps
 
-def cubic_equation_solver(equation: str):
+def completing_the_square(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
+    steps = []
+    steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
+    a, b, c = parse_quadratic(equation)
+    
+    if a == 0:
+        return quadratic_equation_solver(equation)
+        
+    a_str, b_str, c_str = fmt_num(a), fmt_num(b), fmt_num(c)
+    steps.append(MathStep(f"Identify polynomial coefficients: a = {a_str}, b = {b_str}, c = {c_str}", rf"a = {a_str}, \quad b = {b_str}, \quad c = {c_str}", "equation"))
+    steps.append(MathStep("Apply the completing the square method", r"x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}", "equation"))
+    
+    delta = b**2 - 4*a*c
+    delta_str = fmt_num(delta)
+    steps.append(MathStep("Calculate the discriminant D = b^2 - 4ac", rf"D = ({b_str})^2 - 4 \cdot ({a_str}) \cdot ({c_str}) = {delta_str}", "equation"))
+    
+    if delta < 0:
+        steps.append(MathStep("The discriminant is negative (D < 0), so there are no real solutions", r"\text{No real solutions } (D < 0)", "equation"))
+        return None, steps
+    elif delta == 0:
+        steps.append(MathStep("The discriminant is zero (D = 0), so there is exactly one real solution", r"x = \frac{-b}{2a}", "equation"))
+        sol = -b / (2*a)
+        sol_str = fmt_num(sol)
+        steps.append(MathStep("Substitute coefficients into formula", rf"x = \frac{{-({b_str})}}{{2 \cdot ({a_str})}} = {sol_str}", "equation"))
+        return sol, steps
+    else:
+        sqrt_delta = delta**0.5
+        sol1 = (-b + sqrt_delta) / (2*a)
+        sol2 = (-b - sqrt_delta) / (2*a)
+        sol1_str, sol2_str = fmt_num(sol1), fmt_num(sol2)
+        
+        steps.append(MathStep("Substitute discriminant and coefficients into formula", rf"x = \frac{{-({b_str}) \pm \sqrt{{{delta_str}}}}}{{2 \cdot ({a_str})}}", "equation"))
+        steps.append(MathStep("Calculate the two real roots", rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
+        return sol1, sol2, steps
+    
+def factoring_quadratic(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
+    steps = []
+    steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
+    a, b, c = parse_quadratic(equation)
+    
+    if a == 0:
+        return quadratic_equation_solver(equation)
+        
+    a_str, b_str, c_str = fmt_num(a), fmt_num(b), fmt_num(c)
+    steps.append(MathStep(f"Identify polynomial coefficients: a = {a_str}, b = {b_str}, c = {c_str}", rf"a = {a_str}, \quad b = {b_str}, \quad c = {c_str}", "equation"))
+    steps.append(MathStep("Apply the factoring method", r"x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}", "equation"))
+    
+    delta = b**2 - 4*a*c
+    delta_str = fmt_num(delta)
+    steps.append(MathStep("Calculate the discriminant D = b^2 - 4ac", rf"D = ({b_str})^2 - 4 \cdot ({a_str}) \cdot ({c_str}) = {delta_str}", "equation"))
+    
+    if delta < 0:
+        steps.append(MathStep("The discriminant is negative (D < 0), so there are no real solutions", r"\text{No real solutions } (D < 0)", "equation"))
+        return None, steps
+    elif delta == 0:
+        steps.append(MathStep("The discriminant is zero (D = 0), so there is exactly one real solution", r"x = \frac{-b}{2a}", "equation"))
+        sol = -b / (2*a)
+        sol_str = fmt_num(sol)
+        steps.append(MathStep("Substitute coefficients into formula", rf"x = \frac{{-({b_str})}}{{2 \cdot ({a_str})}} = {sol_str}", "equation"))
+        return sol, steps
+    else:
+        sqrt_delta = delta**0.5
+        sol1 = (-b + sqrt_delta) / (2*a)
+        sol2 = (-b - sqrt_delta) / (2*a)
+        sol1_str, sol2_str = fmt_num(sol1), fmt_num(sol2)
+        
+        steps.append(MathStep("Substitute discriminant and coefficients into formula", rf"x = \frac{{-({b_str}) \pm \sqrt{{{delta_str}}}}}{{2 \cdot ({a_str})}}", "equation"))
+        steps.append(MathStep("Calculate the two real roots", rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
+        return sol1, sol2, steps
+
+def cubic_equation_solver(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     a, b, c, d = parse_polynomial(equation)
@@ -354,7 +424,7 @@ def cubic_equation_solver(equation: str):
     steps.append(MathStep("Calculate real roots of cubic equation", latex_roots, "equation"))
     return sorted_roots, steps
 
-def rational_root_theorem_solver(equation: str):
+def rational_root_theorem_solver(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     a, b, c, d = parse_polynomial(equation)

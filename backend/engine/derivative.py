@@ -71,6 +71,55 @@ def derive(node: Node) -> Tuple[Node, List[MathStep]]:
 
     raise TypeError(f"Unknown node type: {type(node)}")
 
+def power_rule(node: Node)-> Tuple[Node, List[MathStep]]:
+    steps = []
+    steps.append(MathStep(f"Original Expression: {to_string(node)}", to_latex(node), "equation"))
+    steps.append(MathStep(f"Applying power rule", to_latex(node), "equation", data=node))
+    steps.append(MathStep(f"$$(x^n)'=nx^{{n-1}}$$", to_latex(node), "equation", data=node))
+    while isinstance(node.base, Node):
+        base_derive, base_steps = derive(node.base)
+        steps.extend(base_steps)
+        steps.append(MathStep(f"Where the derivative of the base is {to_string(node.base)}", to_latex(node.base), "equation", data=node.base))
+    
+    # Power Rule: (u^n)' = n * u^(n-1) * u'
+    res = Mul(Mul(Const(float(node.exp)), Pow(node.base, node.exp - 1)), base_derive)
+    simplified = simplify(res)
+    
+    steps.append(MathStep(f"Deriving {to_string(node)} with Power Rule", to_latex(simplified), "equation", data=node))
+    return simplified, steps
+    
+def product_rule(node: Node)-> Tuple[Node, List[MathStep]]:
+    
+    left_derive, left_steps = derive(node.left)
+    right_derive, right_steps = derive(node.right)
+    steps.extend(left_steps)
+    steps.extend(right_steps)
+    res = Add(Mul(left_derive, node.right), Mul(node.left, right_derive))
+    simplified = simplify(res)
+    steps.append(MathStep(f"Deriving {to_string(node)} with Product Rule", to_latex(simplified), "equation", data=node))
+    return simplified, steps
+    
+def chain_rule(node: Node)-> Tuple[Node, List[MathStep]]:
+    
+    inner_derive, inner_steps = derive(node.inner)
+    steps.extend(inner_steps)
+    res = Mul(Cos(node.inner), inner_derive)
+    simplified = simplify(res)
+    steps.append(MathStep(f"Deriving {to_string(node)} with Chain Rule", to_latex(simplified), "equation", data=node))
+    return simplified, steps
+
+def quotient_rule(node: Node)-> Tuple[Node, List[MathStep]]:
+    
+    left_derive, left_steps = derive(node.left)
+    right_derive, right_steps = derive(node.right)
+    steps.extend(left_steps)
+    steps.extend(right_steps)
+    res = Add(Mul(left_derive, node.right), Mul(node.left, right_derive))
+    simplified = simplify(res)
+    steps.append(MathStep(f"Deriving {to_string(node)} with Product Rule", to_latex(simplified), "equation", data=node))
+    return simplified, steps
+    
+
 if __name__ == "__main__":
     # Test derivative of x^2 + 3*x + sin(x)
     expr = Add(

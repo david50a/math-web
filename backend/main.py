@@ -219,14 +219,16 @@ from fastapi.responses import FileResponse
 
 @app.get("/api/media/{file_path:path}")
 async def get_media(file_path: str, authorization: Optional[str] = Header(None)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authentication token required to view media")
+    user = get_user_by_token(authorization) if authorization else None
+    
+    # 480p15 low-quality videos are free for guest users; higher qualities require authentication
+    if "480p15" not in file_path and not user:
+        raise HTTPException(status_code=401, detail="Authentication token required to view high quality media")
         
-    user = get_user_by_token(authorization)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid session token")
+    full_path = os.path.normpath(os.path.join(MEDIA_DIR, file_path))
+    if not full_path.startswith(os.path.normpath(MEDIA_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
         
-    full_path = os.path.join(MEDIA_DIR, file_path)
     if not os.path.exists(full_path) or not os.path.isfile(full_path):
         raise HTTPException(status_code=404, detail="Media not found")
         

@@ -1,12 +1,23 @@
+import sys
+import os
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENGINE_DIR = os.path.join(BASE_DIR, "engine")
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+if ENGINE_DIR not in sys.path:
+    sys.path.append(ENGINE_DIR)
+
 from manim import *
 import linear_algebra_solver as solvers
 import derivative
 import integral
+import stats_engine
+import geometry
+import eigenvalues_and_eigenvector as eigen
 import re
 import math
-import os
 import ast
-from math_models import MathStep, Node, Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln
+from math_models import MathStep, Node, Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_latex as ml_to_latex
 from typing import List
 import textwrap
 import numpy as np
@@ -502,11 +513,6 @@ class UniversalMathAnimation(Scene):
 
         elif problem_type == "statistics":
             try:
-                import sys
-                import os
-                sys.path.append(os.path.join(os.path.dirname(__file__), 'engine'))
-                import stats_engine
-                
                 lower_input = input_str.lower()
                 if "inter_quarterly_range" in lower_input:
                     data_str = re.search(r'inter_quarterly_range\((.*)\)', input_str, re.I).group(1)
