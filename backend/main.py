@@ -609,7 +609,6 @@ async def solve_api(request: SolveRequest, authorization: Optional[str] = Header
             equation_type = "Algebra"
             solution, steps = solve_algebra(input_str)
         elif input_str.lower().startswith('integrate'):
-
             equation_type = "Calculus"
             expr_content = re.search(r'integrate\((.*)\)', input_str, re.I)
             if not expr_content:
@@ -617,9 +616,25 @@ async def solve_api(request: SolveRequest, authorization: Optional[str] = Header
             else:
                 expr_content = expr_content.group(1)
             
-            node = parse_expr(expr_content)
-            result_node, steps = integral.integrate_node(node)
-            solution = to_string(result_node) + " + C"
+            # Check for definite integral format: expr, a, b [, method]
+            parts = [p.strip() for p in expr_content.split(',')]
+            if len(parts) >= 3:
+                expr_str, a_str, b_str = parts[0], parts[1], parts[2]
+                method_str = parts[3] if len(parts) >= 4 else "simpson"
+                try:
+                    a_val = float(a_str)
+                    b_val = float(b_str)
+                    node = parse_expr(expr_str)
+                    num_val, steps = integral.integrate_numerical(node, a_val, b_val, n=100, method=method_str)
+                    solution = f"{num_val:.6f}"
+                except Exception:
+                    node = parse_expr(expr_content)
+                    result_node, steps = integral.integrate_node(node)
+                    solution = to_string(result_node) + " + C"
+            else:
+                node = parse_expr(expr_content)
+                result_node, steps = integral.integrate_node(node)
+                solution = to_string(result_node) + " + C"
             
         elif input_str.lower().startswith('derive'):
             equation_type = "Calculus"
@@ -683,20 +698,52 @@ async def solve_api(request: SolveRequest, authorization: Optional[str] = Header
             equation, steps = eigen.eigenvalue(matrix)
             solution = to_string(equation)
             
-        elif 'det' in input_str.lower() or '[' in input_str:
+        elif 'det' in input_str.lower() or 'inv' in input_str.lower() or 'cramer' in input_str.lower() or 'cremer' in input_str.lower() or 'solve' in input_str.lower() or '[' in input_str:
             equation_type = "Linear Algebra"
-            matrix_match = re.search(r'\[.*\]', input_str)
-            if not matrix_match:
-                raise ValueError("No matrix found in input")
+            matrices = re.findall(r'\[\[.*?\]\]|\[.*?\]', input_str)
+            if not matrices:
+                raise ValueError("No matrix found in input. Example format: [[2, 3, 8], [1, -1, -1]]")
             
-            matrix = ast.literal_eval(matrix_match.group(0))
-            if 'det' in input_str.lower():
+            parsed_matrices = [ast.literal_eval(m) for m in matrices]
+            
+            lower_str = input_str.lower()
+            if 'cramer' in lower_str or 'cremer' in lower_str:
+                if len(parsed_matrices) >= 2:
+                    A, b = parsed_matrices[0], parsed_matrices[1]
+                else:
+                    matrix = parsed_matrices[0]
+                    A = [row[:-1] for row in matrix]
+                    b = [row[-1] for row in matrix]
+                x_sol, m_steps = solvers.cremer(A, b)
+                sol_str = ", ".join([f"x_{idx+1} = {val:.4g}" for idx, val in enumerate(x_sol)])
+                solution = sol_str
+                steps = m_steps
+            elif 'inv' in lower_str:
+                matrix = parsed_matrices[0]
+                inv_mat, m_steps = solvers.inverse(matrix)
+                solution = solvers.matrix_to_latex(inv_mat)
+                steps = m_steps
+            elif 'det' in lower_str:
+                matrix = parsed_matrices[0]
                 val, m_steps = solvers.determinant(matrix)
-                solution = str(val)
+                solution = f"det(A) = {val:.4g}"
+                steps = m_steps
+            elif 'solve' in lower_str and len(parsed_matrices) >= 2:
+                A, b = parsed_matrices[0], parsed_matrices[1]
+                x_sol, m_steps = solvers.solve_linear_system(A, b)
+                sol_str = ", ".join([f"x_{idx+1} = {val:.4g}" for idx, val in enumerate(x_sol)])
+                solution = sol_str
                 steps = m_steps
             else:
+                matrix = parsed_matrices[0]
                 val, m_steps = solvers.reduced_row_echelon(matrix)
-                solution = "RREF complete"
+                # If augmented matrix (cols == rows + 1), format solution nicely
+                if len(matrix) > 0 and len(matrix[0]) == len(matrix) + 1:
+                    sol_vals = [val[r][-1] for r in range(len(matrix))]
+                    sol_str = ", ".join([f"x_{idx+1} = {val_v:.4g}" for idx, val_v in enumerate(sol_vals)])
+                    solution = sol_str
+                else:
+                    solution = "RREF complete"
                 steps = m_steps
         else:
             equation_type = "Calculus"

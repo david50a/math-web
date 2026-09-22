@@ -34,7 +34,7 @@ class Mul(Node):
 @dataclass
 class Pow(Node):
     base: Node
-    exp: int
+    exp: Union[int, float]
 
 @dataclass
 class Sin(Node):
@@ -45,6 +45,14 @@ class Cos(Node):
     inner: Node
 
 @dataclass
+class Tan(Node):
+    inner: Node
+
+@dataclass
+class Sec(Node):
+    inner: Node
+
+@dataclass
 class Exp(Node):
     inner: Node
 
@@ -52,9 +60,20 @@ class Exp(Node):
 class Ln(Node):
     inner: Node
 
+@dataclass
+class Arcsin(Node):
+    inner: Node
+
+@dataclass
+class Arctan(Node):
+    inner: Node
+
 def to_string(node: Node) -> str:
     if isinstance(node, Const):
-        return str(node.value)
+        val = node.value
+        if abs(val - int(val)) < 1e-9:
+            return str(int(val))
+        return f"{val:.2f}"
     if isinstance(node, Var):
         return node.name
     if isinstance(node, Add):
@@ -62,15 +81,26 @@ def to_string(node: Node) -> str:
     if isinstance(node, Mul):
         return f"({to_string(node.left)} * {to_string(node.right)})"
     if isinstance(node, Pow):
-        return f"({to_string(node.base)}^{node.exp})"
+        exp_val = node.exp
+        if isinstance(exp_val, float) and abs(exp_val - int(exp_val)) < 1e-9:
+            exp_val = int(exp_val)
+        return f"({to_string(node.base)}^{exp_val})"
     if isinstance(node, Sin):
         return f"sin({to_string(node.inner)})"
     if isinstance(node, Cos):
         return f"cos({to_string(node.inner)})"
+    if isinstance(node, Tan):
+        return f"tan({to_string(node.inner)})"
+    if isinstance(node, Sec):
+        return f"sec({to_string(node.inner)})"
     if isinstance(node, Exp):
         return f"e^({to_string(node.inner)})"
     if isinstance(node, Ln):
         return f"ln({to_string(node.inner)})"
+    if isinstance(node, Arcsin):
+        return f"arcsin({to_string(node.inner)})"
+    if isinstance(node, Arctan):
+        return f"arctan({to_string(node.inner)})"
     raise TypeError(f"Unknown node type: {type(node)}")
 
 def to_latex(node: Node, prec: int = 0) -> str:
@@ -114,16 +144,27 @@ def to_latex(node: Node, prec: int = 0) -> str:
     if isinstance(node, Pow):
         if node.exp == -1:
             return rf"\frac{{1}}{{{to_latex(node.base, 0)}}}"
+        exp_val = node.exp
+        if isinstance(exp_val, float) and abs(exp_val - int(exp_val)) < 1e-9:
+            exp_val = int(exp_val)
         base_str = to_latex(node.base, 3)
-        return rf"{base_str}^{{{node.exp}}}"
+        return rf"{base_str}^{{{exp_val}}}"
     if isinstance(node, Sin):
         return rf"\sin\left({to_latex(node.inner, 0)}\right)"
     if isinstance(node, Cos):
         return rf"\cos\left({to_latex(node.inner, 0)}\right)"
+    if isinstance(node, Tan):
+        return rf"\tan\left({to_latex(node.inner, 0)}\right)"
+    if isinstance(node, Sec):
+        return rf"\sec\left({to_latex(node.inner, 0)}\right)"
     if isinstance(node, Exp):
         return rf"e^{{{to_latex(node.inner, 0)}}}"
     if isinstance(node, Ln):
         return rf"\ln\left({to_latex(node.inner, 0)}\right)"
+    if isinstance(node, Arcsin):
+        return rf"\arcsin\left({to_latex(node.inner, 0)}\right)"
+    if isinstance(node, Arctan):
+        return rf"\arctan\left({to_latex(node.inner, 0)}\right)"
     raise TypeError(f"Unknown node type: {type(node)}")
 
 def simplify(node: Node) -> Node:
@@ -150,8 +191,12 @@ def simplify(node: Node) -> Node:
         return Pow(b, node.exp)
     if isinstance(node, Sin): return Sin(simplify(node.inner))
     if isinstance(node, Cos): return Cos(simplify(node.inner))
+    if isinstance(node, Tan): return Tan(simplify(node.inner))
+    if isinstance(node, Sec): return Sec(simplify(node.inner))
     if isinstance(node, Exp): return Exp(simplify(node.inner))
     if isinstance(node, Ln): return Ln(simplify(node.inner))
+    if isinstance(node, Arcsin): return Arcsin(simplify(node.inner))
+    if isinstance(node, Arctan): return Arctan(simplify(node.inner))
     return node
 
 def parse_expr(expr_str: str):
@@ -162,9 +207,13 @@ def parse_expr(expr_str: str):
     expr_str = expr_str.replace(')(', ')*(')
     expr_str = re.sub(r'(\d)\(', r'\1*(', expr_str)
     expr_str = re.sub(r'\bx\(', r'x*(', expr_str)
+
+    # Convert e^(...) or e^x -> exp(...)
+    expr_str = re.sub(r'\be\^\((.*?)\)', r'exp(\1)', expr_str)
+    expr_str = re.sub(r'\be\^([a-zA-Z0-9_]+)', r'exp(\1)', expr_str)
     
-    # Convert function syntax without parentheses: sin x -> sin(x), cos x -> cos(x), ln x -> ln(x), exp x -> exp(x)
-    for func in ['sin', 'cos', 'ln', 'exp']:
+    # Convert function syntax without parentheses
+    for func in ['sin', 'cos', 'tan', 'sec', 'ln', 'exp', 'arcsin', 'arctan', 'sqrt']:
         expr_str = re.sub(rf'\b{func}\s+([a-zA-Z0-9_]+)', rf'{func}(\1)', expr_str, flags=re.IGNORECASE)
         
     expr_str = expr_str.replace('^', '**')
@@ -177,6 +226,8 @@ def parse_expr(expr_str: str):
         if isinstance(node, ast.Expression):
             return transform(node.body)
         if isinstance(node, ast.BinOp):
+            if isinstance(node.op, ast.Pow) and isinstance(node.left, ast.Name) and node.left.id == 'e':
+                return Exp(transform(node.right))
             left = transform(node.left)
             right = transform(node.right)
             if isinstance(node.op, ast.Add):
@@ -189,7 +240,7 @@ def parse_expr(expr_str: str):
                 return Mul(left, Pow(right, -1))
             if isinstance(node.op, ast.Pow):
                 if isinstance(right, Const):
-                    return Pow(left, int(right.value))
+                    return Pow(left, right.value)
                 raise ValueError("Exponent must be constant")
         if isinstance(node, (ast.Num, ast.Constant)):
             val = node.n if hasattr(node, 'n') else node.value
@@ -197,18 +248,26 @@ def parse_expr(expr_str: str):
         if isinstance(node, ast.Name):
             if node.id == 'x':
                 return Var('x')
+            if node.id == 'e':
+                return Exp(Var())
             raise ValueError(f"Unknown variable: {node.id}")
         if isinstance(node, ast.Call):
             func = node.func.id.lower()
             arg = transform(node.args[0])
             if func == 'sin': return Sin(arg)
             if func == 'cos': return Cos(arg)
+            if func == 'tan': return Tan(arg)
+            if func == 'sec': return Sec(arg)
             if func == 'exp': return Exp(arg)
             if func == 'ln': return Ln(arg)
+            if func == 'arcsin': return Arcsin(arg)
+            if func == 'arctan': return Arctan(arg)
+            if func == 'sqrt': return Pow(arg, 0.5)
         if isinstance(node, ast.UnaryOp):
             if isinstance(node.op, ast.USub):
                 return Mul(Const(-1.0), transform(node.operand))
         raise ValueError(f"Unsupported node type: {type(node)}")
 
     return transform(tree)
+
         

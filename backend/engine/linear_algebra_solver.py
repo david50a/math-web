@@ -282,18 +282,21 @@ def cremer(A, b):
     Solve Ax = b using Cramer's Rule.
     Returns (x, steps).
     """
+    steps = []
     n = len(A)
-    det_A = determinant(A)
+    det_A, steps = determinant(A)
     if abs(det_A) < 1e-9:
         raise ValueError("Matrix is singular - no unique solution")
-    steps = []
-    steps.append(Step(_copy(A), "Build augmented matrix [A | b] for Cramer's Rule"))
+    x = [0.0] * n
+    steps.append(Step(_copy(A), f"Determinant of A: det(A) = {det_A:.4g}"))
     for i in range(n):
         A_i = [row[:] for row in A]
-        A_i[i] = b[:]  # Replace column i with b
-        det_A_i = determinant(A_i)
+        for r in range(n):
+            A_i[r][i] = b[r]  # Replace column i with b
+        det_A_i, _ = determinant(A_i)
         x_i = det_A_i / det_A
-        steps.append(Step(_copy(A), f"x[{i+1}] = det(A_i) / det(A) = {det_A_i:.4g} / {det_A:.4g} = {x_i:.6g}"))
+        x[i] = x_i
+        steps.append(Step(_copy(A_i), f"x[{i+1}] = det(A_{i+1}) / det(A) = {det_A_i:.4g} / {det_A:.4g} = {x_i:.6g}"))
     steps.append(Step([], f"Solution: x = {[round(v, 6) for v in x]}"))
     return x, steps
 
