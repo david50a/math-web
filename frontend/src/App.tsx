@@ -1089,8 +1089,8 @@ export default function App() {
                   onClick={toggleMainVoice}
                   title={isRecordingMainInput ? "Stop Dictation" : "Dictate Equation (Voice Input)"}
                   className={`p-3.5 transition-all cursor-pointer rounded-sm flex items-center justify-center border-2 ${isRecordingMainInput
-                      ? "bg-red-500/30 border-red-500 text-red-400 animate-pulse"
-                      : "bg-white/10 hover:bg-white/20 text-blue-400 border-white/20"
+                    ? "bg-red-500/30 border-red-500 text-red-400 animate-pulse"
+                    : "bg-white/10 hover:bg-white/20 text-blue-400 border-white/20"
                     }`}
                 >
                   {isRecordingMainInput ? (

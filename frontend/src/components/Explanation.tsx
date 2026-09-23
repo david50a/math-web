@@ -21,9 +21,8 @@ import {
   Columns
 } from "lucide-react";
 import { KatexMath } from "./Whiteboard";
-import { ThemeType } from "../types";
+import { EquationSolution, ThemeType } from "../types";
 import VoiceAssistant from "./VoiceAssistant";
-import { createSpeechRecognition, parseSpokenMath } from "../utils/speechUtils";
 
 
 export interface MethodSolution {
@@ -977,9 +976,13 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0);
   const [activeMethodIndex, setActiveMethodIndex] = useState<number>(0);
+  const [userToken, setUserToken] = useState<string | null>(localStorage.getItem("math_token"));
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [historyList, setHistoryList] = useState<Array<{ equation: string, type: string, completed: boolean, date: string }>>
   const [loading, setLoading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [solution, setSolution] = useState<EquationSolution | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<"single" | "sideBySide">("single");
   const [customWriterInput, setCustomWriterInput] = useState<string>(initialEquation || 'x^2+2x=15');
@@ -1272,7 +1275,7 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                 onChange={(e) => setCustomWriterInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    handleAnalyzeCustomEquation(customWriterInput);
+                    solve(customWriterInput);
                   }
                 }}
                 placeholder="Write equation here (e.g. x^2 - 5x + 6 = 0, integrate(x*e^x), derive(x*sin(x)), det([[1,2],[3,4]]))..."
@@ -1289,7 +1292,7 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
             </div>
 
             <button
-              onClick={() => handleAnalyzeCustomEquation(customWriterInput)}
+              onClick={() => solve(customWriterInput)}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all transform active:scale-95 shrink-0"
             >
               <Sparkles className="w-4 h-4" />
