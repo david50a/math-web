@@ -18,14 +18,13 @@ import {
   ListFilter,
   Type,
   Edit3,
-  Columns,
-  Mic,
-  MicOff,
-  Volume2
+  Columns
 } from "lucide-react";
 import { KatexMath } from "./Whiteboard";
 import { ThemeType } from "../types";
+import VoiceAssistant from "./VoiceAssistant";
 import { createSpeechRecognition, parseSpokenMath } from "../utils/speechUtils";
+
 
 export interface MethodSolution {
   methodId: string;
@@ -979,62 +978,13 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
   const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0);
   const [activeMethodIndex, setActiveMethodIndex] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [statusMessage, setStatusMessage] = useState<string>("");
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<"single" | "sideBySide">("single");
   const [customWriterInput, setCustomWriterInput] = useState<string>(initialEquation || 'x^2+2x=15');
-  const [isRecordingWriter, setIsRecordingWriter] = useState<boolean>(false);
-  const writerRecognitionRef = useRef<any>(null);
-  const writerInputRef = useRef<HTMLInputElement>(null);
+  const writerInputRef = useRef<HTMLTextAreaElement>(null);
   const categories = ["All", "Algebra & Equations", "Calculus & Integrals", "Derivatives", "Linear Algebra", "Statistics", "Geometry"];
-
-  // Initialize Speech Recognition for Writer
-  const toggleWriterVoice = () => {
-    if (isRecordingWriter) {
-      if (writerRecognitionRef.current) {
-        writerRecognitionRef.current.stop();
-      }
-      setIsRecordingWriter(false);
-      return;
-    }
-
-    const recognition = createSpeechRecognition();
-    if (!recognition) {
-      alert("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
-      return;
-    }
-
-    recognition.onstart = () => {
-      setIsRecordingWriter(true);
-    };
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        finalTranscript += event.results[i][0].transcript;
-      }
-      if (finalTranscript) {
-        const parsed = parseSpokenMath(finalTranscript);
-        setCustomWriterInput(parsed);
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.warn("Writer speech recognition error:", event.error);
-      setIsRecordingWriter(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecordingWriter(false);
-    };
-
-    writerRecognitionRef.current = recognition;
-    try {
-      recognition.start();
-    } catch (e) {
-      console.warn("Failed to start speech recognition:", e);
-      setIsRecordingWriter(false);
-    }
-  };
-
   useEffect(() => {
     if (initialEquation) {
       setCustomWriterInput(initialEquation);
@@ -1049,6 +999,53 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
     });
     if (writerInputRef.current) { writerInputRef.current.focus() }
   };
+  const solve = async (equation: string) => {
+    if (!equation || !equation.trim()) return;
+    setLoading(true);
+    setStatusMessage("Solving equation... please wait...");
+    stopSpeech();
+    setIsPlaying(false);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (userToken) {
+        headers["Authorization"] = `Bearer ${userToken}`;
+      }
+      const res = await fetch("/api/solve-equation", { method: "POST", headers, body: JSON.stringify({ equation: equation }) });
+      if (res.status === 403) {
+        const errData = await res.json().catch(() => ({}));
+        setIsPaymentModalOpen(true);
+        throw new Error(errData.detail || "You have reached the free solve limit. Please upgrade to Pro.");
+      }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Mathematical parsing service returned an error status.");
+      }
+      const data = await res.json();
+      setSolution(data);
+      setActiveQuestionIndex(0);
+      setViewMode("sideBySide");
+
+      const filtered = historyList.filter((item) => item.equation.toLowerCase() !== equation.toLowerCase().trim());
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      setHistoryList([
+        { equation: equation, type: data.equationType || "Parsed Equation", completed: true, date: timeStr },
+        ...filtered.slice(0, 5)
+      ]);
+    } catch (e: any) { setStatusMessage(e.message); }
+    finally { setLoading(false); }
+  };
+
+  const stopSpeech = () => {
+    try {
+      if (typeof window !== 'undefined' && window.speechSynthesis) { window.speechSynthesis.cancel(); }
+    } catch (e) { }
+  };
+
+
   const handleAnalyzeCustomEquation = (rawInput: string) => {
     const input = rawInput.trim();
     if (!input) return;
@@ -1279,45 +1276,16 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                   }
                 }}
                 placeholder="Write equation here (e.g. x^2 - 5x + 6 = 0, integrate(x*e^x), derive(x*sin(x)), det([[1,2],[3,4]]))..."
-                className={`w-full bg-white/5 border rounded-xl pl-4 pr-24 py-3 text-sm font-mono text-blue-300 placeholder-white/40 focus:outline-none transition-all shadow-inner ${
-                  isRecordingWriter ? "border-red-500 ring-2 ring-red-500/20" : "border-white/20 focus:border-blue-500"
-                }`}
+                className="w-full bg-white/5 border border-white/20 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-mono text-blue-300 placeholder-white/40 focus:outline-none transition-all shadow-inner"
               />
-              <div className="absolute right-2.5 top-2 flex items-center gap-1.5">
-                {/* Voice Dictation Button */}
+              {customWriterInput && (
                 <button
-                  type="button"
-                  onClick={toggleWriterVoice}
-                  className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                    isRecordingWriter
-                      ? "bg-red-500/30 text-red-300 border border-red-500 animate-pulse"
-                      : "bg-white/10 hover:bg-blue-600/30 text-white/70 hover:text-white border border-white/10 hover:border-blue-500/40"
-                  }`}
-                  title={isRecordingWriter ? "Stop Dictation" : "Dictate Equation (Voice Input)"}
+                  onClick={() => setCustomWriterInput("")}
+                  className="absolute right-3 top-3 text-white/40 hover:text-white text-xs font-mono px-1.5 py-0.5 rounded bg-white/5 cursor-pointer"
                 >
-                  {isRecordingWriter ? (
-                    <>
-                      <MicOff className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                      <span className="text-[10px]">Listening...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-3.5 h-3.5 text-blue-400" />
-                      <span className="text-[10px]">Speak</span>
-                    </>
-                  )}
+                  Clear [×]
                 </button>
-
-                {customWriterInput && (
-                  <button
-                    onClick={() => setCustomWriterInput("")}
-                    className="text-white/40 hover:text-white text-xs font-mono px-1.5 py-1 rounded bg-white/5 cursor-pointer"
-                    title="Clear input"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
+              )}
             </div>
 
             <button

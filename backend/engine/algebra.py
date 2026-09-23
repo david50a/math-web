@@ -236,7 +236,29 @@ def get_linear_coeffs(node: Node) -> Tuple[float, float]:
         return 0.0, val
     return 0.0, 0.0
 
-def quadratic_equation_solver(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
+def parse_quadratic(equation: str) -> Tuple[Union[int, float], Union[int, float], Union[int, float]]:
+    """Extract (a, b, c) quadratic coefficients."""
+    _, a, b, c = parse_polynomial(equation)
+    return a, b, c
+
+def format_complex_latex(re_part: float, im_part: float) -> str:
+    """Format a complex number (re_part + im_part*i) cleanly in LaTeX."""
+    re_clean = 0.0 if abs(re_part) < 1e-9 else (int(round(re_part)) if abs(re_part - round(re_part)) < 1e-9 else round(re_part, 4))
+    im_clean = 0.0 if abs(im_part) < 1e-9 else (int(round(im_part)) if abs(im_part - round(im_part)) < 1e-9 else round(im_part, 4))
+    
+    if im_clean == 0:
+        return fmt_num(re_clean)
+    
+    im_abs = abs(im_clean)
+    im_str = "i" if abs(im_abs - 1.0) < 1e-9 else f"{fmt_num(im_abs)}i"
+    
+    if re_clean == 0:
+        return im_str if im_clean > 0 else f"-{im_str}"
+    
+    sign = "+" if im_clean > 0 else "-"
+    return f"{fmt_num(re_clean)} {sign} {im_str}"
+
+def quadratic_equation_solver(equation: str, allow_complex: bool = True)-> Tuple[Union[float, complex, Tuple, List], List[MathStep]]:
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     steps.append(MathStep("Rearrange terms to standard form ax^2 + bx + c = 0", f"{equation}", "equation"))
@@ -286,8 +308,24 @@ def quadratic_equation_solver(equation: str)-> Tuple[Union[float, Tuple, List], 
     steps.append(MathStep("Calculate the discriminant D = b^2 - 4ac", rf"D = ({b_str})^2 - 4 \cdot ({a_str}) \cdot ({c_str}) = {delta_str}", "equation"))
     
     if delta < 0:
-        steps.append(MathStep("The discriminant is negative (D < 0), so there are no real solutions", r"\text{No real solutions } (D < 0)", "equation"))
-        return None, steps
+        if allow_complex:
+            re_part = -b / (2 * a)
+            im_part = math.sqrt(-delta) / (2 * abs(a))
+            sol1_str = format_complex_latex(re_part, im_part)
+            sol2_str = format_complex_latex(re_part, -im_part)
+            sqrt_abs_delta = math.sqrt(-delta)
+            sqrt_delta_str = "i" if abs(sqrt_abs_delta - 1.0) < 1e-9 else f"{fmt_num(sqrt_abs_delta)}i"
+            
+            steps.append(MathStep("The discriminant is negative (D < 0), yielding complex conjugate solutions",
+                                  rf"D = {delta_str} < 0 \implies \sqrt{{D}} = \sqrt{{{delta_str}}} = {sqrt_delta_str}", "equation"))
+            steps.append(MathStep("Substitute coefficients into quadratic formula",
+                                  rf"x = \frac{{-({b_str}) \pm {sqrt_delta_str}}}{{2 \cdot ({a_str})}}", "equation"))
+            steps.append(MathStep("Calculate the two complex roots",
+                                  rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
+            return complex(re_part, im_part), complex(re_part, -im_part), steps
+        else:
+            steps.append(MathStep("The discriminant is negative (D < 0), so there are no real solutions", r"\text{No real solutions } (D < 0)", "equation"))
+            return None, steps
     elif delta == 0:
         steps.append(MathStep("The discriminant is zero (D = 0), so there is exactly one real solution", r"x = \frac{-b}{2a}", "equation"))
         sol = -b / (2*a)
@@ -304,13 +342,13 @@ def quadratic_equation_solver(equation: str)-> Tuple[Union[float, Tuple, List], 
         steps.append(MathStep("Calculate the two real roots", rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
         return sol1, sol2, steps
 
-def completing_the_square(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
+def completing_the_square(equation: str, allow_complex: bool = True)-> Tuple[Union[float, complex, Tuple, List], List[MathStep]]:
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     a, b, c = parse_quadratic(equation)
     
     if a == 0:
-        return quadratic_equation_solver(equation)
+        return quadratic_equation_solver(equation, allow_complex=allow_complex)
         
     a_str, b_str, c_str = fmt_num(a), fmt_num(b), fmt_num(c)
     steps.append(MathStep(f"Identify polynomial coefficients: a = {a_str}, b = {b_str}, c = {c_str}", rf"a = {a_str}, \quad b = {b_str}, \quad c = {c_str}", "equation"))
@@ -321,8 +359,22 @@ def completing_the_square(equation: str)-> Tuple[Union[float, Tuple, List], List
     steps.append(MathStep("Calculate the discriminant D = b^2 - 4ac", rf"D = ({b_str})^2 - 4 \cdot ({a_str}) \cdot ({c_str}) = {delta_str}", "equation"))
     
     if delta < 0:
-        steps.append(MathStep("The discriminant is negative (D < 0), so there are no real solutions", r"\text{No real solutions } (D < 0)", "equation"))
-        return None, steps
+        if allow_complex:
+            re_part = -b / (2 * a)
+            im_part = math.sqrt(-delta) / (2 * abs(a))
+            sol1_str = format_complex_latex(re_part, im_part)
+            sol2_str = format_complex_latex(re_part, -im_part)
+            h = -b / (2 * a)
+            steps.append(MathStep("Write in completed square form with imaginary unit i",
+                                  rf"\left(x - ({fmt_num(h)})\right)^2 = \frac{{{delta_str}}}{{4 \cdot ({a_str})^2}}", "equation"))
+            steps.append(MathStep("Take square root on both sides",
+                                  rf"x - ({fmt_num(h)}) = \pm {fmt_num(im_part)}i", "equation"))
+            steps.append(MathStep("Calculate the two complex roots",
+                                  rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
+            return complex(re_part, im_part), complex(re_part, -im_part), steps
+        else:
+            steps.append(MathStep("The discriminant is negative (D < 0), so there are no real solutions", r"\text{No real solutions } (D < 0)", "equation"))
+            return None, steps
     elif delta == 0:
         steps.append(MathStep("The discriminant is zero (D = 0), so there is exactly one real solution", r"x = \frac{-b}{2a}", "equation"))
         sol = -b / (2*a)
@@ -339,13 +391,13 @@ def completing_the_square(equation: str)-> Tuple[Union[float, Tuple, List], List
         steps.append(MathStep("Calculate the two real roots", rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
         return sol1, sol2, steps
     
-def factoring_quadratic(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
+def factoring_quadratic(equation: str, allow_complex: bool = True)-> Tuple[Union[float, complex, Tuple, List], List[MathStep]]:
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     a, b, c = parse_quadratic(equation)
     
     if a == 0:
-        return quadratic_equation_solver(equation)
+        return quadratic_equation_solver(equation, allow_complex=allow_complex)
         
     a_str, b_str, c_str = fmt_num(a), fmt_num(b), fmt_num(c)
     steps.append(MathStep(f"Identify polynomial coefficients: a = {a_str}, b = {b_str}, c = {c_str}", rf"a = {a_str}, \quad b = {b_str}, \quad c = {c_str}", "equation"))
@@ -356,8 +408,19 @@ def factoring_quadratic(equation: str)-> Tuple[Union[float, Tuple, List], List[M
     steps.append(MathStep("Calculate the discriminant D = b^2 - 4ac", rf"D = ({b_str})^2 - 4 \cdot ({a_str}) \cdot ({c_str}) = {delta_str}", "equation"))
     
     if delta < 0:
-        steps.append(MathStep("The discriminant is negative (D < 0), so there are no real solutions", r"\text{No real solutions } (D < 0)", "equation"))
-        return None, steps
+        if allow_complex:
+            re_part = -b / (2 * a)
+            im_part = math.sqrt(-delta) / (2 * abs(a))
+            sol1_str = format_complex_latex(re_part, im_part)
+            sol2_str = format_complex_latex(re_part, -im_part)
+            steps.append(MathStep("Factor equation over the complex field C",
+                                  rf"{a_str}\left(x - ({sol1_str})\right)\left(x - ({sol2_str})\right) = 0", "equation"))
+            steps.append(MathStep("Calculate the two complex roots",
+                                  rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
+            return complex(re_part, im_part), complex(re_part, -im_part), steps
+        else:
+            steps.append(MathStep("The discriminant is negative (D < 0), so there are no real solutions", r"\text{No real solutions } (D < 0)", "equation"))
+            return None, steps
     elif delta == 0:
         steps.append(MathStep("The discriminant is zero (D = 0), so there is exactly one real solution", r"x = \frac{-b}{2a}", "equation"))
         sol = -b / (2*a)
@@ -374,13 +437,13 @@ def factoring_quadratic(equation: str)-> Tuple[Union[float, Tuple, List], List[M
         steps.append(MathStep("Calculate the two real roots", rf"x_1 = {sol1_str}, \quad x_2 = {sol2_str}", "equation"))
         return sol1, sol2, steps
 
-def cubic_equation_solver(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
+def cubic_equation_solver(equation: str, allow_complex: bool = True)-> Tuple[Union[float, complex, Tuple, List], List[MathStep]]:
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     a, b, c, d = parse_polynomial(equation)
     
     if a == 0:
-        return quadratic_equation_solver(equation)
+        return quadratic_equation_solver(equation, allow_complex=allow_complex)
         
     a_str, b_str, c_str, d_str = fmt_num(a), fmt_num(b), fmt_num(c), fmt_num(d)
     steps.append(MathStep(f"Identify polynomial coefficients: a = {a_str}, b = {b_str}, c = {c_str}, d = {d_str}",
@@ -408,7 +471,19 @@ def cubic_equation_solver(equation: str)-> Tuple[Union[float, Tuple, List], List
         u = math.copysign(abs(u_val)**(1/3), u_val)
         v = math.copysign(abs(v_val)**(1/3), v_val)
         t1 = u + v
-        roots = [t1 - b / (3*a)]
+        shift = -b / (3*a)
+        real_root = round(t1 + shift, 6)
+        
+        if allow_complex:
+            re_c = -(u + v) / 2 + shift
+            im_c = (math.sqrt(3) / 2) * abs(u - v)
+            if abs(im_c) > 1e-9:
+                c1_str = format_complex_latex(re_c, im_c)
+                c2_str = format_complex_latex(re_c, -im_c)
+                steps.append(MathStep("Cardano's method: 1 real root and 2 complex conjugate roots (discriminant > 0)",
+                                      rf"x_1 = {fmt_num(real_root)}, \quad x_2 = {c1_str}, \quad x_3 = {c2_str}", "equation"))
+                return [real_root, complex(re_c, im_c), complex(re_c, -im_c)], steps
+        roots = [real_root]
     else:
         r = math.sqrt(-(p/3)**3)
         phi = math.acos(max(-1.0, min(1.0, -q / (2 * r))))
@@ -424,7 +499,7 @@ def cubic_equation_solver(equation: str)-> Tuple[Union[float, Tuple, List], List
     steps.append(MathStep("Calculate real roots of cubic equation", latex_roots, "equation"))
     return sorted_roots, steps
 
-def rational_root_theorem_solver(equation: str)-> Tuple[Union[float, Tuple, List], List[MathStep]]:
+def rational_root_theorem_solver(equation: str, allow_complex: bool = True)-> Tuple[Union[float, complex, Tuple, List], List[MathStep]]:
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     a, b, c, d = parse_polynomial(equation)
@@ -499,27 +574,26 @@ def rational_root_theorem_solver(equation: str)-> Tuple[Union[float, Tuple, List
                               rf"({fmt_num(a)}x^3 + {fmt_num(b)}x^2 + {fmt_num(c)}x + {fmt_num(d)}) = (x - {fmt_num(r)})({fmt_num(a_new)}x^2 + {fmt_num(b_new)}x + {fmt_num(c_new)})", "equation"))
         
         quad_str = f"{a_new}x^2 + {b_new}x + {c_new} = 0"
-        quad_sol, quad_steps = quadratic_equation_solver(quad_str)
+        quad_sol, quad_steps = quadratic_equation_solver(quad_str, allow_complex=allow_complex)
         steps.extend(quad_steps)
         
         roots_list = [r]
         if isinstance(quad_sol, tuple):
             roots_list.extend(list(quad_sol))
-        elif isinstance(quad_sol, (int, float)):
+        elif isinstance(quad_sol, (int, float, complex)):
             roots_list.append(quad_sol)
             
-        all_roots = sorted(list(set([round(val, 6) for val in roots_list])))
-        return all_roots, steps
+        return roots_list, steps
     else:
         steps.append(MathStep("No rational roots found via Rational Root Theorem. Falling back to general cubic solver.", r"\text{No rational roots}", "equation"))
-        c_roots, c_steps = cubic_equation_solver(equation)
+        c_roots, c_steps = cubic_equation_solver(equation, allow_complex=allow_complex)
         steps.extend(c_steps)
         return c_roots, steps
 
 # Alias to maintain compatibility with raditional_root_theorem_solver
 raditional_root_theorem_solver = rational_root_theorem_solver
 
-def solve_equation(equation: str, type_of_equation: str = 'one_variable') -> Tuple[Union[float, Tuple, List], List[MathStep]]:
+def solve_equation(equation: str, type_of_equation: str = 'one_variable', allow_complex: bool = True) -> Tuple[Union[float, complex, Tuple, List], List[MathStep]]:
     steps = []
     
     if type_of_equation == 'one_variable':
@@ -527,9 +601,9 @@ def solve_equation(equation: str, type_of_equation: str = 'one_variable') -> Tup
         a, b, c, d = parse_polynomial(equation)
         
         if a != 0:
-            return rational_root_theorem_solver(equation)
+            return rational_root_theorem_solver(equation, allow_complex=allow_complex)
         elif b != 0:
-            return quadratic_equation_solver(equation)
+            return quadratic_equation_solver(equation, allow_complex=allow_complex)
         else:
             # Linear equation: cx + d = 0
             var_coeff = c

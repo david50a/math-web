@@ -43,5 +43,16 @@ export interface EquationSolution {
   needsKey?: boolean;
 }
 
-export type ThemeType = "chalkboard" | "blueprint" | "glassmorphic" | "darkroom";
+export type ThemeType = 
+  | "chalkboard" 
+  | "blueprint" 
+  | "glassmorphic" 
+  | "darkroom" 
+  | "cyberpunk" 
+  | "sunset" 
+  | "synthwave" 
+  | "nordic" 
+  | "matrix" 
+  | "royal";
 export type NarratorType = "natural" | "assistant" | "cyborg" | "mute";
+

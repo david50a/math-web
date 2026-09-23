@@ -245,6 +245,8 @@ async def log_requests(request, call_next):
 class SolveRequest(BaseModel):
     equation: str
     quality: Optional[str] = "medium"
+    allow_complex: Optional[bool] = True
+    show_complex: Optional[bool] = None
 
 class OCRRequest(BaseModel):
     imageBase64: str
@@ -389,7 +391,7 @@ def parse_expr(expr_str: str):
 
     return transform(tree)
 
-def solve_algebra(input_str: str):
+def solve_algebra(input_str: str, allow_complex: bool = True):
     import sympy as sp
     from math_models import MathStep
     
@@ -429,13 +431,17 @@ def solve_algebra(input_str: str):
         type="equation"
     ))
     
-    solutions = sp.solve(eq, x)
+    all_solutions = sp.solve(eq, x)
+    if allow_complex:
+        solutions = all_solutions
+    else:
+        solutions = [sol for sol in all_solutions if getattr(sol, 'is_real', True) is not False and not sol.has(sp.I)]
     
     if not solutions:
-        final_answer = "No solutions"
+        final_answer = "No real solutions" if not allow_complex else "No solutions"
         steps.append(MathStep(
             description="Solving the equation",
-            latex=r"\text{No solutions found}",
+            latex=rf"\text{{{final_answer}}}",
             type="equation"
         ))
     else:
@@ -475,15 +481,45 @@ def solve_algebra(input_str: str):
                 latex=rf"D = {sp.latex(b)}^2 - 4 \cdot {sp.latex(a)} \cdot {sp.latex(c)} = {sp.latex(discriminant)}",
                 type="equation"
             ))
-            steps.append(MathStep(
-                description="Apply the quadratic formula",
-                latex=rf"{x} = \frac{{-{sp.latex(b)} \pm \sqrt{{{sp.latex(discriminant)}}}}}{{2 \cdot {sp.latex(a)}}}",
-                type="equation"
-            ))
+            
+            is_disc_negative = False
+            try:
+                if discriminant.is_number and discriminant < 0:
+                    is_disc_negative = True
+            except Exception:
+                pass
+
+            if is_disc_negative:
+                if allow_complex:
+                    steps.append(MathStep(
+                        description="Since discriminant D < 0, solutions are complex conjugate numbers involving imaginary unit i = \\sqrt{-1}",
+                        latex=rf"D < 0 \implies \sqrt{{D}} = \sqrt{{{sp.latex(discriminant)}}} = {sp.latex(sp.sqrt(discriminant))}",
+                        type="equation"
+                    ))
+                    steps.append(MathStep(
+                        description="Apply the quadratic formula to calculate complex roots",
+                        latex=rf"{x} = \frac{{-{sp.latex(b)} \pm {sp.latex(sp.sqrt(discriminant))}}}{{2 \cdot {sp.latex(a)}}}",
+                        type="equation"
+                    ))
+                else:
+                    steps.append(MathStep(
+                        description="The discriminant is negative (D < 0), so there are no real solutions",
+                        latex=r"\text{No real solutions } (D < 0)",
+                        type="equation"
+                    ))
+                    return "No real solutions", steps
+            else:
+                steps.append(MathStep(
+                    description="Apply the quadratic formula",
+                    latex=rf"{x} = \frac{{-{sp.latex(b)} \pm \sqrt{{{sp.latex(discriminant)}}}}}{{2 \cdot {sp.latex(a)}}}",
+                    type="equation"
+                ))
             
         sol_latex = ", ".join([f"{x} = {sp.latex(sol)}" for sol in solutions])
+        has_complex = any(sol.has(sp.I) for sol in solutions)
+        desc = f"Find the final complex solutions of {x}" if has_complex else f"Find the final values of {x}"
         steps.append(MathStep(
-            description=f"Find the final values of {x}",
+            description=desc,
             latex=sol_latex,
             type="equation"
         ))
@@ -604,10 +640,13 @@ async def solve_api(request: SolveRequest, authorization: Optional[str] = Header
         solve_counts[user_identifier] = current_count + 1
     
     try:
+        # Determine whether complex solutions are allowed (defaults to True)
+        allow_complex = request.show_complex if request.show_complex is not None else (request.allow_complex if request.allow_complex is not None else True)
+
         # Determine operation
         if '=' in input_str and not input_str.lower().startswith('integrate') and not input_str.lower().startswith('derive') and not '[' in input_str:
             equation_type = "Algebra"
-            solution, steps = solve_algebra(input_str)
+            solution, steps = solve_algebra(input_str, allow_complex=allow_complex)
         elif input_str.lower().startswith('integrate'):
             equation_type = "Calculus"
             expr_content = re.search(r'integrate\((.*)\)', input_str, re.I)

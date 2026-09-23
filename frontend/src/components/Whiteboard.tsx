@@ -81,6 +81,60 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
       secondaryText: "text-zinc-500",
       accentDot: "bg-red-600",
       gridLines: "bg-[linear-gradient(rgba(244,63,94,0.02)_1px,transparent_1px)] bg-[size:10px_10px]"
+    },
+    cyberpunk: {
+      outer: "bg-[#0d0914] border-yellow-500/40 text-yellow-100 shadow-yellow-950/30",
+      boardBg: "bg-[#150d24] border-yellow-500/30",
+      fontFamily: "font-mono",
+      primaryText: "text-yellow-400 font-black", // Cyber neon yellow
+      secondaryText: "text-cyan-400",
+      accentDot: "bg-yellow-400 shadow-lg shadow-yellow-400/50",
+      gridLines: "bg-[linear-gradient(rgba(234,179,8,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:18px_18px]"
+    },
+    sunset: {
+      outer: "bg-[#1c0f0a] border-amber-800/40 text-amber-100 shadow-amber-950/30",
+      boardBg: "bg-[#29140c] border-amber-700/30",
+      fontFamily: "font-sans",
+      primaryText: "text-amber-300 font-bold", // Golden amber glow
+      secondaryText: "text-orange-300",
+      accentDot: "bg-amber-500",
+      gridLines: "bg-[radial-gradient(rgba(245,158,11,0.05)_1px,transparent_1px)] bg-[size:14px_14px]"
+    },
+    synthwave: {
+      outer: "bg-[#14061f] border-pink-500/40 text-pink-100 shadow-pink-950/40",
+      boardBg: "bg-[#1f0a33] border-pink-500/30",
+      fontFamily: "font-mono",
+      primaryText: "text-pink-400 font-bold", // Hot neon magenta
+      secondaryText: "text-purple-300",
+      accentDot: "bg-pink-500 shadow-lg shadow-pink-500/50",
+      gridLines: "bg-[linear-gradient(rgba(236,72,153,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(168,85,247,0.06)_1px,transparent_1px)] bg-[size:20px_20px]"
+    },
+    nordic: {
+      outer: "bg-[#0b1219] border-slate-700/50 text-slate-100 shadow-slate-950/30",
+      boardBg: "bg-[#101b26] border-slate-700/40",
+      fontFamily: "font-sans",
+      primaryText: "text-sky-200 font-bold", // Clean arctic ice
+      secondaryText: "text-slate-400",
+      accentDot: "bg-sky-400",
+      gridLines: "bg-[radial-gradient(rgba(148,163,184,0.05)_1px,transparent_1px)] bg-[size:16px_16px]"
+    },
+    matrix: {
+      outer: "bg-[#040d06] border-green-600/50 text-green-100 shadow-green-950/40",
+      boardBg: "bg-[#061409] border-green-600/30",
+      fontFamily: "font-mono",
+      primaryText: "text-green-400 font-bold", // Terminal phosphor green
+      secondaryText: "text-emerald-300",
+      accentDot: "bg-green-500 shadow-lg shadow-green-500/50",
+      gridLines: "bg-[linear-gradient(rgba(34,197,94,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(34,197,94,0.06)_1px,transparent_1px)] bg-[size:16px_16px]"
+    },
+    royal: {
+      outer: "bg-[#180814] border-amber-500/40 text-amber-100 shadow-purple-950/40",
+      boardBg: "bg-[#240c1e] border-amber-500/30",
+      fontFamily: "font-sans",
+      primaryText: "text-amber-300 font-black", // Royal gold
+      secondaryText: "text-rose-300",
+      accentDot: "bg-amber-400 shadow-lg shadow-amber-400/50",
+      gridLines: "bg-[radial-gradient(rgba(245,158,11,0.06)_1px,transparent_1px)] bg-[size:16px_16px]"
     }
   };
 
