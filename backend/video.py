@@ -24,27 +24,24 @@ import numpy as np
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# THEME
+# THEME — Pure Black & Mathematical High-Contrast Aesthetic
 # ─────────────────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────
-# THEME — Modern Cyber-Glass & Math Aesthetic
-# ─────────────────────────────────────────────────────────────────────────────
-DEEP_BG       = "#080B14"
-BG_MID        = "#0D1326"
-PANEL_BG      = "#0F172A"
-PANEL_BORDER  = "#1E293B"
+DEEP_BG       = "#000000"  # Pure Pitch Black
+BG_MID        = "#000000"  # Pure Black
+PANEL_BG      = "#08080C"  # Deep Obsidian / Black Glass
+PANEL_BORDER  = "#22222E"  # Subtle Border
 
-ACCENT_CYAN   = "#38BDF8"  # Neon Sky / Cyan
-ACCENT_BLUE   = "#60A5FA"  # Bright Azure
-ACCENT_TEAL   = "#2DD4BF"  # Mint / Teal
-ACCENT_PURPLE = "#C084FC"  # Vibrant Iris / Violet
-ACCENT_GOLD   = "#FBBF24"  # Luminous Amber / Gold
-ACCENT_CORAL  = "#FB7185"  # Neon Coral / Rose
-ACCENT_GREEN  = "#34D399"  # Electric Emerald
-ACCENT_PINK   = "#F472B6"  # Rose Pink
+ACCENT_CYAN   = "#38BDF8"  # Primary Math Cyan
+ACCENT_BLUE   = "#60A5FA"  # Function Curve Blue
+ACCENT_TEAL   = "#2DD4BF"  # Lemma Mint
+ACCENT_PURPLE = "#C084FC"  # Vector / Matrix Purple
+ACCENT_GOLD   = "#FBBF24"  # Theorem Gold
+ACCENT_CORAL  = "#FB7185"  # Derivative Rose / Tangent
+ACCENT_GREEN  = "#34D399"  # Proof Emerald
+ACCENT_PINK   = "#F472B6"  # Parameter Pink
 TEXT_DIM      = "#94A3B8"  # Slate Muted
-TEXT_SUBTLE   = "#64748B"  # Slate Darker
-TEXT_BRIGHT   = "#F8FAFC"  # Pure Crisp White
+TEXT_SUBTLE   = "#475569"  # Slate Subtle
+TEXT_BRIGHT   = "#FFFFFF"  # Pure Bright White
 
 RULE_COLORS = {
     "Power Rule":    ACCENT_GOLD,
@@ -61,20 +58,20 @@ RULE_COLORS = {
     "Elimination":   ACCENT_BLUE,
 }
 
-# Human-readable rule explanations shown as mini examples alongside each step
+# Formal mathematical theorems and worked derivations
 RULE_EXAMPLES = {
-    "Power Rule":    (r"(x^n)' = n \cdot x^{n-1}",
-                      r"\text{e.g. } (x^3)' = 3x^2"),
-    "Product Rule":  (r"(u \cdot v)' = u'v + uv'",
+    "Power Rule":    (r"\dfrac{d}{dx}\left(x^n\right) = n \cdot x^{n-1}",
+                      r"\text{e.g. } \dfrac{d}{dx}(x^3) = 3x^2"),
+    "Product Rule":  (r"\dfrac{d}{dx}(u \cdot v) = u'v + uv'",
                       r"\text{e.g. } (x^2 \sin x)' = 2x\sin x + x^2\cos x"),
-    "Sum Rule":      (r"(u + v)' = u' + v'",
-                      r"\text{e.g. } (x^2+x)' = 2x+1"),
-    "Chain Rule":    (r"[f(g(x))]' = f'(g(x)) \cdot g'(x)",
-                      r"\text{e.g. } (\sin(x^2))' = \cos(x^2) \cdot 2x"),
-    "Constant Rule": (r"(c)' = 0",
+    "Sum Rule":      (r"\dfrac{d}{dx}(u + v) = \dfrac{du}{dx} + \dfrac{dv}{dx}",
+                      r"\text{e.g. } (x^2+3x)' = 2x+3"),
+    "Chain Rule":    (r"\dfrac{d}{dx}\left[f(g(x))\right] = f'(g(x)) \cdot g'(x)",
+                      r"\text{e.g. } (\sin(x^2))' = 2x\cos(x^2)"),
+    "Constant Rule": (r"\dfrac{d}{dx}(c) = 0 \quad (c \in \mathbb{R})",
                       r"\text{e.g. } (5)' = 0"),
-    "Quotient Rule": (r"\left(\frac{u}{v}\right)' = \frac{u'v - uv'}{v^2}",
-                      r"\text{e.g. } \left(\frac{x^2}{x+1}\right)'"),
+    "Quotient Rule": (r"\dfrac{d}{dx}\left(\dfrac{u}{v}\right) = \dfrac{u'v - uv'}{v^2}",
+                      r"\text{e.g. } \left(\dfrac{x^2}{x+1}\right)'"),
 }
 
 
@@ -83,14 +80,6 @@ RULE_EXAMPLES = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _is_human_readable_step(step: MathStep, idx: int, total: int) -> bool:
-    """
-    Keep a step if it is:
-      - the first step (original expression)
-      - the last step (final result)
-      - a step that mentions a named rule (Power, Sum, Product, Chain, …)
-      - a step whose latex is substantially different from the previous one
-    Skip pure internal sub-tree bookkeeping steps that confuse viewers.
-    """
     if idx == 0 or idx == total - 1:
         return True
     desc_lower = step.description.lower()
@@ -103,7 +92,6 @@ def _is_human_readable_step(step: MathStep, idx: int, total: int) -> bool:
 
 
 def filter_derivative_steps(steps: List[MathStep]) -> List[MathStep]:
-    """Return only the human-readable milestone steps."""
     n = len(steps)
     kept = [s for i, s in enumerate(steps) if _is_human_readable_step(s, i, n)]
     if steps and steps[0] not in kept:
@@ -195,7 +183,7 @@ def safe_plot(axes, func, x_range=(-3.0, 3.0), color=ACCENT_CYAN,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MODERN UI HELPERS & VISUAL COMPONENTS
+# MATHEMATICAL UI HELPERS & VISUAL COMPONENTS
 # ─────────────────────────────────────────────────────────────────────────────
 
 def wrap_text(text, width=64):
@@ -210,55 +198,66 @@ def detect_rule(description: str):
 
 
 def make_background(scene: Scene):
-    """Deep space / cyber glass background with ambient light spheres and subtle grid."""
+    """Pure black background with subtle mathematical Cartesian grid and watermarks."""
+    scene.camera.background_color = "#000000"
     bg = Rectangle(
         width=config.frame_width + 0.2,
         height=config.frame_height + 0.2,
-        fill_color=[DEEP_BG, "#0B1021", "#080D1A"],
+        fill_color="#000000",
         fill_opacity=1, stroke_width=0,
-    ).set_z_index(-20)
+    ).set_z_index(-30)
 
-    # Ambient soft glowing lighting orbs in background
-    glow_orb_left = Dot(
-        point=[-4.8, 2.5, 0], radius=2.8,
-        color=ACCENT_CYAN, fill_opacity=0.045
-    ).set_z_index(-18)
-    
-    glow_orb_right = Dot(
-        point=[4.8, -2.5, 0], radius=3.2,
-        color=ACCENT_PURPLE, fill_opacity=0.04
-    ).set_z_index(-18)
+    # Ambient mathematical coordinate grid lines on black
+    grid_lines = VGroup()
+    for x in np.arange(-7.2, 7.5, 0.8):
+        grid_lines.add(Line([x, -4.2, 0], [x, 4.2, 0], stroke_width=0.35, stroke_color="#181822", stroke_opacity=0.7))
+    for y in np.arange(-4.2, 4.5, 0.8):
+        grid_lines.add(Line([-7.2, y, 0], [7.2, y, 0], stroke_width=0.35, stroke_color="#181822", stroke_opacity=0.7))
+    grid_lines.set_z_index(-25)
 
-    # Clean ambient dot matrix grid
+    # Ambient watermark mathematical constants and operators on black
+    math_watermarks = VGroup(
+        MathTex(r"\int", font_size=42, color="#1E1E2A").move_to([-6.2, 3.2, 0]),
+        MathTex(r"\sum_{n=1}^\infty", font_size=28, color="#1E1E2A").move_to([5.8, 3.1, 0]),
+        MathTex(r"\nabla \times \mathbf{F}", font_size=26, color="#1E1E2A").move_to([-6.0, -3.2, 0]),
+        MathTex(r"\pi \approx 3.14159", font_size=22, color="#1E1E2A").move_to([5.6, -3.3, 0]),
+        MathTex(r"\mathbb{R}^n", font_size=26, color="#1A1A26").move_to([0, 3.3, 0]),
+        MathTex(r"\dfrac{\partial f}{\partial x}", font_size=26, color="#1A1A26").move_to([0, -3.3, 0])
+    ).set_z_index(-22)
+
+    # Clean ambient intersection dots
     dots = VGroup(*[
-        Dot(point=[xi, yi, 0], radius=0.015, color="#1E2945")
-        for xi in np.arange(-7.2, 7.5, 0.9)
-        for yi in np.arange(-4.2, 4.5, 0.9)
-    ]).set_z_index(-15)
+        Dot(point=[xi, yi, 0], radius=0.015, color="#252535")
+        for xi in np.arange(-7.2, 7.5, 1.6)
+        for yi in np.arange(-4.2, 4.5, 1.6)
+    ]).set_z_index(-20)
 
-    # Faint outer viewport border
+    # Crisp boundary frame
     vignette_border = RoundedRectangle(
-        corner_radius=0.25,
+        corner_radius=0.18,
         width=config.frame_width - 0.35,
         height=config.frame_height - 0.35,
-        stroke_color="#1E293B",
+        stroke_color="#1C1C28",
         stroke_width=1.0,
         fill_opacity=0
     ).set_z_index(-10)
 
-    scene.add(bg, glow_orb_left, glow_orb_right, dots, vignette_border)
+    scene.add(bg, grid_lines, math_watermarks, dots, vignette_border)
     return bg, dots
 
 
-def glowing_title(text: str, font_size=36):
-    """Polished title with icon badge and illuminated neon underline."""
+def glowing_title(text: str, font_size=34):
+    """Formal mathematical theorem/problem banner with notation."""
     is_tex = ("$" in text or "\\" in text)
-    lbl = (Tex(text, font_size=font_size, color=TEXT_BRIGHT)
-           if is_tex
-           else Text(text, font_size=font_size, color=TEXT_BRIGHT, weight=BOLD))
+    try:
+        if is_tex:
+            lbl = Tex(text, font_size=font_size, color=TEXT_BRIGHT)
+        else:
+            lbl = Text(text, font_size=font_size, color=TEXT_BRIGHT, weight=BOLD)
+    except Exception:
+        lbl = Text(text, font_size=font_size, color=TEXT_BRIGHT, weight=BOLD)
     
-    # Modern gradient glowing line
-    line_w = min(max(lbl.width + 0.8, 4.0), config.frame_width - 1.5)
+    line_w = min(max(lbl.width + 1.2, 4.5), config.frame_width - 1.5)
     ul = Line(LEFT * (line_w / 2), RIGHT * (line_w / 2),
               stroke_width=2.5, color=ACCENT_CYAN)
     ul.next_to(lbl, DOWN, buff=0.18)
@@ -267,68 +266,71 @@ def glowing_title(text: str, font_size=36):
                 stroke_width=8, color=ACCENT_CYAN, stroke_opacity=0.28)
     glow.move_to(ul)
 
-    # Subtle central neon dot
-    dot = Dot(ul.get_center(), radius=0.045, color=ACCENT_CYAN)
+    # Left and right mathematical brackets or coordinate marker points
+    left_mark = MathTex(r"\langle", font_size=24, color=ACCENT_CYAN).next_to(lbl, LEFT, buff=0.18)
+    right_mark = MathTex(r"\rangle", font_size=24, color=ACCENT_CYAN).next_to(lbl, RIGHT, buff=0.18)
 
-    return VGroup(lbl, glow, ul, dot)
+    return VGroup(lbl, glow, ul, left_mark, right_mark)
 
 
 def step_badge(index: int, total: int):
-    """Sleek glowing capsule pill badge in the top-right corner."""
-    pill_w = 1.9
-    pill_h = 0.52
+    """Mathematical index capsule: e.g. [ Step k = 1 / n ]."""
+    pill_w = 2.4
+    pill_h = 0.54
     pill_bg = RoundedRectangle(
-        corner_radius=0.26, width=pill_w, height=pill_h,
-        fill_color=PANEL_BG, fill_opacity=0.95,
+        corner_radius=0.16, width=pill_w, height=pill_h,
+        fill_color=PANEL_BG, fill_opacity=0.96,
         stroke_color=ACCENT_CYAN, stroke_width=1.8,
     )
     glow_pill = pill_bg.copy().set_stroke(color=ACCENT_CYAN, width=6, opacity=0.22)
     
-    dot = Dot(radius=0.04, color=ACCENT_CYAN).align_to(pill_bg, LEFT).shift(RIGHT * 0.22)
-    label = Text(f"STEP {index:02d}/{total:02d}", font_size=15, color=TEXT_BRIGHT, weight=BOLD)
-    label.move_to(pill_bg).shift(RIGHT * 0.1)
+    # LaTeX formatted mathematical step counter
+    step_tex = MathTex(rf"\mathbf{{Step}}\ k = {index} \big/ {total}", font_size=18, color=ACCENT_CYAN)
+    step_tex.move_to(pill_bg)
 
-    return VGroup(glow_pill, pill_bg, dot, label).to_corner(UR, buff=0.42).shift(DOWN * 0.1)
+    return VGroup(glow_pill, pill_bg, step_tex).to_corner(UR, buff=0.42).shift(DOWN * 0.08)
 
 
 def explanation_card(text: str, rule: str = None, width=None):
-    """Modern frosted-glass explanation card with neon accent strip and rule badge."""
-    wrapped = wrap_text(text, 66)
-    body    = Text(wrapped, font_size=20, color=TEXT_BRIGHT, line_spacing=1.35)
+    """Formal mathematical lemma/derivation note card with LaTeX rule badge."""
+    wrapped = wrap_text(text, 64)
+    body    = Text(wrapped, font_size=19, color=TEXT_BRIGHT, line_spacing=1.35)
     
     card_w  = width or min(config.frame_width - 1.0, 13.8)
     card_h  = max(body.height + 0.8, 1.35)
     
-    # Frosted glass card backdrop
     rect = RoundedRectangle(
-        corner_radius=0.2, width=card_w, height=card_h,
-        fill_color=PANEL_BG, fill_opacity=0.94,
+        corner_radius=0.16, width=card_w, height=card_h,
+        fill_color=PANEL_BG, fill_opacity=0.95,
         stroke_color=PANEL_BORDER, stroke_width=1.6,
     )
     glow_rect = rect.copy().set_stroke(color=ACCENT_CYAN, width=4, opacity=0.15)
     
-    # Left vertical neon highlight strip
     rule_color = RULE_COLORS.get(rule, ACCENT_CYAN) if rule else ACCENT_CYAN
     left_strip = RoundedRectangle(
-        corner_radius=0.05,
-        width=0.09, height=card_h - 0.28,
+        corner_radius=0.04,
+        width=0.08, height=card_h - 0.26,
         fill_color=rule_color, fill_opacity=1.0,
         stroke_width=0
     ).align_to(rect, LEFT).shift(RIGHT * 0.15)
 
-    body.move_to(rect).shift(RIGHT * 0.15)
-    group = VGroup(glow_rect, rect, left_strip, body)
+    # Prefix explanation with formal derivation arrow (⟹)
+    deriv_arrow = MathTex(r"\implies", font_size=26, color=rule_color)\
+                  .align_to(rect, LEFT).shift(RIGHT * 0.35)
+    body.move_to(rect).shift(RIGHT * 0.3)
+    
+    group = VGroup(glow_rect, rect, left_strip, deriv_arrow, body)
     
     if rule:
         color   = RULE_COLORS.get(rule, ACCENT_GOLD)
         pill_bg = RoundedRectangle(
-            corner_radius=0.14, height=0.42,
-            width=len(rule) * 0.14 + 0.9,
-            fill_color="#0F172A", fill_opacity=0.98,
+            corner_radius=0.12, height=0.44,
+            width=len(rule) * 0.14 + 1.1,
+            fill_color="#000000", fill_opacity=0.98,
             stroke_color=color, stroke_width=1.6,
         )
-        pill_glow = pill_bg.copy().set_stroke(color=color, width=5, opacity=0.3)
-        pill_txt = Text(f"✦ {rule}", font_size=15, color=color, weight=BOLD)
+        pill_glow = pill_bg.copy().set_stroke(color=color, width=5, opacity=0.28)
+        pill_txt = MathTex(rf"\mathbf{{\mathbb{{T}}hm:}}\ \text{{{rule}}}", font_size=16, color=color)
         pill_txt.move_to(pill_bg)
         pill = VGroup(pill_glow, pill_bg, pill_txt)
         pill.next_to(rect, UP, buff=0.12).align_to(rect, RIGHT).shift(LEFT * 0.3)
@@ -339,28 +341,28 @@ def explanation_card(text: str, rule: str = None, width=None):
 
 
 def rule_example_panel(rule: str):
-    """Sleek floating side card displaying theorem/formula + worked example."""
+    """Mathematical definition & lemma worked derivation panel."""
     if rule not in RULE_EXAMPLES:
         return None
     formula_str, example_str = RULE_EXAMPLES[rule]
     color = RULE_COLORS.get(rule, ACCENT_GOLD)
 
-    header = Text(f"✦ Rule: {rule}", font_size=17, color=color, weight=BOLD)
-    formula = MathTex(formula_str, font_size=22, color=TEXT_BRIGHT)
-    example = MathTex(example_str, font_size=19, color=TEXT_DIM)
+    header = MathTex(rf"\mathbf{{\underline{{\text{{Definition / Rule:}}\ {rule}}}}}", font_size=18, color=color)
+    formula = MathTex(formula_str, font_size=21, color=TEXT_BRIGHT)
+    example = MathTex(example_str, font_size=18, color=TEXT_DIM)
 
-    content = VGroup(header, formula, example).arrange(DOWN, buff=0.2, aligned_edge=LEFT)
+    content = VGroup(header, formula, example).arrange(DOWN, buff=0.22, aligned_edge=LEFT)
 
-    panel_w = max(content.width + 0.85, 4.2)
+    panel_w = max(content.width + 0.85, 4.4)
     panel_h = content.height + 0.65
     
     bg = RoundedRectangle(
-        corner_radius=0.18, width=panel_w, height=panel_h,
+        corner_radius=0.16, width=panel_w, height=panel_h,
         fill_color=PANEL_BG, fill_opacity=0.96,
         stroke_color=color, stroke_width=1.5,
     )
     glow_bg = bg.copy().set_stroke(color=color, width=6, opacity=0.2)
-    content.move_to(bg).shift(RIGHT * 0.1)
+    content.move_to(bg).shift(RIGHT * 0.12)
 
     bar = RoundedRectangle(
         corner_radius=0.04,
@@ -373,36 +375,35 @@ def rule_example_panel(rule: str):
 
 
 def equation_box(mobject, color=ACCENT_CYAN):
-    """Glowing glass container surrounding active mathematical step."""
-    # Underlying frosted card
+    """Rigorous mathematical step display card with subtle coordinate anchors."""
     card = RoundedRectangle(
-        corner_radius=0.18,
-        width=mobject.width + 0.85,
-        height=mobject.height + 0.65,
+        corner_radius=0.16,
+        width=mobject.width + 0.95,
+        height=mobject.height + 0.68,
         stroke_color=color,
         stroke_width=1.8,
         fill_color=PANEL_BG,
-        fill_opacity=0.88
+        fill_opacity=0.90
     ).move_to(mobject)
 
-    glow = card.copy().set_stroke(color=color, width=8, opacity=0.25).set_fill(opacity=0)
+    glow = card.copy().set_stroke(color=color, width=8, opacity=0.22).set_fill(opacity=0)
     
-    # Corner accent dots
-    d_tl = Dot(card.get_corner(UL) + RIGHT*0.12 + DOWN*0.12, radius=0.035, color=color)
-    d_br = Dot(card.get_corner(DR) + LEFT*0.12 + UP*0.12, radius=0.035, color=color)
+    # Mathematical frame brackets
+    b_left = MathTex(r"\big[", font_size=28, color=color).align_to(card, LEFT).shift(RIGHT*0.12)
+    b_right = MathTex(r"\big]", font_size=28, color=color).align_to(card, RIGHT).shift(LEFT*0.12)
     
-    return VGroup(glow, card, d_tl, d_br)
+    return VGroup(glow, card, b_left, b_right)
 
 
 def progress_bar(ratio: float, width=6.5):
-    """Illuminated progress bar with glowing cursor."""
+    """Mathematical interval progress indicator [0, 1]."""
     track = RoundedRectangle(
-        corner_radius=0.05, width=width, height=0.07,
-        fill_color="#1E293B", fill_opacity=1.0, stroke_width=0
+        corner_radius=0.04, width=width, height=0.07,
+        fill_color="#181822", fill_opacity=1.0, stroke_width=0
     )
     fill_w = max(width * min(max(ratio, 0.02), 1.0), 0.1)
     fill = RoundedRectangle(
-        corner_radius=0.05, width=fill_w, height=0.07,
+        corner_radius=0.04, width=fill_w, height=0.07,
         fill_color=ACCENT_CYAN, fill_opacity=1.0, stroke_width=0
     ).align_to(track, LEFT)
     
@@ -413,11 +414,12 @@ def progress_bar(ratio: float, width=6.5):
 
 
 def play_intro(scene: Scene, title_group: VGroup):
-    """Cinematic entry sequence for title & illuminated elements."""
+    """Cinematic entry sequence for problem statement."""
     title_group.shift(UP * 0.4)
     scene.play(
         FadeIn(title_group[0], shift=DOWN * 0.25, run_time=0.9),
-        GrowFromCenter(title_group[3], run_time=0.6)
+        FadeIn(title_group[3], shift=RIGHT * 0.1, run_time=0.6),
+        FadeIn(title_group[4], shift=LEFT * 0.1, run_time=0.6)
     )
     scene.play(
         Create(title_group[2], run_time=0.7),
@@ -427,27 +429,29 @@ def play_intro(scene: Scene, title_group: VGroup):
 
 
 def play_outro(scene: Scene, final_eq):
-    """Celebratory finale with glowing victory border and success badge."""
+    """Rigorous mathematical conclusion with Q.E.D. / Halmos symbol and conclusion frame."""
     frame = RoundedRectangle(
-        corner_radius=0.22,
-        width=final_eq.width + 0.95,
-        height=final_eq.height + 0.75,
+        corner_radius=0.18,
+        width=final_eq.width + 1.1,
+        height=final_eq.height + 0.85,
         stroke_color=ACCENT_GREEN, stroke_width=2.8,
-        fill_color=PANEL_BG, fill_opacity=0.92,
+        fill_color=PANEL_BG, fill_opacity=0.94,
     ).move_to(final_eq)
     
     glow_frame = frame.copy().set_stroke(color=ACCENT_GREEN, width=12, opacity=0.3).set_fill(opacity=0)
     
-    # Done capsule badge
+    # Formal conclusion box with Halmos square Q.E.D.
     badge_bg = RoundedRectangle(
-        corner_radius=0.2, width=3.4, height=0.65,
-        fill_color="#064E3B", fill_opacity=0.95,
+        corner_radius=0.16, width=3.8, height=0.68,
+        fill_color="#021C14", fill_opacity=0.96,
         stroke_color=ACCENT_GREEN, stroke_width=1.8
     )
     badge_glow = badge_bg.copy().set_stroke(color=ACCENT_GREEN, width=8, opacity=0.35)
-    done_txt = Text("Solution Complete  ✓", font_size=20, color=TEXT_BRIGHT, weight=BOLD)
-    done_txt.move_to(badge_bg)
-    done_badge = VGroup(badge_glow, badge_bg, done_txt).next_to(frame, DOWN, buff=0.35)
+    
+    qed_txt = MathTex(r"\therefore\ \mathbf{Result\ Verified}\ \ \blacksquare\ \text{Q.E.D.}",
+                      font_size=20, color=TEXT_BRIGHT)
+    qed_txt.move_to(badge_bg)
+    done_badge = VGroup(badge_glow, badge_bg, qed_txt).next_to(frame, DOWN, buff=0.35)
     
     scene.play(
         Circumscribe(final_eq, color=ACCENT_GREEN, run_time=1.0),
@@ -456,17 +460,16 @@ def play_outro(scene: Scene, final_eq):
     )
     scene.play(
         FadeIn(done_badge, shift=UP * 0.2, run_time=0.6),
-        Flash(done_badge.get_center(), color=ACCENT_GREEN, line_length=0.25, num_lines=10, run_time=0.8)
+        Flash(done_badge.get_center(), color=ACCENT_GREEN, line_length=0.25, num_lines=12, run_time=0.8)
     )
     scene.wait(2.8)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DERIVATIVE-SPECIFIC GRAPH PANEL
+# MATHEMATICAL GRAPH & FUNCTION PANEL
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _nice_tick_step(span: float) -> float:
-    """Choose a human-friendly tick interval for the given axis span."""
     raw = span / 6.0
     for step in [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100]:
         if raw <= step:
@@ -476,9 +479,7 @@ def _nice_tick_step(span: float) -> float:
 
 def build_derivative_axes(scene: Scene, orig_func=None, deriv_func=None):
     """
-    Build axes whose y-range is computed from the actual functions so the
-    curves always fit properly.  orig_func and deriv_func are plain callables.
-    Returns the Axes object.
+    Build mathematical Cartesian coordinate axes with grid lines and LaTeX ticks.
     """
     X_LO, X_HI = -3.5, 3.5
 
@@ -520,40 +521,47 @@ def build_derivative_axes(scene: Scene, orig_func=None, deriv_func=None):
         x_length=5.6,
         y_length=5.4,
         axis_config={
-            "color": "#2A3A5E", "stroke_width": 1.8,
-            "include_tip": True, "tip_length": 0.18, "tip_width": 0.12,
+            "color": "#334155", "stroke_width": 2.0,
+            "include_tip": True, "tip_length": 0.2, "tip_width": 0.14,
         },
         x_axis_config={
             "numbers_to_include": range(-3, 4),
-            "label_constructor": MathTex, "font_size": 17, "color": TEXT_DIM,
+            "label_constructor": MathTex, "font_size": 16, "color": TEXT_DIM,
         },
         y_axis_config={
             "numbers_to_include": y_ticks,
-            "label_constructor": MathTex, "font_size": 17, "color": TEXT_DIM,
+            "label_constructor": MathTex, "font_size": 16, "color": TEXT_DIM,
         },
     )
     axes.to_edge(LEFT, buff=0.5).shift(DOWN * 0.3)
 
+    # Subtle Cartesian coordinate grid
     h_lines = VGroup(*[
         DashedLine(axes.c2p(X_LO, y), axes.c2p(X_HI, y),
-                   stroke_width=0.5, color="#1C2540", dash_length=0.12)
+                   stroke_width=0.6, color="#1E293B", dash_length=0.1)
         for y in y_ticks
     ])
     v_lines = VGroup(*[
         DashedLine(axes.c2p(x, y_lo), axes.c2p(x, y_hi),
-                   stroke_width=0.5, color="#1C2540", dash_length=0.12)
+                   stroke_width=0.6, color="#1E293B", dash_length=0.1)
         for x in range(-3, 4)
     ])
+    
     ax_labels = axes.get_axis_labels(
-        x_label=MathTex("x", font_size=20, color=TEXT_DIM),
-        y_label=MathTex("y", font_size=20, color=TEXT_DIM),
+        x_label=MathTex(r"x \in \mathbb{R}", font_size=18, color=ACCENT_CYAN),
+        y_label=MathTex(r"y = f(x)", font_size=18, color=ACCENT_CYAN),
     )
+
+    origin_pt = axes.c2p(0, 0)
+    origin_dot = Dot(origin_pt, radius=0.04, color=TEXT_DIM)
+    origin_lbl = MathTex(r"\mathcal{O}", font_size=16, color=TEXT_DIM).next_to(origin_dot, DL, buff=0.08)
 
     scene.play(
         Create(h_lines, run_time=0.4),
         Create(v_lines, run_time=0.4),
-        Create(axes, run_time=0.9),
+        Create(axes, run_time=0.8),
         FadeIn(ax_labels, run_time=0.5),
+        FadeIn(origin_dot, origin_lbl, run_time=0.4)
     )
     axes._y_lo = y_lo
     axes._y_hi = y_hi
@@ -561,23 +569,26 @@ def build_derivative_axes(scene: Scene, orig_func=None, deriv_func=None):
 
 
 def add_graph_legend(axes, orig_label_tex, deriv_label_tex):
-    """Small legend box showing which curve is f(x) and which is f'(x)."""
-    orig_line  = Line(ORIGIN, RIGHT*0.45, stroke_width=2.8, color=ACCENT_BLUE)
-    orig_lbl   = MathTex(orig_label_tex, font_size=18, color=ACCENT_BLUE)
-    deriv_line = Line(ORIGIN, RIGHT*0.45, stroke_width=2.8, color=ACCENT_CORAL)
+    """Mathematical function & derivative legend box."""
+    orig_line  = Line(ORIGIN, RIGHT*0.45, stroke_width=3.0, color=ACCENT_CYAN)
+    orig_lbl   = MathTex(orig_label_tex, font_size=18, color=ACCENT_CYAN)
+    deriv_line = Line(ORIGIN, RIGHT*0.45, stroke_width=3.0, color=ACCENT_CORAL)
     deriv_lbl  = MathTex(deriv_label_tex, font_size=18, color=ACCENT_CORAL)
 
     row1 = VGroup(orig_line, orig_lbl).arrange(RIGHT, buff=0.12)
     row2 = VGroup(deriv_line, deriv_lbl).arrange(RIGHT, buff=0.12)
     rows = VGroup(row1, row2).arrange(DOWN, buff=0.18, aligned_edge=LEFT)
 
+    header = MathTex(r"\mathbf{\mathcal{F}\text{unctions:}}", font_size=16, color=TEXT_DIM)
+    content = VGroup(header, rows).arrange(DOWN, buff=0.14, aligned_edge=LEFT)
+
     bg = RoundedRectangle(
-        corner_radius=0.1, width=rows.width+0.4, height=rows.height+0.35,
-        fill_color=PANEL_BG, fill_opacity=0.9,
-        stroke_color=TEXT_DIM, stroke_width=1.0,
+        corner_radius=0.12, width=content.width + 0.45, height=content.height + 0.4,
+        fill_color=PANEL_BG, fill_opacity=0.94,
+        stroke_color=PANEL_BORDER, stroke_width=1.2,
     )
-    rows.move_to(bg)
-    legend = VGroup(bg, rows)
+    content.move_to(bg)
+    legend = VGroup(bg, content)
     legend.next_to(axes, UP, buff=0.18).align_to(axes, RIGHT)
     return legend
 
