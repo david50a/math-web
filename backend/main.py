@@ -18,13 +18,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, "engine"))
 
 try:
+    import algebra
     import derivative
     import integral
     import linear_algebra_solver as solvers
     import stats_engine as statistics
     import geometry
     import eigenvalues_and_eigenvector as eigen
-    from math_models import Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_string, to_latex, simplify, Node
+    from math_models import Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_string, to_latex, simplify, Node, MathStep, parse_expr
 except ImportError as e:
     print(f"Import error: {e}")
 
@@ -247,9 +248,122 @@ class SolveRequest(BaseModel):
     quality: Optional[str] = "medium"
     allow_complex: Optional[bool] = True
     show_complex: Optional[bool] = None
+    method_id: Optional[str] = None
+    method_name: Optional[str] = None
 
 class OCRRequest(BaseModel):
     imageBase64: str
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+    context: Optional[str] = None
+
+def generate_smart_math_tutor_reply(user_question: str, context: Optional[str] = None) -> str:
+    q = user_question.lower().strip()
+
+    # Greetings & Persona Questions
+    if re.search(r'^(hi|hello|hey|greetings|who are you|what can you do)', q):
+        return "Hello! I'm your AI Math Tutor. I can help you solve equations step-by-step, explain mathematical intuition, explore graphs, or clarify any complex concept. What would you like to explore together?"
+
+    # Discriminant & Quadratic Questions
+    if any(k in q for k in ["discriminant", "d =", "b^2 - 4ac", "delta", "d < 0", "d > 0"]):
+        if context and "D =" in context:
+            return "The discriminant, D = b² - 4ac, tells us the nature of the roots! Geometrically, if D is positive, the parabola cuts the x-axis in two places. If D is zero, it just kisses the x-axis at its vertex. And if D is negative, the parabola never touches the x-axis on the real plane, meaning the solutions exist as complex conjugate pairs."
+        return "The discriminant, D = b² - 4ac, determines the roots: positive means two real roots, zero means one repeated real root, and negative means two complex roots involving imaginary unit i."
+
+    # Complex Numbers & Imaginary Unit
+    if any(k in q for k in ["complex", "imaginary", "square root of negative", "negative under root", "what is i"]):
+        return "When we take the square root of a negative number, we define the imaginary unit i where i² = -1. Complex solutions always come in conjugate pairs like a + bi and a - bi. They represent genuine algebraic roots living in the 2D complex plane!"
+
+    # Why Factor vs Quadratic Formula
+    if any(k in q for k in ["why factor", "why use quadratic formula", "difference between methods", "which method"]):
+        return "Factoring is fastest and cleanest when roots are rational numbers. The quadratic formula, however, is a universal superpower—it solves every quadratic equation unconditionally, even with irrational numbers or negative discriminants."
+
+    # Derivative & Calculus Questions
+    if any(k in q for k in ["derivative", "differentiate", "rate of change", "slope", "tangent"]):
+        return "A derivative f'(x) gives the instantaneous rate of change or tangent slope of a curve at any point. Using the power rule on xⁿ, you multiply by the exponent and drop the power by 1 to get n·xⁿ⁻¹."
+
+    # Integral & Area Questions
+    if any(k in q for k in ["integral", "integrate", "area under", "anti-derivative"]):
+        return "Integration is the inverse of differentiation! It accumulates continuous quantities to compute the net area beneath a curve. The plus C accounts for any constant term that disappeared when taking the derivative."
+
+    # Matrix & Linear Algebra Questions
+    if any(k in q for k in ["eigenvalue", "eigenvector", "determinant", "matrix"]):
+        return "An eigenvalue is a special scaling factor λ where multiplying the matrix by its eigenvector stretches or shrinks that vector without rotating it: A·v = λ·v. The determinant measures how much the transformation scales volume."
+
+    # Contextual Step Explanations
+    if any(k in q for k in ["explain this step", "why did we do this", "what is happening here", "help me understand", "why?"]):
+        if context:
+            clean_ctx = context.replace("CURRENT SCREEN CONTEXT:", "").strip()
+            return f"In this step, we are transforming the equation to isolate the variable and reveal its mathematical structure. {clean_ctx}"
+        return "In this step, we apply algebraic transformations to isolate the variable while keeping both sides of the equation in balance."
+
+    # General Intelligent Mathematical Response
+    return "Great question! In mathematics, each step maintains equality while transforming the equation into its simplest, most insightful form. Let me know if you want to explore the next step or solve another equation!"
+
+@app.post("/api/chat")
+async def chat_api(request: ChatRequest):
+    if not request.messages:
+        raise HTTPException(status_code=400, detail="messages array is required.")
+
+    last_user_message = request.messages[-1].content if request.messages else ""
+
+    # Optional Gemini expansion if GEMINI_API_KEY is present
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if gemini_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            prompt = f"You are Axiom, a friendly, brilliant, human-like AI Math Tutor. Context: {request.context or ''}\nUser: {last_user_message}\nAnswer concisely and intuitively in 2-3 sentences."
+            resp = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            if resp and resp.text:
+                return {"reply": resp.text.strip()}
+        except Exception as e:
+            pass
+
+    # Built-in High-Intelligence Math Reasoner
+    reply = generate_smart_math_tutor_reply(last_user_message, request.context)
+    return {"reply": reply}
+
+def normalize_matrix_latex(text: str) -> str:
+    if not text:
+        return ""
+    s = text.strip()
+    s = re.sub(r'^```[a-zA-Z]*\n?', '', s)
+    s = re.sub(r'\n?```$', '', s).strip()
+
+    def replace_matrix(match):
+        inner = match.group(2).strip()
+        rows = [r.strip() for r in re.split(r'\\\\|\n', inner) if r.strip()]
+        formatted_rows = []
+        for row in rows:
+            cols = [c.strip() for c in row.split('&') if c.strip()]
+            formatted_rows.append(f"[{', '.join(cols)}]")
+        return f"[{', '.join(formatted_rows)}]"
+
+    s = re.sub(r'\\begin\{(pmatrix|bmatrix|matrix|Bmatrix)\}([\s\S]*?)\\end\{\1\}', replace_matrix, s, flags=re.I)
+    
+    def replace_vmatrix(match):
+        inner = match.group(1).strip()
+        rows = [r.strip() for r in re.split(r'\\\\|\n', inner) if r.strip()]
+        formatted_rows = []
+        for row in rows:
+            cols = [c.strip() for c in row.split('&') if c.strip()]
+            formatted_rows.append(f"[{', '.join(cols)}]")
+        return f"det([{', '.join(formatted_rows)}])"
+
+    s = re.sub(r'\\begin\{vmatrix\}([\s\S]*?)\\end\{vmatrix\}', replace_vmatrix, s, flags=re.I)
+    s = re.sub(r'\\det\s*\((.*?)\)', r'det(\1)', s, flags=re.I)
+    s = re.sub(r'\\det\s*(\[\[[\s\S]*?\]\])', r'det(\1)', s, flags=re.I)
+    s = re.sub(r'(\[\[[\s\S]*?\]\])\^\{-1\}', r'inv(\1)', s)
+    return s
 
 @app.post("/api/ocr")
 async def ocr_api(request: OCRRequest):
@@ -279,10 +393,10 @@ async def ocr_api(request: OCRRequest):
         
         # Symbol normalization for common OCR math artifacts
         equation = equation.replace('—', '-').replace('–', '-')
-        equation = equation.replace('x', 'x').replace('X', 'x')
+        equation = normalize_matrix_latex(equation)
         
         if not equation:
-            equation = "x^2 + 5x + 6 = 0"
+            equation = "det([[1, 2], [3, 4]])"
             
         return {"equation": equation}
     except Exception as err:
@@ -311,14 +425,443 @@ class VideoScene(BaseModel):
     graphData: GraphData
     annotations: Optional[List[SceneAnnotation]] = []
 
+class StepModel(BaseModel):
+    stepTitle: str
+    description: str
+    latex: str
+
+class MethodProsCons(BaseModel):
+    pros: str
+    cons: str
+
+class MethodSolutionModel(BaseModel):
+    methodId: str
+    methodName: str
+    badgeTag: str
+    techniqueSummary: str
+    formulaLatex: str
+    steps: List[StepModel]
+    finalResultLatex: str
+    prosAndCons: MethodProsCons
+
 class EquationSolution(BaseModel):
     equation: str
     equationType: str
     summary: str
     finalAnswer: str
     scenes: List[VideoScene]
+    methods: Optional[List[MethodSolutionModel]] = []
     demoMode: bool = False
     needsKey: bool = False
+
+def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bool = True, final_solution: str = "", primary_steps: List[Any] = None) -> List[MethodSolutionModel]:
+    methods = []
+    
+    def to_step_models(steps_list):
+        res = []
+        for idx, s in enumerate(steps_list):
+            title = f"Step {idx + 1}"
+            desc = getattr(s, 'description', '')
+            latex_val = ""
+            if hasattr(s, 'latex'):
+                latex_val = s.latex
+            elif hasattr(s, 'data') and isinstance(s.data, dict) and 'matrix' in s.data:
+                latex_val = solvers.matrix_to_latex(s.data['matrix'])
+            res.append(StepModel(stepTitle=title, description=desc, latex=latex_val))
+        return res
+
+    # 1. ALGEBRA & POLYNOMIALS
+    if equation_type == "Algebra" or ('=' in input_str and not input_str.lower().startswith(('integrate', 'derive', 'mean', 'median', 'rotate', 'translate', 'scale')) and '[' not in input_str):
+        try:
+            a, b, c, d = algebra.parse_polynomial(input_str)
+            if a != 0:  # Cubic
+                try:
+                    r1_roots, r1_steps = algebra.rational_root_theorem_solver(input_str, allow_complex=allow_complex)
+                    if r1_steps:
+                        roots_str = ", ".join([algebra.fmt_num(r) if isinstance(r, (int, float)) else str(r) for r in (r1_roots if isinstance(r1_roots, list) else [r1_roots])])
+                        methods.append(MethodSolutionModel(
+                            methodId="cubic-rational-root",
+                            methodName="Method 1: Rational Root Theorem & Synthetic Division",
+                            badgeTag="Polynomial Factorization",
+                            techniqueSummary="Tests candidate rational roots p/q using constant divisors and leading coefficient, then reduces degree by synthetic division.",
+                            formulaLatex=r"\frac{p}{q} \implies (x - r)(Ax^2 + Bx + C) = 0",
+                            steps=to_step_models(r1_steps),
+                            finalResultLatex=f"x \\in \\{{{roots_str}\\}}",
+                            prosAndCons=MethodProsCons(
+                                pros="Systematically reduces cubic to a quadratic factor without requiring Cardano's trigonometric formulas.",
+                                cons="Requires the cubic polynomial to possess at least one rational root."
+                            )
+                        ))
+                except Exception as e:
+                    print(f"Error in rational root method: {e}")
+
+                try:
+                    c_res = algebra.cubic_equation_solver(input_str, allow_complex=allow_complex)
+                    c_steps = c_res[-1]
+                    methods.append(MethodSolutionModel(
+                        methodId="cubic-cardano",
+                        methodName="Method 2: Cardano's Depressed Cubic Formula",
+                        badgeTag="Exact Closed Form",
+                        techniqueSummary="Depresses the cubic via substitution x = t - b/(3a) to t^3 + pt + q = 0 and computes roots analytically.",
+                        formulaLatex=r"t^3 + pt + q = 0 \implies x = u + v - \frac{b}{3a}",
+                        steps=to_step_models(c_steps),
+                        finalResultLatex=final_solution or "Roots computed",
+                        prosAndCons=MethodProsCons(
+                            pros="Universal exact closed-form resolution for any cubic equation regardless of rational factors.",
+                            cons="Involves complex cube root calculations."
+                        )
+                    ))
+                except Exception as e:
+                    print(f"Error in cardano method: {e}")
+
+            elif b != 0:  # Quadratic
+                try:
+                    q_res = algebra.quadratic_equation_solver(input_str, allow_complex=allow_complex)
+                    q_steps = q_res[-1]
+                    methods.append(MethodSolutionModel(
+                        methodId="quad-formula",
+                        methodName="Method 1: Quadratic Formula (Discriminant)",
+                        badgeTag="Universal Standard",
+                        techniqueSummary="Calculates discriminant D = b^2 - 4ac and applies the universal quadratic roots formula.",
+                        formulaLatex=r"x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}",
+                        steps=to_step_models(q_steps),
+                        finalResultLatex=final_solution or "Roots computed",
+                        prosAndCons=MethodProsCons(
+                            pros="Reliable general method that works on all quadratic equations with real or complex roots.",
+                            cons="Requires careful radical arithmetic."
+                        )
+                    ))
+                except Exception as e:
+                    print(f"Error in quad formula method: {e}")
+
+                try:
+                    f_res = algebra.factoring_quadratic(input_str, allow_complex=allow_complex)
+                    f_steps = f_res[-1]
+                    methods.append(MethodSolutionModel(
+                        methodId="quad-factor",
+                        methodName="Method 2: Factoring (Binomial Product)",
+                        badgeTag="Fastest for Rational Roots",
+                        techniqueSummary="Decomposes the quadratic into linear factor products a(x - r1)(x - r2) = 0.",
+                        formulaLatex=r"a(x - r_1)(x - r_2) = 0 \implies x = r_1, \, x = r_2",
+                        steps=to_step_models(f_steps),
+                        finalResultLatex=final_solution or "Roots computed",
+                        prosAndCons=MethodProsCons(
+                            pros="Extremely fast and intuitive when roots are integer values.",
+                            cons="Difficult or unfeasible by hand when roots involve irrational radicals."
+                        )
+                    ))
+                except Exception as e:
+                    print(f"Error in quad factor method: {e}")
+
+                try:
+                    sq_res = algebra.completing_the_square(input_str, allow_complex=allow_complex)
+                    sq_steps = sq_res[-1]
+                    methods.append(MethodSolutionModel(
+                        methodId="quad-complete-square",
+                        methodName="Method 3: Completing the Square (Vertex Form)",
+                        badgeTag="Geometric & Vertex Form",
+                        techniqueSummary="Rearranges the quadratic into a perfect square binomial (x + p)^2 = q.",
+                        formulaLatex=r"\left(x + \frac{b}{2a}\right)^2 = \frac{b^2 - 4ac}{4a^2}",
+                        steps=to_step_models(sq_steps),
+                        finalResultLatex=final_solution or "Roots computed",
+                        prosAndCons=MethodProsCons(
+                            pros="Directly reveals the parabola vertex (h, k) and axis of symmetry.",
+                            cons="Involves multiple fraction arithmetic steps."
+                        )
+                    ))
+                except Exception as e:
+                    print(f"Error in completing square method: {e}")
+
+                try:
+                    rr_res = algebra.rational_root_theorem_solver(input_str, allow_complex=allow_complex)
+                    rr_steps = rr_res[-1]
+                    methods.append(MethodSolutionModel(
+                        methodId="quad-rational-roots",
+                        methodName="Method 4: Rational Root Theorem & Divisor Pairs",
+                        badgeTag="Candidate Root Search",
+                        techniqueSummary="Systematically tests all integer divisors p | c and q | a.",
+                        formulaLatex=r"x \in \left\{ \pm \frac{p}{q} \right\} \quad \text{where } p \mid c, \, q \mid a",
+                        steps=to_step_models(rr_steps),
+                        finalResultLatex=final_solution or "Roots computed",
+                        prosAndCons=MethodProsCons(
+                            pros="Rigorous exhaustive search that verifies all potential rational zeros.",
+                            cons="Ineffective for equations with irrational or complex roots."
+                        )
+                    ))
+                except Exception as e:
+                    print(f"Error in rational root quad method: {e}")
+        except Exception as e:
+            print(f"Error parsing polynomial multi-methods: {e}")
+
+    # 2. CALCULUS INTEGRALS
+    elif input_str.lower().startswith('integrate'):
+        expr_content = re.search(r'integrate\((.*)\)', input_str, re.I)
+        expr_str = expr_content.group(1) if expr_content else input_str[9:].strip(' ()')
+        parts = [p.strip() for p in expr_str.split(',')]
+        base_expr = parts[0]
+        try:
+            node = parse_expr(base_expr)
+            try:
+                res_node, s1 = integral.integrate_node(node)
+                symb_ans = to_string(res_node) + " + C"
+                methods.append(MethodSolutionModel(
+                    methodId="integral-symbolic",
+                    methodName="Method 1: Exact Symbolic / Analytical Integration",
+                    badgeTag="Analytical Closed Form",
+                    techniqueSummary="Applies fundamental calculus antiderivative rules (power rule, substitution, by parts).",
+                    formulaLatex=r"\int f(x)\,dx = F(x) + C",
+                    steps=to_step_models(s1),
+                    finalResultLatex=symb_ans,
+                    prosAndCons=MethodProsCons(
+                        pros="Produces exact closed-form symbolic antiderivatives.",
+                        cons="Some non-elementary integrands do not have elementary closed forms."
+                    )
+                ))
+            except Exception as e:
+                print(f"Error in symbolic integration method: {e}")
+
+            try:
+                val_s, s2 = integral.integrate_numerical(node, 0, 1, 6, "simpson")
+                methods.append(MethodSolutionModel(
+                    methodId="integral-simpson",
+                    methodName="Method 2: Simpson's Rule (Parabolic Quadrature)",
+                    badgeTag="High-Order Numerical",
+                    techniqueSummary="Approximates the definite integral over [0, 1] using quadratic parabolic interpolations.",
+                    formulaLatex=r"\int_a^b f(x)\,dx \approx \frac{h}{3}\left[f(a) + 4\sum f(x_{\text{odd}}) + 2\sum f(x_{\text{even}}) + f(b)\right]",
+                    steps=to_step_models(s2),
+                    finalResultLatex=f"{val_s:.6f}",
+                    prosAndCons=MethodProsCons(
+                        pros="Rapid O(h^4) convergence with high numerical precision.",
+                        cons="Requires an even number of sub-intervals."
+                    )
+                ))
+            except Exception as e:
+                print(f"Error in simpson method: {e}")
+
+            try:
+                val_t, s3 = integral.integrate_numerical(node, 0, 1, 6, "trapezoid")
+                methods.append(MethodSolutionModel(
+                    methodId="integral-trapezoid",
+                    methodName="Method 3: Trapezoidal Numerical Quadrature",
+                    badgeTag="Linear Segment Numerical",
+                    techniqueSummary="Approximates the integral area using trapezoidal segments across the interval.",
+                    formulaLatex=r"\int_a^b f(x)\,dx \approx \frac{h}{2}\left[f(a) + 2\sum_{i=1}^{n-1} f(x_i) + f(b)\right]",
+                    steps=to_step_models(s3),
+                    finalResultLatex=f"{val_t:.6f}",
+                    prosAndCons=MethodProsCons(
+                        pros="Simple intuitive geometric area calculation.",
+                        cons="Second-order O(h^2) precision."
+                    )
+                ))
+            except Exception as e:
+                print(f"Error in trapezoid method: {e}")
+
+            try:
+                val_m, s4 = integral.integrate_numerical(node, 0, 1, 6, "midpoint")
+                methods.append(MethodSolutionModel(
+                    methodId="integral-midpoint",
+                    methodName="Method 4: Midpoint Rule Quadrature",
+                    badgeTag="Sub-interval Midpoint",
+                    techniqueSummary="Evaluates the function strictly at the center points of each subdivision.",
+                    formulaLatex=r"\int_a^b f(x)\,dx \approx h \sum_{i=1}^n f\left(\frac{x_{i-1} + x_i}{2}\right)",
+                    steps=to_step_models(s4),
+                    finalResultLatex=f"{val_m:.6f}",
+                    prosAndCons=MethodProsCons(
+                        pros="Avoids evaluating endpoints if singularities exist.",
+                        cons="Requires calculating interior midpoints."
+                    )
+                ))
+            except Exception as e:
+                print(f"Error in midpoint method: {e}")
+        except Exception as e:
+            print(f"Error in integral multi-methods: {e}")
+
+    # 3. CALCULUS DERIVATIVES
+    elif input_str.lower().startswith('derive'):
+        expr_content = re.search(r'derive\((.*)\)', input_str, re.I)
+        expr_str = expr_content.group(1) if expr_content else input_str[6:].strip(' ()')
+        try:
+            node = parse_expr(expr_str)
+            res_node, s1 = derivative.derive(node)
+            d_ans = to_string(res_node)
+            methods.append(MethodSolutionModel(
+                methodId="derive-rules",
+                methodName="Method 1: Differentiation Rules Engine",
+                badgeTag="Symbolic Rules",
+                techniqueSummary="Applies power rule, product rule, quotient rule, and chain rule sequentially.",
+                formulaLatex=r"\frac{d}{dx}[u \cdot v] = u'v + uv', \quad \frac{d}{dx}[f(g(x))] = f'(g(x))g'(x)",
+                steps=to_step_models(s1),
+                finalResultLatex=d_ans,
+                prosAndCons=MethodProsCons(
+                    pros="Fast, exact closed-form algebraic derivation.",
+                    cons="Can produce unsimplified intermediate expressions."
+                )
+            ))
+
+            diff_steps = [
+                StepModel(stepTitle="Step 1: Formulate difference quotient", description=f"Substitute f(x) = {expr_str} into formal definition of derivative.", latex=r"f'(x) = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h}"),
+                StepModel(stepTitle="Step 2: Expand f(x + h)", description="Expand terms and simplify the numerator.", latex=rf"\frac{{{expr_str.replace('x', '(x+h)')} - ({expr_str})}}{{h}}"),
+                StepModel(stepTitle="Step 3: Cancel infinitesimal h and evaluate limit", description="Divide out h from all terms and evaluate as h approaches 0.", latex=rf"f'(x) = {d_ans}")
+            ]
+            methods.append(MethodSolutionModel(
+                methodId="derive-limit-definition",
+                methodName="Method 2: Definition of Derivative (First Principles Limit)",
+                badgeTag="Theoretical Definition",
+                techniqueSummary="Calculates the instantaneous rate of change via the foundational limit definition of calculus.",
+                formulaLatex=r"f'(x) = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h}",
+                steps=diff_steps,
+                finalResultLatex=d_ans,
+                prosAndCons=MethodProsCons(
+                    pros="Provides foundational theoretical proof of why the derivative exists.",
+                    cons="Algebraically tedious for complex transcendental equations."
+                )
+            ))
+        except Exception as e:
+            print(f"Error in derivative multi-methods: {e}")
+
+    # 4. STATISTICS
+    elif input_str.lower().startswith(('mean', 'median')):
+        try:
+            data_content = re.search(r'\((.*)\)', input_str)
+            data_str = data_content.group(1) if data_content else input_str[5:].strip(' ()')
+            s_mean = statistics.mean(data_str)
+            methods.append(MethodSolutionModel(
+                methodId="stats-direct-mean",
+                methodName="Method 1: Direct Arithmetic Mean Formula",
+                badgeTag="Arithmetic Average",
+                techniqueSummary="Sums all sample points and divides by sample size N.",
+                formulaLatex=r"\bar{x} = \frac{1}{N}\sum_{i=1}^N x_i",
+                steps=to_step_models(s_mean),
+                finalResultLatex=final_solution or (s_mean[-1].latex if s_mean else ""),
+                prosAndCons=MethodProsCons(
+                    pros="Standard measure of central tendency.",
+                    cons="Sensitive to extreme outlier values."
+                )
+            ))
+            s_med = statistics.median(data_str)
+            methods.append(MethodSolutionModel(
+                methodId="stats-median",
+                methodName="Method 2: Ordered Rank Median Resolution",
+                badgeTag="Positional Average",
+                techniqueSummary="Sorts dataset in ascending order and identifies the center element.",
+                formulaLatex=r"\tilde{x} = x_{\left(\frac{N+1}{2}\right)}",
+                steps=to_step_models(s_med),
+                finalResultLatex=s_med[-1].latex if s_med else "",
+                prosAndCons=MethodProsCons(
+                    pros="Resistant and robust against extreme outliers.",
+                    cons="Ignores specific numerical magnitude of non-median values."
+                )
+            ))
+        except Exception as e:
+            print(f"Error in stats multi-methods: {e}")
+
+    # 5. LINEAR ALGEBRA & MATRICES
+    elif '[' in input_str:
+        try:
+            matrices = re.findall(r'\[\[.*?\]\]|\[.*?\]', input_str)
+            if matrices:
+                parsed_matrices = [ast.literal_eval(m) for m in matrices]
+                # Check if it's a 2D matrix (list of lists)
+                if parsed_matrices and isinstance(parsed_matrices[0], list) and len(parsed_matrices[0]) > 0 and isinstance(parsed_matrices[0][0], list):
+                    matrix = parsed_matrices[0]
+                    # Check if augmented system [A | b] where cols == rows + 1
+                    if len(matrix[0]) == len(matrix) + 1:
+                        A = [row[:-1] for row in matrix]
+                        b = [row[-1] for row in matrix]
+                        try:
+                            x_rref, s_rref = solvers.solve_linear_system(A, b)
+                            sol_rref = ", ".join([f"x_{idx+1} = {val:.4g}" for idx, val in enumerate(x_rref)])
+                            methods.append(MethodSolutionModel(
+                                methodId="linear-rref",
+                                methodName="Method 1: Gaussian Elimination (RREF)",
+                                badgeTag="Row Reduction Standard",
+                                techniqueSummary="Transforms augmented matrix [A | b] into reduced row echelon form [I | x*].",
+                                formulaLatex=r"[A \mid b] \xrightarrow{\text{Row Operations}} [I \mid x^*]",
+                                steps=to_step_models(s_rref),
+                                finalResultLatex=sol_rref,
+                                prosAndCons=MethodProsCons(
+                                    pros="Most numerically stable and computationally efficient method for systems of any size.",
+                                    cons="Requires manual step-by-step arithmetic row manipulations."
+                                )
+                            ))
+                        except Exception as e:
+                            print(f"Error in rref method: {e}")
+                        try:
+                            x_cramer, s_cramer = solvers.cremer(A, b)
+                            sol_cramer = ", ".join([f"x_{idx+1} = {val:.4g}" for idx, val in enumerate(x_cramer)])
+                            methods.append(MethodSolutionModel(
+                                methodId="linear-cramer",
+                                methodName="Method 2: Cramer's Rule (Determinant Ratio)",
+                                badgeTag="Exact Determinant Ratio",
+                                techniqueSummary="Computes each variable individually as the ratio of modified column determinant to main matrix determinant.",
+                                formulaLatex=r"x_i = \frac{\det(A_i)}{\det(A)}",
+                                steps=to_step_models(s_cramer),
+                                finalResultLatex=sol_cramer,
+                                prosAndCons=MethodProsCons(
+                                    pros="Provides closed-form explicit formulas for individual unknown variables.",
+                                    cons="Requires det(A) != 0."
+                                )
+                            ))
+                        except Exception as e:
+                            print(f"Error in cramer method: {e}")
+                    elif len(matrix[0]) == len(matrix):
+                        # Square matrix
+                        try:
+                            val_det, s_det = solvers.determinant(matrix)
+                            methods.append(MethodSolutionModel(
+                                methodId="matrix-det",
+                                methodName="Method 1: Laplace / Row-Reduction Determinant",
+                                badgeTag="Determinant Engine",
+                                techniqueSummary="Computes matrix scalar determinant via row reduction.",
+                                formulaLatex=r"\det(A) = |A|",
+                                steps=to_step_models(s_det),
+                                finalResultLatex=f"\\det(A) = {val_det:.4g}",
+                                prosAndCons=MethodProsCons(
+                                    pros="Evaluates matrix singularity and volume scaling factor.",
+                                    cons="Requires square n x n matrix."
+                                )
+                            ))
+                        except Exception as e:
+                            print(f"Error in det method: {e}")
+                        try:
+                            val_rref, s_rref = solvers.reduced_row_echelon(matrix)
+                            methods.append(MethodSolutionModel(
+                                methodId="matrix-rref",
+                                methodName="Method 2: Reduced Row Echelon Form (RREF)",
+                                badgeTag="Echelon Form",
+                                techniqueSummary="Reduces matrix into canonical row echelon form.",
+                                formulaLatex=r"A \xrightarrow{\text{RREF}} R",
+                                steps=to_step_models(s_rref),
+                                finalResultLatex=solvers.matrix_to_latex(val_rref),
+                                prosAndCons=MethodProsCons(
+                                    pros="Shows matrix rank, nullspace, and linear dependencies directly.",
+                                    cons="Requires extensive row pivots."
+                                )
+                            ))
+                        except Exception as e:
+                            print(f"Error in rref single method: {e}")
+        except Exception as e:
+            print(f"Error in matrix multi-methods: {e}")
+        except Exception as e:
+            print(f"Error in stats multi-methods: {e}")
+
+    if not methods and primary_steps:
+        fallback_steps = to_step_models(primary_steps)
+        methods.append(MethodSolutionModel(
+            methodId="default-direct",
+            methodName=f"Method 1: {equation_type} Analytical Resolution",
+            badgeTag="Primary Engine",
+            techniqueSummary=f"Computed resolution using {equation_type} engine.",
+            formulaLatex=input_str,
+            steps=fallback_steps,
+            finalResultLatex=final_solution or "",
+            prosAndCons=MethodProsCons(
+                pros="Direct automated resolution with complete step-by-step derivations.",
+                cons="Single approach generated by solver engine."
+            )
+        ))
+
+    return methods
 
 def node_to_dict(node):
     if node is None: return None
@@ -595,6 +1138,8 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
     env = os.environ.copy()
     env["MATH_EXPR"] = expr
     env["MATH_OP"] = op
+    env["MATH_METHOD_ID"] = request.method_id or ""
+    env["MATH_METHOD_NAME"] = request.method_name or ""
     env["PYTHONPATH"] = f"{BASE_DIR};{os.path.join(BASE_DIR, 'engine')}"
     
     video_id = str(uuid.uuid4())
@@ -615,7 +1160,7 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
 
 @app.post("/api/solve", response_model=EquationSolution)
 async def solve_api(request: SolveRequest, authorization: Optional[str] = Header(None)):
-    input_str = request.equation.strip()
+    input_str = normalize_matrix_latex(request.equation.strip())
     equation_type = "Algebra"
     
     # Tier limits enforcement
@@ -850,12 +1395,21 @@ async def solve_api(request: SolveRequest, authorization: Optional[str] = Header
                 annotations=annotations
             ))
 
+        multi_methods = generate_multi_methods(
+            input_str=input_str,
+            equation_type=equation_type,
+            allow_complex=allow_complex,
+            final_solution=solution,
+            primary_steps=steps
+        )
+
         return EquationSolution(
             equation=input_str,
             equationType=equation_type,
             summary="Mathematical solution generated by Axiom Engine.",
             finalAnswer=solution,
-            scenes=response_scenes
+            scenes=response_scenes,
+            methods=multi_methods
         )
 
     except Exception as e:

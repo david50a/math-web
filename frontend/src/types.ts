@@ -33,12 +33,33 @@ export interface VideoScene {
   annotations?: SceneAnnotation[];
 }
 
+export interface MethodStep {
+  stepTitle: string;
+  description: string;
+  latex: string;
+}
+
+export interface MethodSolution {
+  methodId: string;
+  methodName: string;
+  badgeTag: string;
+  techniqueSummary: string;
+  formulaLatex: string;
+  steps: MethodStep[];
+  finalResultLatex: string;
+  prosAndCons: {
+    pros: string;
+    cons: string;
+  };
+}
+
 export interface EquationSolution {
   equation: string;
   equationType: string;
   summary: string;
   finalAnswer: string;
   scenes: VideoScene[];
+  methods?: MethodSolution[];
   demoMode?: boolean;
   needsKey?: boolean;
 }

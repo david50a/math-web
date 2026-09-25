@@ -220,6 +220,45 @@ export default function App() {
   const [isRecordingMainInput, setIsRecordingMainInput] = useState(false);
   const mainRecognitionRef = useRef<any>(null);
 
+  const formatOcrPreviewToLatex = (input: string): string => {
+    if (!input) return "";
+    let res = input.trim();
+    
+    // Convert determinant of matrix: det([[...], [...]])
+    res = res.replace(/det\(\s*\[\s*\[(.*?)\]\s*,\s*\[(.*?)\]\s*\]\s*\)/gi, (_m, r1, r2) => {
+      const c1 = r1.split(',').map((x: string) => x.trim()).join(' & ');
+      const c2 = r2.split(',').map((x: string) => x.trim()).join(' & ');
+      return `\\det\\begin{pmatrix}${c1} \\\\ ${c2}\\end{pmatrix}`;
+    });
+    res = res.replace(/det\(\s*\[\s*\[(.*?)\]\s*,\s*\[(.*?)\]\s*,\s*\[(.*?)\]\s*\]\s*\)/gi, (_m, r1, r2, r3) => {
+      const c1 = r1.split(',').map((x: string) => x.trim()).join(' & ');
+      const c2 = r2.split(',').map((x: string) => x.trim()).join(' & ');
+      const c3 = r3.split(',').map((x: string) => x.trim()).join(' & ');
+      return `\\det\\begin{pmatrix}${c1} \\\\ ${c2} \\\\ ${c3}\\end{pmatrix}`;
+    });
+
+    // Convert raw 2x2 matrix: [[a, b], [c, d]]
+    res = res.replace(/\[\s*\[(.*?)\]\s*,\s*\[(.*?)\]\s*\]/g, (_m, r1, r2) => {
+      const c1 = r1.split(',').map((x: string) => x.trim()).join(' & ');
+      const c2 = r2.split(',').map((x: string) => x.trim()).join(' & ');
+      return `\\begin{pmatrix}${c1} \\\\ ${c2}\\end{pmatrix}`;
+    });
+
+    // Convert raw 3x3 matrix: [[...], [...], [...]]
+    res = res.replace(/\[\s*\[(.*?)\]\s*,\s*\[(.*?)\]\s*,\s*\[(.*?)\]\s*\]/g, (_m, r1, r2, r3) => {
+      const c1 = r1.split(',').map((x: string) => x.trim()).join(' & ');
+      const c2 = r2.split(',').map((x: string) => x.trim()).join(' & ');
+      const c3 = r3.split(',').map((x: string) => x.trim()).join(' & ');
+      return `\\begin{pmatrix}${c1} \\\\ ${c2} \\\\ ${c3}\\end{pmatrix}`;
+    });
+
+    res = res.replace(/integrate\((.*?)\)/gi, "\\int $1 dx");
+    res = res.replace(/derive\((.*?)\)/gi, "\\frac{d}{dx}\\left[$1\\right]");
+    res = res.replace(/sqrt\((.*?)\)/gi, "\\sqrt{$1}");
+    res = res.replace(/\*/g, " \\cdot ");
+    return res;
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -727,17 +766,28 @@ export default function App() {
                   </div>
 
                   {/* Extracted Math Result Display & Manual Correction */}
-                  <div>
-                    <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest block mb-1.5">
-                      Extracted Math Equation (Editable)
+                  {/* Extracted Math Result Display & Manual Correction */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest block mb-1">
+                      Extracted Math Equation / Matrix (Editable)
                     </label>
                     <input
                       type="text"
                       value={ocrExtractedMath}
                       onChange={(e) => setOcrExtractedMath(e.target.value)}
-                      placeholder="OCR Extracted Math Result..."
+                      placeholder="e.g. det([[1, 2], [3, 4]]), [[1, 2], [3, 4]], x^2 - 5x + 6 = 0"
                       className="w-full bg-white/5 border border-white/20 px-4 py-3 font-mono text-sm focus:outline-none focus:border-blue-500 rounded-lg text-blue-300"
                     />
+
+                    {/* Live LaTeX / Matrix Render Preview */}
+                    {ocrExtractedMath && (
+                      <div className="p-3 bg-black/60 border border-blue-500/30 rounded-lg flex items-center justify-between">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-blue-400/80">Live Formatted Preview:</span>
+                        <div className="text-sm font-mono text-blue-200">
+                          <KatexMath math={formatOcrPreviewToLatex(ocrExtractedMath)} block={false} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -906,6 +956,7 @@ export default function App() {
         <Explanation
           theme={theme}
           initialEquation={equationInput}
+          currentSolution={solution}
           onTryExample={(expr) => {
             setEquationInput(expr);
             setCurrentView("dashboard");

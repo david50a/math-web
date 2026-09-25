@@ -503,14 +503,28 @@ def rational_root_theorem_solver(equation: str, allow_complex: bool = True)-> Tu
     steps = []
     steps.append(MathStep(f"Original Equation: {equation}", f"{equation}", "equation"))
     a, b, c, d = parse_polynomial(equation)
+    
+    # Determine leading coefficient and degree
+    if a != 0:
+        lead_coeff = a
+        deg = 3
+    elif b != 0:
+        lead_coeff = b
+        deg = 2
+    elif c != 0:
+        lead_coeff = c
+        deg = 1
+    else:
+        return float('nan'), [MathStep("No variable found", r"\text{No solution}", "equation")]
+
     steps.append(MathStep(f"Identify polynomial coefficients: a = {a}, b = {b}, c = {c}, d = {d}",
                           rf"a = {a}, \quad b = {b}, \quad c = {c}, \quad d = {d}", "equation"))
     
-    latex_th = r"\text{Candidate roots } \frac{p}{q} \text{ where } p \mid d \text{ and } q \mid a"
-    steps.append(MathStep("Rational Root Theorem: Any rational root p/q requires p to be a factor of constant term d and q a factor of leading coefficient a", latex_th, "equation"))
+    latex_th = r"\text{Candidate roots } \frac{p}{q} \text{ where } p \mid d \text{ and } q \mid a_{\text{lead}}"
+    steps.append(MathStep("Rational Root Theorem: Any rational root p/q requires p to be a factor of constant term d and q a factor of leading coefficient", latex_th, "equation"))
     
-    p, q = d, a
-    steps.append(MathStep(f"Identify p = {p} and q = {q}", rf"p = {p}, \quad q = {q}", "equation"))
+    p, q = d, lead_coeff
+    steps.append(MathStep(f"Identify constant term p = {p} and leading coefficient q = {q}", rf"p = {p}, \quad q = {q}", "equation"))
     
     # Calculate integer factors of p and q safely
     factors_p = set()
@@ -554,10 +568,13 @@ def rational_root_theorem_solver(equation: str, allow_complex: bool = True)-> Tu
     steps.append(MathStep(f"Possible rational roots p/q: {candidates_str}",
                           r"x \in \{" + candidates_str + r"\}", "equation"))
 
+    def eval_poly(x_val: float) -> float:
+        return a * (x_val**3) + b * (x_val**2) + c * x_val + d
+
     # Test candidates f(r) == 0
     found_root = None
     for r in sorted_candidates:
-        if abs(a * (r**3) + b * (r**2) + c * r + d) < 1e-9:
+        if abs(eval_poly(r)) < 1e-9:
             found_root = r
             break
             
@@ -565,30 +582,53 @@ def rational_root_theorem_solver(equation: str, allow_complex: bool = True)-> Tu
         r = found_root
         steps.append(MathStep(f"Root found: x = {fmt_num(r)}", rf"f({fmt_num(r)}) = 0 \implies x_1 = {fmt_num(r)}", "equation"))
         
-        # Synthetic division: (a*x^3 + b*x^2 + c*x + d) / (x - r) = a_new*x^2 + b_new*x + c_new
-        a_new = a
-        b_new = a * r + b
-        c_new = b_new * r + c
-        
-        steps.append(MathStep(f"Perform synthetic division by (x - {fmt_num(r)})",
-                              rf"({fmt_num(a)}x^3 + {fmt_num(b)}x^2 + {fmt_num(c)}x + {fmt_num(d)}) = (x - {fmt_num(r)})({fmt_num(a_new)}x^2 + {fmt_num(b_new)}x + {fmt_num(c_new)})", "equation"))
-        
-        quad_str = f"{a_new}x^2 + {b_new}x + {c_new} = 0"
-        quad_sol, quad_steps = quadratic_equation_solver(quad_str, allow_complex=allow_complex)
-        steps.extend(quad_steps)
-        
-        roots_list = [r]
-        if isinstance(quad_sol, tuple):
-            roots_list.extend(list(quad_sol))
-        elif isinstance(quad_sol, (int, float, complex)):
-            roots_list.append(quad_sol)
+        if deg == 3:
+            # Synthetic division for cubic: a*x^2 + (a*r + b)*x + ((a*r + b)*r + c)
+            a_new = a
+            b_new = a * r + b
+            c_new = b_new * r + c
             
-        return roots_list, steps
+            steps.append(MathStep(f"Perform synthetic division by (x - {fmt_num(r)})",
+                                  rf"({fmt_num(a)}x^3 + {fmt_num(b)}x^2 + {fmt_num(c)}x + {fmt_num(d)}) = (x - {fmt_num(r)})({fmt_num(a_new)}x^2 + {fmt_num(b_new)}x + {fmt_num(c_new)})", "equation"))
+            
+            quad_str = f"{a_new}x^2 + {b_new}x + {c_new} = 0"
+            quad_res = quadratic_equation_solver(quad_str, allow_complex=allow_complex)
+            quad_steps = quad_res[-1]
+            quad_sols = quad_res[:-1]
+            steps.extend(quad_steps)
+            
+            roots_list = [r]
+            for s in quad_sols:
+                if isinstance(s, (int, float, complex)):
+                    roots_list.append(s)
+            return roots_list, steps
+        elif deg == 2:
+            # Synthetic division for quadratic: b*x^2 + c*x + d = (x - r)(b*x - d/r)
+            b_new = b
+            c_new = b * r + c
+            r2 = -c_new / b_new
+            steps.append(MathStep(f"Factor into linear binomials",
+                                  rf"({fmt_num(b)}x^2 + {fmt_num(c)}x + {fmt_num(d)}) = ({fmt_num(b)}x + {fmt_num(c_new)})(x - {fmt_num(r)}) = 0", "equation"))
+            steps.append(MathStep(f"Solve for second root", rf"x_2 = {fmt_num(r2)}", "equation"))
+            return [r, r2], steps
+        else:
+            return [r], steps
     else:
-        steps.append(MathStep("No rational roots found via Rational Root Theorem. Falling back to general cubic solver.", r"\text{No rational roots}", "equation"))
-        c_roots, c_steps = cubic_equation_solver(equation, allow_complex=allow_complex)
-        steps.extend(c_steps)
-        return c_roots, steps
+        steps.append(MathStep("No rational roots found via Rational Root Theorem. Falling back to general polynomial solver.", r"\text{No rational roots}", "equation"))
+        if deg == 3:
+            c_res = cubic_equation_solver(equation, allow_complex=allow_complex)
+            c_steps = c_res[-1]
+            c_roots = c_res[:-1]
+            steps.extend(c_steps)
+            return c_roots, steps
+        elif deg == 2:
+            q_res = quadratic_equation_solver(equation, allow_complex=allow_complex)
+            q_steps = q_res[-1]
+            q_roots = q_res[:-1]
+            steps.extend(q_steps)
+            return q_roots, steps
+        else:
+            return None, steps
 
 # Alias to maintain compatibility with raditional_root_theorem_solver
 raditional_root_theorem_solver = rational_root_theorem_solver

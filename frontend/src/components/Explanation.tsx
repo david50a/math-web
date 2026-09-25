@@ -1,28 +1,28 @@
 import React, { useEffect, useState, useRef } from "react";
 import {
   Search,
-  BookOpen,
   Sparkles,
   ChevronRight,
   CheckCircle2,
   Calculator,
-  Lightbulb,
   Layers,
-  Sigma,
-  Play,
   HelpCircle as QuestionIcon,
   Compass,
   LayoutGrid,
-  Code,
-  Zap,
   ListFilter,
   Type,
   Edit3,
-  Columns
+  Columns,
+  Loader2,
+  AlertCircle,
+  Play,
+  Video,
+  Download,
+  X
 } from "lucide-react";
 import { KatexMath } from "./Whiteboard";
 import { EquationSolution, ThemeType } from "../types";
-import VoiceAssistant from "./VoiceAssistant";
+import PaymentModal from "./PaymentModal";
 
 
 export interface MethodSolution {
@@ -44,6 +44,7 @@ export interface MethodSolution {
 }
 
 export interface QuestionMultiMethodData {
+  id?: string;
   questionInput: string;
   questionTitle: string;
   category: "Algebra & Equations" | "Calculus & Integrals" | "Derivatives" | "Linear Algebra" | "Statistics" | "Geometry";
@@ -958,6 +959,7 @@ interface ExplanationPageProps {
   onClose: () => void;
   initialEquation: string;
   theme: ThemeType;
+  currentSolution?: EquationSolution | null;
 }
 
 function formatInputToLatex(input: string): string {
@@ -971,29 +973,166 @@ function formatInputToLatex(input: string): string {
   return result;
 }
 
-export default function Explanation({ onTryExample, onClose, initialEquation, theme = 'chalkboard' }: ExplanationPageProps) {
-  const [questionsDatabase, setQuestionsDatabase] = useState<QuestionMultiMethodData[]>(COMPREHENSIVE_ENGINE_DATABASE);
+function convertSolutionToQuestionData(data: EquationSolution, fallbackEquation?: string): QuestionMultiMethodData {
+  const eq = data.equation || fallbackEquation || "";
+  const methodSteps = (data.scenes && data.scenes.length > 0)
+    ? data.scenes.map((s: any, idx: number) => ({
+      stepTitle: s.title || `Step ${idx + 1}`,
+      description: s.explanation || s.subTitle || "",
+      latex: s.primaryMath || s.secondaryMath || s.latex || s.formula || ""
+    }))
+    : [
+      {
+        stepTitle: "Step 1: Compute analytical solution",
+        description: data.summary || "Parsed equation and solved directly via engine.",
+        latex: data.finalAnswer || (data as any).finalResult || formatInputToLatex(eq)
+      }
+    ];
+
+  const finalRes = data.finalAnswer || (data as any).finalResult || (methodSteps[methodSteps.length - 1]?.latex || formatInputToLatex(eq));
+
+  const apiMethod: MethodSolution = {
+    methodId: `api-solve-${Date.now()}`,
+    methodName: `Method 1: Backend ${data.equationType || "Engine"} Resolution`,
+    badgeTag: "AI Engine Solver",
+    techniqueSummary: data.summary || `Parsed with ${data.equationType || "AI Mathematical"} engine.`,
+    formulaLatex: formatInputToLatex(eq),
+    steps: methodSteps,
+    finalResultLatex: finalRes,
+    prosAndCons: {
+      pros: "Direct automated resolution with complete step-by-step derivations.",
+      cons: "Generated dynamically by backend solver."
+    }
+  };
+
+  const categoryType: QuestionMultiMethodData["category"] =
+    data.equationType?.toLowerCase().includes("calculus") || data.equationType?.toLowerCase().includes("integral")
+      ? "Calculus & Integrals"
+      : data.equationType?.toLowerCase().includes("derivative")
+        ? "Derivatives"
+        : data.equationType?.toLowerCase().includes("linear") || data.equationType?.toLowerCase().includes("matrix")
+          ? "Linear Algebra"
+          : data.equationType?.toLowerCase().includes("stat")
+            ? "Statistics"
+            : data.equationType?.toLowerCase().includes("geo")
+              ? "Geometry"
+              : "Algebra & Equations";
+
+  const methodsList = (data.methods && data.methods.length > 0)
+    ? data.methods
+    : [apiMethod];
+
+  return {
+    id: `api-solve-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    questionInput: eq,
+    questionTitle: `${data.equationType || "Solved Problem"}: ${eq}`,
+    category: categoryType,
+    latexQuestion: formatInputToLatex(eq),
+    defaultMethodIndex: 0,
+    methods: methodsList
+  };
+}
+
+const INITIAL_DATABASE: QuestionMultiMethodData[] = COMPREHENSIVE_ENGINE_DATABASE.map((item, idx) => ({
+  id: `preset-${idx}-${item.questionInput.replace(/\s+/g, '_')}`,
+  ...item
+}));
+
+export default function Explanation({ onTryExample, onClose, initialEquation, theme = 'chalkboard', currentSolution }: ExplanationPageProps) {
+  const [questionsDatabase, setQuestionsDatabase] = useState<QuestionMultiMethodData[]>(INITIAL_DATABASE);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0);
   const [activeMethodIndex, setActiveMethodIndex] = useState<number>(0);
   const [userToken, setUserToken] = useState<string | null>(localStorage.getItem("math_token"));
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [historyList, setHistoryList] = useState<Array<{ equation: string, type: string, completed: boolean, date: string }>>
+  const [historyList, setHistoryList] = useState<Array<{ equation: string, type: string, completed: boolean, date: string }>>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>("");
-  const [solution, setSolution] = useState<EquationSolution | null>(null);
+  const [solution, setSolution] = useState<EquationSolution | null>(currentSolution || null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<"single" | "sideBySide">("single");
-  const [customWriterInput, setCustomWriterInput] = useState<string>(initialEquation || 'x^2+2x=15');
-  const writerInputRef = useRef<HTMLTextAreaElement>(null);
+  const [customWriterInput, setCustomWriterInput] = useState<string>(initialEquation || currentSolution?.equation || 'x^2+2x=15');
+  const writerInputRef = useRef<HTMLInputElement>(null);
   const categories = ["All", "Algebra & Equations", "Calculus & Integrals", "Derivatives", "Linear Algebra", "Statistics", "Geometry"];
-  useEffect(() => {
-    if (initialEquation) {
-      setCustomWriterInput(initialEquation);
-      handleAnalyzeCustomEquation(initialEquation);
+  const [renderingVideo, setRenderingVideo] = useState<boolean>(false);
+  const [renderingMethodId, setRenderingMethodId] = useState<string | null>(null);
+  const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);
+  const [videoModalTitle, setVideoModalTitle] = useState<string>("");
+
+  const renderVideoForMethod = async (method: MethodSolution, questionInput: string) => {
+    setRenderingVideo(true);
+    setRenderingMethodId(method.methodId);
+    setStatusMessage(`Compiling Manim video animation for ${method.methodName.split(':')[0]}...`);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+      };
+      if (userToken) {
+        headers["Authorization"] = `Bearer ${userToken}`;
+      }
+
+      const response = await fetch("/api/render", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          equation: questionInput,
+          method_id: method.methodId,
+          method_name: method.methodName,
+          quality: "low"
+        })
+      });
+
+      if (response.status === 403) {
+        const errData = await response.json().catch(() => ({}));
+        setIsPaymentModalOpen(true);
+        throw new Error(errData.detail || "Pro subscription required for high quality video rendering.");
+      }
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || "Video rendering service failed.");
+      }
+
+      const data = await response.json();
+      setStatusMessage("Streaming generated solution video...");
+
+      const videoResponse = await fetch(data.video_url, {
+        headers: userToken ? { "Authorization": `Bearer ${userToken}` } : {}
+      });
+      if (!videoResponse.ok) throw new Error("Failed to load video stream.");
+
+      const blob = await videoResponse.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      setVideoModalUrl(blobUrl);
+      setVideoModalTitle(`${method.methodName} — ${questionInput}`);
+      setStatusMessage("Video animation ready!");
+      setTimeout(() => setStatusMessage(""), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setStatusMessage(err.message || "Failed to render video.");
+    } finally {
+      setRenderingVideo(false);
+      setRenderingMethodId(null);
     }
-  }, [initialEquation]);
+  };
+
+  // Load current solution or initial equation when entering Explanation page
+  useEffect(() => {
+    if (currentSolution && currentSolution.scenes && currentSolution.scenes.length > 0) {
+      setSolution(currentSolution);
+      const newQ = convertSolutionToQuestionData(currentSolution, initialEquation);
+      setQuestionsDatabase((prev) => [
+        newQ,
+        ...prev.filter(q => q.questionInput.toLowerCase().trim() !== newQ.questionInput.toLowerCase().trim())
+      ]);
+      setActiveQuestionIndex(0);
+      setActiveMethodIndex(0);
+      setCustomWriterInput(currentSolution.equation || initialEquation);
+    } else if (initialEquation && initialEquation.trim()) {
+      solve(initialEquation);
+    }
+  }, [currentSolution, initialEquation]);
 
   const insertSymbolIntoWriter = (symbolText: string) => {
     setCustomWriterInput((prev) => {
@@ -1015,7 +1154,7 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
       if (userToken) {
         headers["Authorization"] = `Bearer ${userToken}`;
       }
-      const res = await fetch("/api/solve-equation", { method: "POST", headers, body: JSON.stringify({ equation: equation }) });
+      const res = await fetch("/api/solve", { method: "POST", headers, body: JSON.stringify({ equation: equation }) });
       if (res.status === 403) {
         const errData = await res.json().catch(() => ({}));
         setIsPaymentModalOpen(true);
@@ -1026,10 +1165,15 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.detail || "Mathematical parsing service returned an error status.");
       }
-      const data = await res.json();
+      const data: EquationSolution = await res.json();
       setSolution(data);
+
+      const newQuestion = convertSolutionToQuestionData(data, equation);
+
+      setQuestionsDatabase((prev) => [newQuestion, ...prev.filter(q => q.questionInput.toLowerCase() !== equation.toLowerCase().trim())]);
       setActiveQuestionIndex(0);
-      setViewMode("sideBySide");
+      setActiveMethodIndex(0);
+      setViewMode("single");
 
       const filtered = historyList.filter((item) => item.equation.toLowerCase() !== equation.toLowerCase().trim());
       const now = new Date();
@@ -1038,8 +1182,13 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
         { equation: equation, type: data.equationType || "Parsed Equation", completed: true, date: timeStr },
         ...filtered.slice(0, 5)
       ]);
-    } catch (e: any) { setStatusMessage(e.message); }
-    finally { setLoading(false); }
+      setStatusMessage("");
+    } catch (e: any) {
+      setStatusMessage(e.message || "Failed to solve equation.");
+    }
+    finally {
+      setLoading(false);
+    }
   };
 
   const stopSpeech = () => {
@@ -1049,143 +1198,38 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
   };
 
 
-  const handleAnalyzeCustomEquation = (rawInput: string) => {
-    const input = rawInput.trim();
-    if (!input) return;
-    const foundIdx = questionsDatabase.findIndex((q) => q.questionInput.toLowerCase() === input.toLowerCase() || q.questionTitle.toLowerCase() === input.toLowerCase());
-    if (foundIdx >= 0) {
-      setActiveQuestionIndex(foundIdx);
-      setViewMode("single");
-    } else {
-      setActiveQuestionIndex(-1);
-      return;
-    }
-    const quadMatch = input.match(/^([+-]?\d*)\s*x\^2\s*([+-]?\s*\d*)\s*x\s*([+-]?\s*\d*)\s*=\s*0$/i);
-    let newQuestionData: QuestionMultiMethodData | null = null;
-    if (quadMatch) {
-      const a = parseFloat(quadMatch[1] === "" || quadMatch[1] === "+" ? "1" : quadMatch[1] === '-' ? "-1" : quadMatch[1]) || 1;
-      const b = parseFloat(quadMatch[2].replace(/\s+/g, "") === '' || quadMatch[2].replace(/\s+/g, "") === '+' ? '1' : quadMatch[2].replace(/\s+/g, "") === '-' ? "-1" : quadMatch[2].replace(/\s+/g, "")) || 0;
-      const c = parseFloat(quadMatch[3].replace(/\s+/g, "")) || 0;
-      const delta = b * b - 4 * a * c;
-      let root1: string, root2: string;
-      if (delta < 0) {
-        root1 = (-b / (2 * a)).toFixed(2) + "-" + (Math.sqrt(-delta) / (2 * a)).toFixed(2) + "i";
-        root2 = (-b / (2 * a)).toFixed(2) + "+" + (Math.sqrt(-delta) / (2 * a)).toFixed(2) + "i";
-      }
-      else {
-        root1 = ((-b - Math.sqrt(delta)) / (2 * a)).toFixed(2);
-        root2 = ((-b + Math.sqrt(delta)) / (2 * a)).toFixed(2);
-      }
 
-      newQuestionData = {
-        questionInput: input,
-        questionTitle: `Solve Quadratic: ${input}`,
-        category: "Algebra & Equations",
-        latexQuestion: formatInputToLatex(input),
-        defaultMethodIndex: 0,
-        methods: [
-          {
-            methodId: `custom-quad-formula-${Date.now()}`,
-            methodName: "Method 1: Standard Quadratic Formula",
-            badgeTag: "Universal Algorithm",
-            techniqueSummary: `Applies x = (-b ± √(b²-4ac))/(2a) for a=${a}, b=${b}, c=${c}.`,
-            formulaLatex: "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
-            steps: [
-              {
-                stepTitle: "Step 1: Extract coefficients",
-                description: `Identify a=${a}, b=${b}, c=${c} from ${input}.`,
-                latex: `a = ${a}, \\quad b = ${b}, \\quad c = ${c}`
-              },
-              {
-                stepTitle: "Step 2: Compute Discriminant D",
-                description: `Evaluate D = (${b})² - 4(${a})(${c}) = ${delta}.`,
-                latex: `D = (${b})^2 - 4(${a})(${c}) = ${delta}`
-              },
-              {
-                stepTitle: "Step 3: Solve for x",
-                description: `Substitute into quadratic formula to calculate roots.`,
-                latex: `x = \\frac{-(${b}) \\pm \\sqrt{${delta}}}{2(${a})} \\implies x = ${root1}, \\quad x = ${root2}`
-              }
-            ],
-            finalResultLatex: `x = ${root1}, \\quad x = ${root2}`,
-            prosAndCons: {
-              pros: "Solves any quadratic equation directly.",
-              cons: "Involves square root arithmetic."
-            }
-          },
-          {
-            methodId: `custom-quad-cts-${Date.now()}`,
-            methodName: "Method 2: Completing the Square",
-            badgeTag: "Vertex Isolation",
-            techniqueSummary: `Rearranges ${input} into perfect square form (x - h)² = k.`,
-            formulaLatex: "\\left(x + \\frac{b}{2a}\\right)^2 = \\frac{b^2 - 4ac}{4a^2}",
-            steps: [
-              {
-                stepTitle: "Step 1: Divide by a and isolate x terms",
-                description: `Move constant term to RHS.`,
-                latex: `x^2 + \\left(${b / a}\\right)x = -\\left(${c / a}\\right)`
-              },
-              {
-                stepTitle: "Step 2: Add square of half coefficient",
-                description: `Complete the square on the LHS.`,
-                latex: `\\left(x + ${b / (2 * a)}\\right)^2 = ${delta / (4 * a * a)}`
-              }
-            ],
-            finalResultLatex: `x = ${root1}, \\quad x = ${root2}`,
-            prosAndCons: {
-              pros: "Reveals parabola symmetry and vertex.",
-              cons: "Fraction arithmetic when b is odd."
-            }
-          }
-        ]
-      };
-    } else {
-      // General custom equation entry across engines
-      newQuestionData = {
-        questionInput: input,
-        questionTitle: `Custom Problem: ${input}`,
-        category: input.toLowerCase().includes("integrate") ? "Calculus & Integrals" :
-          input.toLowerCase().includes("derive") ? "Derivatives" :
-            input.toLowerCase().includes("det") || input.toLowerCase().includes("eigen") || input.includes("[") ? "Linear Algebra" :
-              input.toLowerCase().includes("mean") ? "Statistics" : "Algebra & Equations",
-        latexQuestion: formatInputToLatex(input),
-        defaultMethodIndex: 0,
-        methods: [
-          {
-            methodId: `custom-method-1-${Date.now()}`,
-            methodName: "Method 1: Step-by-Step AST Engine Resolution",
-            badgeTag: "Backend Engine Algorithm",
-            techniqueSummary: `Parses expression ${input} into abstract syntax tree and applies canonical transformations.`,
-            formulaLatex: formatInputToLatex(input),
-            steps: [
-              {
-                stepTitle: "Step 1: Parse input syntax",
-                description: `Tokenize and parse math structure for ${input}.`,
-                latex: formatInputToLatex(input)
-              },
-              {
-                stepTitle: "Step 2: Execute backend transformation rules",
-                description: "Execute standard engine transformation rules.",
-                latex: "\\text{Evaluate } " + formatInputToLatex(input)
-              }
-            ],
-            finalResultLatex: formatInputToLatex(input),
-            prosAndCons: {
-              pros: "Parses arbitrary mathematical syntax across engine categories.",
-              cons: "Complex functions require numerical approximation."
-            }
-          }
-        ]
-      };
-    }
 
-    setQuestionsDatabase((prev) => [newQuestionData, ...prev]);
-    setActiveQuestionIndex(0);
-    setActiveMethodIndex(0);
+  const activeQuestion = questionsDatabase[activeQuestionIndex] || questionsDatabase[0];
+  const currentQuestion = activeQuestion || {
+    questionInput: "",
+    questionTitle: "No problem selected",
+    category: "Algebra & Equations" as const,
+    latexQuestion: "",
+    defaultMethodIndex: 0,
+    methods: [
+      {
+        methodId: "default",
+        methodName: "Method 1: Direct Solution",
+        badgeTag: "Standard",
+        techniqueSummary: "No steps available.",
+        formulaLatex: "",
+        steps: [],
+        finalResultLatex: "",
+        prosAndCons: { pros: "", cons: "" }
+      }
+    ]
   };
-
-  const currentQuestion = questionsDatabase[activeQuestionIndex] || questionsDatabase[0];
-  const currentMethod = currentQuestion.methods[activeMethodIndex] || currentQuestion.methods[0];
+  const currentMethod = currentQuestion.methods[activeMethodIndex] || currentQuestion.methods[0] || {
+    methodId: "default",
+    methodName: "Method 1: Direct Solution",
+    badgeTag: "Standard",
+    techniqueSummary: "No steps available.",
+    formulaLatex: "",
+    steps: [],
+    finalResultLatex: "",
+    prosAndCons: { pros: "", cons: "" }
+  };
 
   // Filter questions by category and search query
   const filteredQuestions = questionsDatabase.filter((q) => {
@@ -1197,11 +1241,13 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
     return matchesCategory && matchesSearch;
   });
 
+  const activeTheme = THEME_STYLES[theme] || THEME_STYLES.chalkboard;
+
   return (
-    <div className={`w-full min-h-screen ${THEME_STYLES[theme].bg} text-white flex flex-col font-sans antialiased selection:bg-blue-600/30`}>
+    <div className={`w-full min-h-screen ${activeTheme.bg} text-white flex flex-col font-sans antialiased selection:bg-blue-600/30`}>
 
       {/* Top Header Bar */}
-      <header className={`border-b ${THEME_STYLES[theme].header} bg-[#0F0F14]/90 backdrop-blur-md sticky top-0 z-40 px-6 sm:px-10 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4`}>
+      <header className={`border-b ${activeTheme.header} bg-[#0F0F14]/90 backdrop-blur-md sticky top-0 z-40 px-6 sm:px-10 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4`}>
         <div>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
@@ -1293,12 +1339,24 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
 
             <button
               onClick={() => solve(customWriterInput)}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all transform active:scale-95 shrink-0"
+              disabled={loading}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all transform active:scale-95 shrink-0"
             >
-              <Sparkles className="w-4 h-4" />
-              Analyze All Engine Options
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {loading ? "Solving..." : "Analyze All Engine Options"}
             </button>
           </div>
+
+          {/* Status Message / Error Banner */}
+          {statusMessage && (
+            <div className={`p-3 rounded-xl flex items-center gap-2 text-xs font-mono ${loading
+                ? "bg-blue-950/40 border border-blue-500/30 text-blue-300"
+                : "bg-red-950/40 border border-red-500/30 text-red-300"
+              }`}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />}
+              <span>{statusMessage}</span>
+            </div>
+          )}
 
           {/* Quick-Insert Symbol Palette */}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
@@ -1379,15 +1437,17 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
             </h3>
 
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
-              {filteredQuestions.map((qData) => {
-                const globalIndex = questionsDatabase.findIndex((dbQ) => dbQ.questionInput === qData.questionInput);
-                const isSelected = globalIndex === activeQuestionIndex;
+              {filteredQuestions.map((qData, filterIdx) => {
+                const globalIndex = questionsDatabase.indexOf(qData);
+                const isSelected = globalIndex >= 0 ? globalIndex === activeQuestionIndex : false;
 
                 return (
                   <div
-                    key={qData.questionInput + globalIndex}
+                    key={qData.id || `deck-q-${qData.questionInput}-${globalIndex >= 0 ? globalIndex : filterIdx}`}
                     onClick={() => {
-                      setActiveQuestionIndex(globalIndex);
+                      if (globalIndex >= 0) {
+                        setActiveQuestionIndex(globalIndex);
+                      }
                       setActiveMethodIndex(0);
                       setCustomWriterInput(qData.questionInput);
                     }}
@@ -1494,6 +1554,23 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                     {currentMethod.methodName}
                   </h3>
                 </div>
+
+                <button
+                  onClick={() => renderVideoForMethod(currentMethod, currentQuestion.questionInput)}
+                  disabled={renderingVideo}
+                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/30 flex items-center gap-2 transition-all cursor-pointer transform active:scale-95 disabled:opacity-50 shrink-0"
+                >
+                  {renderingVideo && renderingMethodId === currentMethod.methodId ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Video className="w-4 h-4" />
+                  )}
+                  <span>
+                    {renderingVideo && renderingMethodId === currentMethod.methodId
+                      ? "Compiling Animation..."
+                      : "Create Video (This Method)"}
+                  </span>
+                </button>
               </div>
 
               {/* Technique Summary */}
@@ -1572,16 +1649,33 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                 <div key={method.methodId} className="bg-[#0F0F14] border border-white/15 rounded-2xl p-6 shadow-2xl space-y-6 flex flex-col justify-between">
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                      <span className="text-xs font-black text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3 gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] shrink-0">
                           {idx + 1}
                         </span>
-                        {method.methodName}
-                      </span>
-                      <span className="text-[9px] font-mono bg-blue-950/50 border border-blue-500/30 text-blue-300 px-2 py-0.5 rounded">
-                        {method.badgeTag}
-                      </span>
+                        <span className="text-xs font-black text-blue-400 uppercase tracking-wider truncate">
+                          {method.methodName}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => renderVideoForMethod(method, currentQuestion.questionInput)}
+                          disabled={renderingVideo}
+                          className="px-2.5 py-1 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-300 hover:text-white text-[10px] font-bold uppercase tracking-wider rounded-lg flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50"
+                          title="Generate animation video for this method"
+                        >
+                          {renderingVideo && renderingMethodId === method.methodId ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Play className="w-3 h-3 fill-purple-300" />
+                          )}
+                          <span>Video</span>
+                        </button>
+                        <span className="text-[9px] font-mono bg-blue-950/50 border border-blue-500/30 text-blue-300 px-2 py-0.5 rounded">
+                          {method.badgeTag}
+                        </span>
+                      </div>
                     </div>
 
                     <p className="text-xs text-white/70 leading-relaxed">
@@ -1622,6 +1716,70 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
         </div>
 
       </div>
+
+      {/* Video Solution Modal */}
+      {videoModalUrl && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#12141F] border border-white/20 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+                  <Video className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Solution Video Animation</h3>
+                  <p className="text-[11px] font-mono text-white/50 truncate max-w-md">{videoModalTitle}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  URL.revokeObjectURL(videoModalUrl);
+                  setVideoModalUrl(null);
+                }}
+                className="text-white/50 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/10 flex items-center justify-center">
+              <video
+                src={videoModalUrl}
+                controls
+                autoPlay
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <a
+                href={videoModalUrl}
+                download={`math-solution-${Date.now()}.mp4`}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase tracking-wider rounded-xl flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download MP4
+              </a>
+              <button
+                onClick={() => {
+                  URL.revokeObjectURL(videoModalUrl);
+                  setVideoModalUrl(null);
+                }}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        userToken={userToken}
+        onPaymentSuccess={() => setIsPaymentModalOpen(false)}
+      />
 
     </div>
   );

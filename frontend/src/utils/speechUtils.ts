@@ -108,10 +108,19 @@ export function cleanLatexForSpeech(latex: string): string {
   if (!latex) return "";
 
   let speech = latex
-    // Remove markdown symbols
-    .replace(/[*_`#]/g, "")
+    // Remove markdown formatting, bold, italics, code ticks, URLs
+    .replace(/[*_`#~]/g, "")
+    .replace(/https?:\/\/\S+/g, "")
+    // Remove emojis for natural speech
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+    // Spoken equation helpers
+    .replace(/\\implies/g, ", which implies that, ")
+    .replace(/\\iff/g, ", if and only if, ")
+    .replace(/\\in/g, "in")
+    .replace(/\\mathbb\{C\}/g, "the complex numbers")
+    .replace(/\\mathbb\{R\}/g, "the real numbers")
     // LaTeX math macros
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "$1 over $2")
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1) over ($2)")
     .replace(/\\sqrt\[(\d+)\]\{([^}]+)\}/g, "the $1th root of $2")
     .replace(/\\sqrt\{([^}]+)\}/g, "square root of $1")
     .replace(/\\sin\^\{-1\}/g, "arc sine")
@@ -193,13 +202,16 @@ export function createSpeechRecognition(): any {
   return recognition;
 }
 
-// Play speech synthesis with clean voice
+export type VoicePersona = "natural" | "scholar" | "friendly";
+
+// Play speech synthesis with human-like voice selection
 export function speakCleanText(
   text: string,
   options?: {
     rate?: number;
     pitch?: number;
     volume?: number;
+    persona?: VoicePersona;
     onStart?: () => void;
     onEnd?: () => void;
     onError?: (err: any) => void;
@@ -219,17 +231,25 @@ export function speakCleanText(
     utterance.volume = options?.volume ?? 1.0;
 
     const voices = window.speechSynthesis.getVoices();
-    // Prioritize natural English voices
-    const preferredVoice =
-      voices.find(
-        (v) =>
-          v.lang.startsWith("en") &&
-          (v.name.includes("Natural") ||
-            v.name.includes("Google") ||
-            v.name.includes("Samantha") ||
-            v.name.includes("Daniel") ||
-            v.name.includes("Karen"))
-      ) || voices.find((v) => v.lang.startsWith("en"));
+    
+    // Choose human-sounding natural voices
+    let preferredVoice = voices.find(
+      (v) =>
+        v.lang.startsWith("en") &&
+        (v.name.includes("Online (Natural)") ||
+          v.name.includes("Natural") ||
+          v.name.includes("Google US English") ||
+          v.name.includes("Samantha") ||
+          v.name.includes("Daniel") ||
+          v.name.includes("Karen") ||
+          v.name.includes("Microsoft Jenny") ||
+          v.name.includes("Microsoft Guy") ||
+          v.name.includes("Microsoft Aria"))
+    );
+
+    if (!preferredVoice) {
+      preferredVoice = voices.find((v) => v.lang.startsWith("en"));
+    }
 
     if (preferredVoice) {
       utterance.voice = preferredVoice;

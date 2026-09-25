@@ -281,14 +281,28 @@ export default function VoiceAssistant({
 
     try {
       const contextStr = solution
-        ? `The user is currently studying the equation: "${solution.equation}". Current step title: "${activeScene?.title || ""}", explanation: "${activeScene?.explanation || ""}". Answer concisely with helpful mathematical intuition.`
-        : "You are a concise, friendly voice math tutor.";
+        ? `The user is currently studying the equation: "${solution.equation}". Current step: "${activeScene?.title || ""}" with explanation: "${activeScene?.explanation || ""}". View: "${currentView || "whiteboard"}". Answer directly and concisely with clear mathematical intuition.`
+        : `Current view: ${currentView || "whiteboard"}. Answer concisely with clear mathematical intuition.`;
+
+      // Multi-turn conversation history for human-like conversational memory
+      const recentHistory = messages
+        .filter((m) => m.id !== "welcome-1")
+        .slice(-8)
+        .map((m) => ({
+          role: m.sender === "user" ? "user" : "assistant",
+          content: m.text,
+        }));
+
+      const payloadMessages = [
+        ...recentHistory,
+        { role: "user", content: question },
+      ];
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: question }],
+          messages: payloadMessages,
           context: contextStr,
         }),
       });
@@ -302,7 +316,7 @@ export default function VoiceAssistant({
       respondWithVoice(reply);
     } catch (err) {
       console.error(err);
-      respondWithVoice("I had trouble reaching the AI tutor service. You can ask me to solve equations or navigate steps anytime!");
+      respondWithVoice("I'm here with you! Feel free to ask me to solve any equation, explain steps, or explore graphs.");
     }
   };
 
@@ -336,6 +350,44 @@ export default function VoiceAssistant({
   const stopCurrentSpeech = () => {
     cancelSpeech();
     setAssistantState("idle");
+  };
+
+  // Dynamic prompt chips based on active equation and context
+  const getContextualChips = () => {
+    if (solution?.equation) {
+      const eq = solution.equation.toLowerCase();
+      if (eq.includes("^2") || eq.includes("quadratic") || eq.includes("x^2")) {
+        return [
+          "Why is the discriminant important?",
+          "Explain this step",
+          "What do roots mean on a graph?",
+          "Can we solve by factoring?",
+          "Next step",
+        ];
+      }
+      if (eq.includes("integrate") || eq.includes("derive") || eq.includes("derivative")) {
+        return [
+          "Explain the calculus intuition",
+          "What is the slope / area here?",
+          "Explain this step",
+          "Next step",
+        ];
+      }
+      if (eq.includes("det") || eq.includes("eigen") || eq.includes("[")) {
+        return [
+          "What does an eigenvalue mean?",
+          "Explain this matrix step",
+          "Show whiteboard",
+        ];
+      }
+    }
+    return [
+      "Solve x^2 - 5x + 6 = 0",
+      "Why is D < 0 complex?",
+      "Explain this step",
+      "Show graph",
+      "Why factor?",
+    ];
   };
 
   // Quick prompt chip clicked
@@ -553,13 +605,7 @@ export default function VoiceAssistant({
                     <HelpCircle className="w-3 h-3 text-blue-400" />
                     Try:
                   </span>
-                  {[
-                    "Solve x^2 - 5x + 6 = 0",
-                    "Explain this step",
-                    "Next step",
-                    "Show graph",
-                    "Why factor?",
-                  ].map((chip) => (
+                  {getContextualChips().map((chip) => (
                     <button
                       key={chip}
                       onClick={() => handleQuickPrompt(chip)}
