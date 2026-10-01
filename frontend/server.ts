@@ -71,14 +71,14 @@ app.post('/api/ocr', express.json({ limit: "10mb" }), async (req, res) => {
         const match = imageBase64.match(/^data:(image\/\w+);base64,/);
         const mimeType = match ? match[1] : "image/jpeg";
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
-        
+
         const response = await ai.models.generateContent({
           model: "gemini-2.5-flash",
           contents: [
             {
               role: "user",
               parts: [
-                { 
+                {
                   text: `You are an expert mathematical OCR engine capable of recognizing printed, typed, and handwritten math formulas, equations, and matrices.
 
 Extract the mathematical expression or matrix from this image.
@@ -106,7 +106,7 @@ Formatting rules:
     }
 
     console.log("Starting local OCR with Tesseract...");
-    
+
     // In Node.js, Tesseract.js expects a Buffer, file path, or URL. 
     // We must strip the Data URL prefix and convert it to a Buffer.
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
@@ -341,19 +341,16 @@ function generateSmartMathTutorReply(userQuestion: string, context?: string): st
     return "In this step, we apply algebraic transformations to isolate the variable while keeping both sides of the equation balanced.";
   }
 
-  // General mathematical response
-  return `Great question! In mathematics, every algebraic manipulation maintains equality while transforming the problem into a simpler, standard form. If you'd like to see another step or try solving an equation, just let me know!`;
+  return "I'm here to help guide you through this problem step-by-step. What specific part would you like to explore or clarify?";
 }
 
-// AI Chat endpoint with smart multi-tier engine
+// AI Chat endpoint - Dedicated exclusively to Ollama (Llama 3)
 app.post('/api/chat', express.json(), async (req, res) => {
   try {
     const { messages, context } = req.body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "messages array is required." });
     }
-
-    const lastUserMessage = messages[messages.length - 1]?.content || "";
 
     const systemContent = `You are Axiom, an extraordinarily smart, warm, and intuitive human-like AI Math Professor and Voice Tutor.
 
@@ -366,78 +363,61 @@ YOUR TEACHING PHILOSOPHY & PERSONALITY:
 
 ${context ? `ACTIVE SCREEN & EQUATION CONTEXT:\n${context}` : ""}`;
 
-    // 1. Try Google Gemini if configured
-    if (ai) {
-      try {
-        const contents = [
-          { role: "user", parts: [{ text: systemContent + "\n\nPlease acknowledge and get ready to assist." }] },
-          { role: "model", parts: [{ text: "Understood! I'm Axiom, your AI Math Tutor. I will give clear, intuitive, human-like explanations." }] },
-          ...messages.map((m: any) => ({
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: m.content }]
-          }))
-        ];
+    const ollamaUrl = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
+    const ollamaModel = process.env.OLLAMA_MODEL || "llama3";
 
-        const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: contents
-        });
+    const fullyConfiguredMessages = [
+      { role: "system", content: systemContent },
+      ...messages
+    ];
 
-        const reply = response.text?.trim();
-        if (reply) {
-          return res.json({ reply });
-        }
-      } catch (geminiErr: any) {
-        console.warn("Gemini chat attempt failed, falling back to Ollama / local tutor:", geminiErr.message);
-      }
+    console.log(`[Ollama] Sending chat to ${ollamaUrl} using model '${ollamaModel}'...`);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for local inference
+
+    const response = await fetch(`${ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: ollamaModel,
+        messages: fullyConfiguredMessages,
+        stream: false
+      })
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.error(`[Ollama] API error: ${response.status}`, errText);
+      return res.status(502).json({
+        error: `Ollama returned error ${response.status}: ${errText || response.statusText}`,
+        reply: `Ollama error (${response.status}): ${errText || response.statusText}. Please verify the model '${ollamaModel}' is pulled with 'ollama pull ${ollamaModel}'.`
+      });
     }
 
-    // 2. Try Local Ollama (Llama 3) if configured
-    if (process.env.OLLAMA_ENABLED === "true" || process.env.OLLAMA_HOST) {
-      try {
-        const ollamaUrl = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
-        const ollamaModel = process.env.OLLAMA_MODEL || "llama3";
+    const data = await response.json() as any;
+    const reply = data.message?.content || data.response || "";
 
-        const fullyConfiguredMessages = [
-          { role: "system", content: systemContent },
-          ...messages
-        ];
-
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 800);
-
-        const response = await fetch(`${ollamaUrl}/api/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: ollamaModel,
-            messages: fullyConfiguredMessages,
-            stream: false
-          })
-        });
-        clearTimeout(timeout);
-
-        if (response.ok) {
-          const data = await response.json() as any;
-          const reply = data.message?.content || "";
-          if (reply) {
-            return res.json({ reply });
-          }
-        }
-      } catch (ollamaErr: any) {
-        // Ollama not running or timeout; seamlessly use smart built-in math reasoner
-      }
+    if (!reply) {
+      return res.json({ reply: "Received an empty response from Ollama." });
     }
 
-    // 3. Built-in Smart Mathematical Reasoner Fallback
-    const fallbackReply = generateSmartMathTutorReply(lastUserMessage, context);
-    return res.json({ reply: fallbackReply });
+    return res.json({ reply });
 
   } catch (err: any) {
-    console.error("Chat Error:", err);
-    res.json({
-      reply: "I'm here to help! Feel free to ask me to solve any equation, explain steps, or explore graphs together."
+    console.error("[Ollama] Chat connection failed:", err.message);
+    const isConnRefused =
+      err.name === "AbortError"
+        ? "Ollama request timed out after 60 seconds."
+        : err.cause?.code === "ECONNREFUSED" || err.message?.includes("fetch failed") || err.message?.includes("ECONNREFUSED")
+        ? "Cannot connect to Ollama at http://127.0.0.1:11434. Please start Ollama on your machine (`ollama serve` or open the Ollama app)."
+        : `Ollama error: ${err.message}`;
+
+    return res.status(503).json({
+      error: isConnRefused,
+      reply: isConnRefused
     });
   }
 });
@@ -698,7 +678,7 @@ function checkPort(port: number, host: string): Promise<boolean> {
 // Spawns the Python FastAPI backend if it is not already running
 async function ensureBackendRunning() {
   const backendDir = path.resolve(process.cwd(), "../backend");
-  
+
   // Try to see if it is already running
   const isRunning = await checkPort(4000, "127.0.0.1");
   if (isRunning) {
@@ -708,7 +688,7 @@ async function ensureBackendRunning() {
 
   console.log("Python backend is not running. Starting Python backend...");
   const pythonCmd = process.platform === "win32" ? "python" : "python3";
-  
+
   const pyProcess = spawn(pythonCmd, ["main.py"], {
     cwd: backendDir,
     stdio: "inherit",
@@ -723,7 +703,7 @@ async function ensureBackendRunning() {
   process.on("exit", () => {
     pyProcess.kill();
   });
-  
+
   // Wait a moment for the server to spin up
   await new Promise((resolve) => setTimeout(resolve, 2000));
 }

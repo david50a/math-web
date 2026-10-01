@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -12,6 +12,12 @@ import hashlib
 import uuid
 import sqlite3
 import asyncio
+import httpx
+import base64
+import requests
+from PIL import Image
+from io import BytesIO
+import pytesseract
 
 # Add engine to path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -37,9 +43,23 @@ if not os.path.exists(MEDIA_DIR):
     os.makedirs(MEDIA_DIR)
 # app.mount removed to prevent public static file access
 
+# Secure CORS origins
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
+]
+if os.environ.get("ALLOWED_ORIGINS"):
+    ALLOWED_ORIGINS.extend([origin.strip() for origin in os.environ.get("ALLOWED_ORIGINS").split(",") if origin.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,9 +146,16 @@ class UserResponse(BaseModel):
     is_premium: bool
     session_token: Optional[str] = None
 
+class QuestionRequest(BaseModel):
+    messages: list
+    token: str
+    context: Optional[str] = None
+
 class UpgradeRequest(BaseModel):
     token: str
-
+@app.get('/')
+async def root():
+    return 'Hello World'
 # Auth & Payment Routes
 @app.post("/api/auth/signup", response_model=UserResponse)
 async def auth_signup(req: UserSignUp):
@@ -222,24 +249,38 @@ from fastapi.responses import FileResponse
 async def get_media(file_path: str, authorization: Optional[str] = Header(None)):
     user = get_user_by_token(authorization) if authorization else None
     
-    # 480p15 low-quality videos are free for guest users; higher qualities require authentication
-    if "480p15" not in file_path and not user:
-        raise HTTPException(status_code=401, detail="Authentication token required to view high quality media")
-        
-    full_path = os.path.normpath(os.path.join(MEDIA_DIR, file_path))
-    if not full_path.startswith(os.path.normpath(MEDIA_DIR)):
+    norm_media_dir = os.path.abspath(MEDIA_DIR)
+    full_path = os.path.abspath(os.path.join(norm_media_dir, file_path))
+    
+    # Strict directory traversal check
+    try:
+        if os.path.commonpath([norm_media_dir, full_path]) != norm_media_dir:
+            raise HTTPException(status_code=403, detail="Access denied")
+    except ValueError:
         raise HTTPException(status_code=403, detail="Access denied")
         
     if not os.path.exists(full_path) or not os.path.isfile(full_path):
         raise HTTPException(status_code=404, detail="Media not found")
         
+    # Inspect canonical relative path components for quality tier
+    rel_path = os.path.relpath(full_path, norm_media_dir)
+    path_parts = rel_path.split(os.sep)
+    is_low_quality = any(part == "480p15" for part in path_parts)
+    
+    # Low quality (480p15) is accessible to guests; higher qualities require authentication
+    if not is_low_quality and not user:
+        raise HTTPException(status_code=401, detail="Authentication token required to view high quality media")
+        
     return FileResponse(full_path)
 
 @app.middleware("http")
-async def log_requests(request, call_next):
-    log_path = os.path.join(BASE_DIR, "request_log.txt")
-    with open(log_path, "a") as f:
-        f.write(f"{request.method} {request.url.path}\n")
+async def log_requests(request: Request, call_next):
+    try:
+        log_path = os.path.join(BASE_DIR, "request_log.txt")
+        log_entry = f"{request.method} {request.url.path}\n"
+        await asyncio.to_thread(lambda: open(log_path, "a", encoding="utf-8").write(log_entry))
+    except Exception:
+        pass
     response = await call_next(request)
     return response
 
@@ -261,6 +302,9 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     context: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    reply: str
 
 def generate_smart_math_tutor_reply(user_question: str, context: Optional[str] = None) -> str:
     q = user_question.lower().strip()
@@ -305,32 +349,74 @@ def generate_smart_math_tutor_reply(user_question: str, context: Optional[str] =
     # General Intelligent Mathematical Response
     return "Great question! In mathematics, each step maintains equality while transforming the equation into its simplest, most insightful form. Let me know if you want to explore the next step or solve another equation!"
 
-@app.post("/api/chat")
+@app.post("/api/chat", response_model=ChatResponse)
 async def chat_api(request: ChatRequest):
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages array is required.")
 
     last_user_message = request.messages[-1].content if request.messages else ""
 
-    # Optional Gemini expansion if GEMINI_API_KEY is present
+    # 1. Primary Engine: Local Ollama with Llama 3
+    try:
+        messages_payload = []
+        system_content = (
+            "You are Axiom, an expert, encouraging, brilliant AI Math Tutor. "
+            "Explain mathematical steps, intuition, and concepts clearly and concisely. "
+            "Use standard LaTeX notation where appropriate for math formulas. Keep answers focused (2-4 sentences)."
+        )
+        if request.context:
+            system_content += f"\nCurrent Problem / Screen Context:\n{request.context}"
+
+        messages_payload.append({"role": "system", "content": system_content})
+
+        for m in request.messages:
+            messages_payload.append({"role": m.role, "content": m.content})
+
+        ollama_model = os.environ.get("OLLAMA_MODEL", "llama3")
+        payload = {
+            "model": ollama_model,
+            "messages": messages_payload,
+            "stream": False,
+        }
+
+        async with httpx.AsyncClient() as client:
+            chat_response = await client.post(
+                "http://localhost:11434/api/chat",
+                json=payload,
+                timeout=30.0
+            )
+            if chat_response.status_code == 200:
+                res_json = chat_response.json()
+                msg = res_json.get("message", {}).get("content", "")
+                if msg:
+                    return ChatResponse(reply=msg)
+    except Exception as e:
+        print(f"Ollama (llama3) notice: {e}")
+
+    # 2. Secondary Engine: Gemini if configured
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if gemini_key:
         try:
             from google import genai
             client = genai.Client(api_key=gemini_key)
-            prompt = f"You are Axiom, a friendly, brilliant, human-like AI Math Tutor. Context: {request.context or ''}\nUser: {last_user_message}\nAnswer concisely and intuitively in 2-3 sentences."
+            prompt = (
+                f"You are Axiom, a friendly, brilliant, human-like AI Math Tutor.\n"
+                f"Context: {request.context or ''}\n"
+                f"User: {last_user_message}\n"
+                f"Answer concisely and intuitively in 2-3 sentences."
+            )
             resp = client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt
             )
             if resp and resp.text:
-                return {"reply": resp.text.strip()}
-        except Exception as e:
+                return ChatResponse(reply=resp.text.strip())
+        except Exception:
             pass
 
-    # Built-in High-Intelligence Math Reasoner
+    # 3. Fallback Engine: Built-in High-Intelligence Math Reasoner
     reply = generate_smart_math_tutor_reply(last_user_message, request.context)
-    return {"reply": reply}
+    return ChatResponse(reply=reply)
 
 def normalize_matrix_latex(text: str) -> str:
     if not text:
@@ -367,41 +453,34 @@ def normalize_matrix_latex(text: str) -> str:
 
 @app.post("/api/ocr")
 async def ocr_api(request: OCRRequest):
-    base64_data = request.imageBase64
-    if not base64_data:
-        raise HTTPException(status_code=400, detail="No image provided.")
-    
-    base64_str = re.sub(r'^data:image/\w+;base64,', '', base64_data)
-    
+    if request.imageBase64:
+        raise HTTPException(status_code=400, detail="No image provided")
     try:
-        import base64
-        from io import BytesIO
-        from PIL import Image
-        
-        image_bytes = base64.b64decode(base64_str)
-        img = Image.open(BytesIO(image_bytes))
-        
-        equation = ""
-        try:
-            import pytesseract
-            equation = pytesseract.image_to_string(img).strip()
-        except Exception as err:
-            print(f"Pytesseract fallback notice: {err}")
-        
-        equation = equation.replace('\n', ' ').strip()
-        equation = re.sub(r'\s{2,}', ' ', equation)
-        
-        # Symbol normalization for common OCR math artifacts
-        equation = equation.replace('—', '-').replace('–', '-')
-        equation = normalize_matrix_latex(equation)
-        
-        if not equation:
-            equation = "det([[1, 2], [3, 4]])"
-            
-        return {"equation": equation}
-    except Exception as err:
-        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(err)}")
+        base64_str=re.sub(r'^data:image/w+;base64,','',request.imageBase64)
+        img_data=base64.b64decode(base64_str)
+        img=Image.open(BytesIO(img_data)).convert('RGB')
 
+        equation=''
+        try:
+            equation=pytesseract.image_to_string(img,config='--psm 6').strip()
+        except Exception as e:
+            print(f'OCR failed: {e}')
+        
+        equation=equation.replace('\n',' ')
+        equation=re.sub(r'\s+', ' ', equation).strip()
+        equation = equation.replace("—", "-")
+        equation = equation.replace("–", "-")
+        equation = equation.replace("−", "-")
+        equation = equation.strip()
+
+        if not equation:
+            raise Exception(status_code=422,detail="No equation detected")
+        
+        return {'equation':equation,'format':'latex'}
+    except Exception as e:
+        raise HTTPException(status_code=500,detail=str(e))
+            
+        
 class GraphData(BaseModel):
     showGraph: bool = False
     functionExpr: Optional[str] = None
@@ -934,6 +1013,94 @@ def parse_expr(expr_str: str):
 
     return transform(tree)
 
+def safe_sympify(expr_str: str, sp):
+    """
+    Safely parses an algebraic expression string into a SymPy expression
+    using a restricted AST whitelist, completely avoiding Python eval() or RCE.
+    """
+    expr_str = expr_str.strip()
+    if not expr_str:
+        return sp.Integer(0)
+    
+    # Replace ^ with **
+    expr_str = expr_str.replace('^', '**')
+    # Handle implicit multiplication
+    expr_str = expr_str.replace(')(', ')*(')
+    expr_str = re.sub(r'(\d)\(', r'\1*(', expr_str)
+    expr_str = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', expr_str)
+    expr_str = re.sub(r'\bx\(', r'x*(', expr_str)
+
+    tree = ast.parse(expr_str, mode='eval')
+
+    ALLOWED_FUNCS = {
+        'sin': sp.sin,
+        'cos': sp.cos,
+        'tan': sp.tan,
+        'exp': sp.exp,
+        'ln': sp.log,
+        'log': sp.log,
+        'sqrt': sp.sqrt,
+        'abs': sp.Abs,
+    }
+
+    def walk(node):
+        if isinstance(node, ast.Expression):
+            return walk(node.body)
+        elif isinstance(node, ast.BinOp):
+            left = walk(node.left)
+            right = walk(node.right)
+            if isinstance(node.op, ast.Add):
+                return left + right
+            elif isinstance(node.op, ast.Sub):
+                return left - right
+            elif isinstance(node.op, ast.Mult):
+                return left * right
+            elif isinstance(node.op, ast.Div):
+                return left / right
+            elif isinstance(node.op, ast.Pow):
+                return left ** right
+            elif isinstance(node.op, ast.Mod):
+                return left % right
+            else:
+                raise ValueError(f"Unsupported binary operator: {type(node.op).__name__}")
+        elif isinstance(node, ast.UnaryOp):
+            operand = walk(node.operand)
+            if isinstance(node.op, ast.USub):
+                return -operand
+            elif isinstance(node.op, ast.UAdd):
+                return +operand
+            else:
+                raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
+        elif isinstance(node, ast.Constant):
+            if isinstance(node.value, (int, float)):
+                return sp.Rational(str(node.value)) if isinstance(node.value, float) and node.value.is_integer() else sp.sympify(node.value)
+            raise ValueError(f"Unsupported constant type: {type(node.value).__name__}")
+        elif isinstance(node, ast.Num):
+            return sp.sympify(node.n)
+        elif isinstance(node, ast.Name):
+            name = node.id
+            if name.lower() == 'pi':
+                return sp.pi
+            elif name.lower() == 'e':
+                return sp.E
+            elif name.lower() == 'i':
+                return sp.I
+            elif name.isalpha() and len(name) <= 4:
+                return sp.Symbol(name)
+            else:
+                raise ValueError(f"Invalid symbol name: {name}")
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id.lower() in ALLOWED_FUNCS:
+                func = ALLOWED_FUNCS[node.func.id.lower()]
+                args = [walk(arg) for arg in node.args]
+                return func(*args)
+            else:
+                raise ValueError("Unsupported function call")
+        else:
+            raise ValueError(f"Disallowed expression element: {type(node).__name__}")
+
+    return walk(tree)
+
 def solve_algebra(input_str: str, allow_complex: bool = True):
     import sympy as sp
     from math_models import MathStep
@@ -941,18 +1108,13 @@ def solve_algebra(input_str: str, allow_complex: bool = True):
     # Strip y = or f(x) =
     input_str = re.sub(r'^(y|f\(x\))\s*=\s*', '', input_str.strip(), flags=re.IGNORECASE)
     
-    # Replace ^ with **
-    input_str = input_str.replace('^', '**')
-    # Handle implicit multiplication
-    input_str = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', input_str)
-    
     if '=' in input_str:
         lhs_str, rhs_str = input_str.split('=', 1)
     else:
         lhs_str, rhs_str = input_str, '0'
         
-    lhs = sp.sympify(lhs_str)
-    rhs = sp.sympify(rhs_str)
+    lhs = safe_sympify(lhs_str, sp)
+    rhs = safe_sympify(rhs_str, sp)
     eq = lhs - rhs
     
     # Detect the symbol used in equation
@@ -1146,7 +1308,9 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
     try:
         video_script = os.path.join(BASE_DIR, "video.py")
         cmd = ["python", "-m", "manim", quality_flag, "-o", f"{video_id}.mp4", "--disable_caching", "--media_dir", MEDIA_DIR, video_script, "UniversalMathAnimation"]
-        await asyncio.to_thread(run_manim, cmd, env)        
+        def run_manim_safe(cmd, env):
+            subprocess.run(cmd, env=env, cwd=BASE_DIR, capture_output=True, text=True, check=True, timeout=120)
+        await asyncio.to_thread(run_manim_safe, cmd, env)        
         expected_file = os.path.join(MEDIA_DIR, "videos", "video", quality_dir, f"{video_id}.mp4")
         default_file = os.path.join(MEDIA_DIR, "videos", "video", quality_dir, "UniversalMathAnimation.mp4")
         if not os.path.exists(expected_file) and os.path.exists(default_file):
@@ -1154,12 +1318,14 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
             
         web_path = f"/api/media/videos/video/{quality_dir}/{video_id}.mp4"
         return {"video_url": web_path}
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Rendering timed out. Please try a simpler expression.")
     except subprocess.CalledProcessError as e:
         print(f"Manim error: {e.stderr}")
-        raise HTTPException(status_code=500, detail=f"Rendering failed: {e.stderr}")
+        raise HTTPException(status_code=500, detail="Video rendering failed. Please check the mathematical syntax and try again.")
 
 @app.post("/api/solve", response_model=EquationSolution)
-async def solve_api(request: SolveRequest, authorization: Optional[str] = Header(None)):
+async def solve_api(request: SolveRequest, raw_req: Request, authorization: Optional[str] = Header(None)):
     input_str = normalize_matrix_latex(request.equation.strip())
     equation_type = "Algebra"
     
@@ -1170,10 +1336,11 @@ async def solve_api(request: SolveRequest, authorization: Optional[str] = Header
         
     if user:
         is_premium = bool(user["is_premium"])
-        user_identifier = user["id"]
+        user_identifier = f"user:{user['id']}"
     else:
         is_premium = False
-        user_identifier = "anonymous"
+        client_ip = raw_req.client.host if raw_req.client else "anonymous"
+        user_identifier = f"ip:{client_ip}"
         
     if not is_premium:
         current_count = solve_counts.get(user_identifier, 0)
@@ -1415,7 +1582,10 @@ async def solve_api(request: SolveRequest, authorization: Optional[str] = Header
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=400, detail=str(e))
+        err_msg = str(e)
+        if any(term in err_msg.lower() for term in ["traceback", "file ", "line ", "c:\\", "/usr/"]):
+            err_msg = "Invalid mathematical expression or unsupported equation format."
+        raise HTTPException(status_code=400, detail=err_msg)
 
 @app.get("/api/status")
 def read_root():

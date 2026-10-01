@@ -23,9 +23,8 @@ import textwrap
 import numpy as np
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # THEME — Pure Black & Mathematical High-Contrast Aesthetic
-# ─────────────────────────────────────────────────────────────────────────────
+
 DEEP_BG       = "#000000"  # Pure Pitch Black
 BG_MID        = "#000000"  # Pure Black
 PANEL_BG      = "#08080C"  # Deep Obsidian / Black Glass
@@ -75,9 +74,7 @@ RULE_EXAMPLES = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # STEP FILTERING
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _is_human_readable_step(step: MathStep, idx: int, total: int) -> bool:
     if idx == 0 or idx == total - 1:
@@ -101,9 +98,7 @@ def filter_derivative_steps(steps: List[MathStep]) -> List[MathStep]:
     return kept
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # NODE → CALLABLE
-# ─────────────────────────────────────────────────────────────────────────────
 
 def node_to_function(node):
     if isinstance(node, Const):
@@ -182,9 +177,7 @@ def safe_plot(axes, func, x_range=(-3.0, 3.0), color=ACCENT_CYAN,
     )
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # MATHEMATICAL UI HELPERS & VISUAL COMPONENTS
-# ─────────────────────────────────────────────────────────────────────────────
 
 def wrap_text(text, width=64):
     return "\n".join(textwrap.wrap(text, width=width))
@@ -465,9 +458,7 @@ def play_outro(scene: Scene, final_eq):
     scene.wait(2.8)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # MATHEMATICAL GRAPH & FUNCTION PANEL
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _nice_tick_step(span: float) -> float:
     raw = span / 6.0
@@ -593,9 +584,7 @@ def add_graph_legend(axes, orig_label_tex, deriv_label_tex):
     return legend
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # MAIN SCENE
-# ─────────────────────────────────────────────────────────────────────────────
 
 class UniversalMathAnimation(Scene):
 
@@ -1178,9 +1167,7 @@ class UniversalMathAnimation(Scene):
         play_outro(self, current_equation)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # STANDALONE SCENE CLASSES
-# ─────────────────────────────────────────────────────────────────────────────
 
 class MathStepsScene(Scene):
     def __init__(self, steps: List[MathStep], title_str: str, **kwargs):
@@ -1342,9 +1329,7 @@ class GeometrySolverScene(Scene):
         play_outro(self, current_mobjects)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 # PUBLIC API
-# ─────────────────────────────────────────────────────────────────────────────
 
 def generate_solver_video(
     steps: List[MathStep],

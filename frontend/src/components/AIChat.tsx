@@ -7,7 +7,8 @@ interface Message {
   content: string;
 }
 
-function FormattedChatMessage({ content }: { content: string }) {
+function FormattedChatMessage({ content }: { content?: string }) {
+  if (!content) return null;
   const regex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\(.*?\\\)|(?:\$[^$\n]+\$))/g;
   const parts = content.split(regex);
 
@@ -60,8 +61,8 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
     setLoading(true);
 
     try {
-      const contextStr = solution 
-        ? `The user is currently solving: ${solution.equation}. They are looking at this specific step: "${currentSence?.title} - ${currentSence?.explanation}".` 
+      const contextStr = solution
+        ? `The user is currently solving: ${solution.equation}. They are looking at this specific step: "${currentSence?.title} - ${currentSence?.explanation}".`
         : "";
 
       const response = await fetch("/api/chat", {
@@ -78,9 +79,10 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
       }
 
       const data = await response.json();
+      const replyText = data.reply || data.response || data.message || "I'm here to help! Feel free to ask about any step or formula.";
       const modelMessage: Message = {
         role: "assistant",
-        content: data.reply
+        content: replyText
       };
 
       setHistory((prev) => [...prev, modelMessage]);
@@ -88,7 +90,7 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
       console.error(error);
       const errorMessage: Message = {
         role: "assistant",
-        content: "Sorry, I encountered an error. Please ensure your local Ollama instance is running with `llama3` pulled."
+        content: "I'm having trouble connecting right now. Please ensure the frontend server was restarted with npm run dev."
       };
       setHistory((prev) => [...prev, errorMessage]);
     } finally {
