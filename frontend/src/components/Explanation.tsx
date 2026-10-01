@@ -54,15 +54,20 @@ export interface QuestionMultiMethodData {
 }
 
 const THEME_STYLES: Record<ThemeType, { bg: string, card: string, header: string }> = {
-  chalkboard: {
-    bg: "bg-[#0c1813]",
-    card: "bg-[#14231b] border-emerald-800/40",
-    header: "bg-[#0f2119]/90 border-emerald-800/30"
-  },
   blueprint: {
-    bg: "bg-[#05172e]",
-    card: "bg-[#0a2347] border-cyan-800/40",
-    header: "bg-[#071d3b]/90 border-cyan-800/30"
+    bg: "bg-[#041224]",
+    card: "bg-[#061b36] border-cyan-500/40 shadow-xl",
+    header: "bg-[#04162e]/95 border-cyan-500/30"
+  },
+  chalkboard: {
+    bg: "bg-[#0b1612]",
+    card: "bg-[#112019] border-amber-900/40 shadow-xl",
+    header: "bg-[#0b1612]/95 border-amber-900/30"
+  },
+  cosmos: {
+    bg: "bg-[#060412]",
+    card: "bg-[#0e0724] border-purple-500/40 shadow-xl shadow-purple-950/40",
+    header: "bg-[#09051a]/95 border-purple-500/30"
   },
   glassmorphic: {
     bg: "bg-[#120826]",
@@ -1241,27 +1246,36 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
     return matchesCategory && matchesSearch;
   });
 
+  const isChalkboard = theme === "chalkboard";
   const activeTheme = THEME_STYLES[theme] || THEME_STYLES.chalkboard;
 
   return (
-    <div className={`w-full min-h-screen ${activeTheme.bg} text-white flex flex-col font-sans antialiased selection:bg-blue-600/30`}>
+    <div className={`w-full min-h-screen ${activeTheme.bg} text-white flex flex-col font-sans antialiased ${isChalkboard ? "selection:bg-amber-400/30" : "selection:bg-blue-600/30"}`}>
 
       {/* Top Header Bar */}
-      <header className={`border-b ${activeTheme.header} bg-[#0F0F14]/90 backdrop-blur-md sticky top-0 z-40 px-6 sm:px-10 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4`}>
+      <header className={`border-b ${activeTheme.header} ${isChalkboard ? "bg-[#0b1612]/95 backdrop-blur-md" : "bg-[#0F0F14]/90 backdrop-blur-md"} sticky top-0 z-40 px-6 sm:px-10 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4`}>
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              isChalkboard 
+                ? "bg-[#16271e] border border-amber-500/40 text-amber-300 shadow-sm" 
+                : "bg-blue-600/20 border border-blue-500/40 text-blue-400"
+            }`}>
               <Layers className="w-4 h-4" />
             </div>
-            <h1 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-              All Engine Multi-Method Resolution Explorer
+            <h1 className={`text-xl ${isChalkboard ? "font-scholar-title text-amber-100 font-bold" : "font-black uppercase tracking-tight text-white"} flex items-center gap-2`}>
+              {isChalkboard ? "The Scholar's Compendium of Proofs & Methods" : "All Engine Multi-Method Resolution Explorer"}
             </h1>
-            <span className="text-[10px] font-bold bg-blue-600/30 border border-blue-500/40 text-blue-300 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-              All Backend Engine Options Included
+            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+              isChalkboard 
+                ? "bg-amber-500/15 border border-amber-500/30 text-amber-300 font-scholar-title" 
+                : "bg-blue-600/30 border border-blue-500/40 text-blue-300"
+            }`}>
+              {isChalkboard ? "Comprehensive Rigor" : "All Backend Engine Options Included"}
             </span>
           </div>
-          <p className="text-xs text-white/50 mt-1 max-w-2xl font-mono">
-            Full coverage of Algebra, Calculus Integrals, Derivatives, Linear Algebra, Statistics, and Geometry engines.
+          <p className={`text-xs mt-1 max-w-2xl ${isChalkboard ? "text-[#ededdf]/70 font-academic italic" : "text-white/50 font-mono"}`}>
+            Full academic coverage of Algebra, Calculus Integrals, Derivatives, Linear Algebra, Statistics, and Geometry engines.
           </p>
         </div>
 
@@ -1270,7 +1284,10 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
           <div className="flex bg-white/5 border border-white/10 p-1 rounded-xl">
             <button
               onClick={() => setViewMode("single")}
-              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${viewMode === "single" ? "bg-blue-600 text-white" : "text-white/60 hover:text-white"
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === "single" 
+                  ? isChalkboard ? "bg-[#1e382b] border border-amber-500/40 text-amber-300 shadow-sm" : "bg-blue-600 text-white" 
+                  : "text-white/60 hover:text-white"
                 }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -1278,7 +1295,10 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
             </button>
             <button
               onClick={() => setViewMode("sideBySide")}
-              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${viewMode === "sideBySide" ? "bg-blue-600 text-white" : "text-white/60 hover:text-white"
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === "sideBySide" 
+                  ? isChalkboard ? "bg-[#1e382b] border border-amber-500/40 text-amber-300 shadow-sm" : "bg-blue-600 text-white" 
+                  : "text-white/60 hover:text-white"
                 }`}
             >
               <Columns className="w-3.5 h-3.5" />
@@ -1289,7 +1309,11 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
           {onClose && (
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+              className={`px-4 py-2 border text-xs font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer ${
+                isChalkboard 
+                  ? "bg-[#14231b] hover:bg-[#1a3025] border-amber-900/40 text-amber-200" 
+                  : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white"
+              }`}
             >
               ← Back to App
             </button>
@@ -1298,15 +1322,15 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
       </header>
 
       {/* Interactive Custom Equation Writer Header Section */}
-      <div className="w-full bg-[#0F0F14] border-b border-white/10 px-6 sm:px-10 py-5">
+      <div className={`w-full border-b px-6 sm:px-10 py-5 ${isChalkboard ? "bg-[#0d1813] border-amber-900/30" : "bg-[#0F0F14] border-white/10"}`}>
         <div className="max-w-7xl mx-auto space-y-4">
 
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-widest text-blue-400 flex items-center gap-2">
-              <Edit3 className="w-4 h-4 text-blue-400" />
-              Write / Type Custom Equation or Problem
+            <label className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${isChalkboard ? "text-amber-300 font-scholar-title" : "text-blue-400"}`}>
+              <Edit3 className={`w-4 h-4 ${isChalkboard ? "text-amber-400" : "text-blue-400"}`} />
+              {isChalkboard ? "Transcribe Equation or Proposition" : "Write / Type Custom Equation or Problem"}
             </label>
-            <span className="text-[10px] font-mono text-white/40">
+            <span className={`text-[10px] ${isChalkboard ? "text-amber-200/50 font-academic italic" : "text-white/40 font-mono"}`}>
               Type any math equation to generate & compare all engine solving options
             </span>
           </div>
@@ -1325,7 +1349,11 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                   }
                 }}
                 placeholder="Write equation here (e.g. x^2 - 5x + 6 = 0, integrate(x*e^x), derive(x*sin(x)), det([[1,2],[3,4]]))..."
-                className="w-full bg-white/5 border border-white/20 focus:border-blue-500 rounded-xl px-4 py-3 text-sm font-mono text-blue-300 placeholder-white/40 focus:outline-none transition-all shadow-inner"
+                className={`w-full rounded-xl px-4 py-3 text-sm font-mono placeholder-white/40 focus:outline-none transition-all shadow-inner border ${
+                  isChalkboard 
+                    ? "bg-[#111f18] border-amber-900/40 text-amber-200 focus:border-amber-400" 
+                    : "bg-white/5 border-white/20 focus:border-blue-500 text-blue-300"
+                }`}
               />
               {customWriterInput && (
                 <button
@@ -1340,7 +1368,11 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
             <button
               onClick={() => solve(customWriterInput)}
               disabled={loading}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all transform active:scale-95 shrink-0"
+              className={`px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all transform active:scale-95 shrink-0 ${
+                isChalkboard 
+                  ? "bg-[#1a3527] hover:bg-[#234735] border border-amber-500/40 text-amber-200 shadow-black/50" 
+                  : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30"
+              }`}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
               {loading ? "Solving..." : "Analyze All Engine Options"}

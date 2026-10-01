@@ -124,14 +124,14 @@ export default function PaymentModal({ isOpen, onClose, userToken, onPaymentSucc
       />
       
       {/* Modal Container */}
-      <div className="relative w-full max-w-2xl bg-zinc-950/70 border border-white/10 rounded-2xl shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden min-h-[450px] flex flex-col">
+      <div className="relative w-full max-w-2xl bg-[#0c1813]/95 border border-amber-900/40 rounded-2xl shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden min-h-[450px] flex flex-col academic-frame">
         {/* Glowing aura background decoration */}
-        <div className="absolute top-0 left-1/4 w-80 h-80 bg-blue-600/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 left-1/4 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 text-white/40 hover:text-white hover:bg-white/5 p-1.5 rounded-full transition-all cursor-pointer z-10"
+          className="absolute top-4 right-4 text-amber-200/40 hover:text-amber-200 hover:bg-white/5 p-1.5 rounded-full transition-all cursor-pointer z-10"
         >
           <X className="w-4 h-4" />
         </button>
@@ -141,22 +141,22 @@ export default function PaymentModal({ isOpen, onClose, userToken, onPaymentSucc
           <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between">
             <div>
               <div className="text-center mb-8">
-                <span className="text-[10px] bg-blue-600/20 text-blue-400 font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-blue-500/20">
-                  Premium Tier Plans
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 font-scholar-title font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-amber-500/30">
+                  Academic Fellowship
                 </span>
-                <h2 className="text-3xl font-black uppercase tracking-tighter mt-3">Upgrade to MathMotion Pro</h2>
-                <p className="text-sm text-white/50 mt-1">Unlock high-quality animations and unlimited math solves.</p>
+                <h2 className="text-3xl font-scholar-title font-bold tracking-tight text-amber-100 mt-3">Ascend to Academy Fellow</h2>
+                <p className="text-sm text-amber-200/60 font-academic italic mt-1">Unlock high-resolution Manim animations and unlimited mathematical proofs.</p>
 
                 {/* Billing Cycle Toggle */}
                 <div className="flex items-center justify-center gap-3 mt-6">
-                  <span className={`text-xs font-bold uppercase tracking-wider ${billingCycle === "monthly" ? "text-white" : "text-white/40"}`}>Monthly</span>
+                  <span className={`text-xs font-bold uppercase tracking-wider ${billingCycle === "monthly" ? "text-amber-200" : "text-amber-200/40"}`}>Monthly</span>
                   <button 
                     onClick={() => setBillingCycle(billingCycle === "monthly" ? "yearly" : "monthly")}
-                    className="relative w-12 h-6 bg-zinc-800 rounded-full p-1 transition-colors cursor-pointer border border-white/10"
+                    className="relative w-12 h-6 bg-[#16271e] rounded-full p-1 transition-colors cursor-pointer border border-amber-500/30"
                   >
-                    <div className={`w-4 h-4 bg-blue-600 rounded-full transition-transform ${billingCycle === "yearly" ? "translate-x-6" : ""}`} />
+                    <div className={`w-4 h-4 bg-amber-400 rounded-full transition-transform ${billingCycle === "yearly" ? "translate-x-6" : ""}`} />
                   </button>
-                  <span className={`text-xs font-bold uppercase tracking-wider ${billingCycle === "yearly" ? "text-white" : "text-white/40"}`}>
+                  <span className={`text-xs font-bold uppercase tracking-wider ${billingCycle === "yearly" ? "text-amber-200" : "text-amber-200/40"}`}>
                     Yearly <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded ml-1 border border-emerald-500/20">Save 33%</span>
                   </span>
                 </div>
@@ -165,20 +165,20 @@ export default function PaymentModal({ isOpen, onClose, userToken, onPaymentSucc
               {/* Plans Comparison Matrix */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Basic Plan (Free) */}
-                <div className="border border-white/5 bg-white/[0.02] p-6 rounded-xl flex flex-col justify-between">
+                <div className="border border-amber-900/30 bg-[#0f1d16] p-6 rounded-xl flex flex-col justify-between">
                   <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-white/40">Free Plan</h3>
-                    <p className="text-3xl font-black mt-2 font-mono">$0</p>
-                    <p className="text-[10px] text-white/30 uppercase mt-1">Forever Free Tier</p>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-amber-200/60 font-scholar-title">Junior Scholar</h3>
+                    <p className="text-3xl font-black mt-2 font-mono text-white">$0</p>
+                    <p className="text-[10px] text-amber-200/40 uppercase mt-1">Foundational Tier</p>
                     
-                    <ul className="space-y-3 mt-6 text-xs text-white/70">
+                    <ul className="space-y-3 mt-6 text-xs text-amber-100/70">
                       <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                         <span>3 Solves limit</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                        <span>Low quality video (480p)</span>
+                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <span>Standard 480p preview videos</span>
                       </li>
                       <li className="flex items-center gap-2 opacity-40">
                         <X className="w-4 h-4 text-red-500 flex-shrink-0" />
@@ -188,51 +188,51 @@ export default function PaymentModal({ isOpen, onClose, userToken, onPaymentSucc
                   </div>
                   <button 
                     disabled 
-                    className="w-full mt-8 py-2.5 border border-white/10 text-white/40 rounded-lg text-xs font-bold uppercase tracking-wider"
+                    className="w-full mt-8 py-2.5 border border-amber-900/40 text-amber-200/40 rounded-lg text-xs font-bold uppercase tracking-wider font-scholar-title cursor-not-allowed bg-black/20"
                   >
                     Current Plan
                   </button>
                 </div>
 
                 {/* Pro Plan (Paid) */}
-                <div className="border border-blue-500/30 bg-blue-600/5 p-6 rounded-xl flex flex-col justify-between relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-blue-600 text-white text-[9px] font-bold uppercase px-3 py-1 tracking-widest rounded-bl-lg">
-                    Popular
+                <div className="border border-amber-500/40 bg-[#13241b] p-6 rounded-xl flex flex-col justify-between relative overflow-hidden academic-frame">
+                  <div className="absolute top-0 right-0 bg-amber-400 text-black text-[9px] font-scholar-title font-bold uppercase px-3 py-1 tracking-widest rounded-bl-lg shadow-sm">
+                    Fellow Tier
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-blue-400">Pro Plan</h3>
-                    <p className="text-3xl font-black mt-2 font-mono">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300 font-scholar-title">Academy Fellow</h3>
+                    <p className="text-3xl font-black mt-2 font-mono text-amber-100">
                       {billingCycle === "monthly" ? "$9.99" : "$79.99"}
-                      <span className="text-xs font-normal text-white/40 font-sans">/{billingCycle === "monthly" ? "mo" : "yr"}</span>
+                      <span className="text-xs font-normal text-amber-200/50 font-sans">/{billingCycle === "monthly" ? "mo" : "yr"}</span>
                     </p>
-                    <p className="text-[10px] text-blue-400 uppercase mt-1">
+                    <p className="text-[10px] text-amber-300 uppercase mt-1 font-mono">
                       {billingCycle === "yearly" ? "$6.66/month billed annually" : "Cancel anytime"}
                     </p>
                     
-                    <ul className="space-y-3 mt-6 text-xs text-white/80">
+                    <ul className="space-y-3 mt-6 text-xs text-amber-100/90 font-academic text-[13px]">
                       <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                        <span className="font-bold text-white">Unlimited equations solves</span>
+                        <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                        <span className="font-bold text-amber-200">Unlimited equations solves</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                        <span className="font-bold text-white">High Resolution MP4s (1080p60)</span>
+                        <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                        <span className="font-bold text-amber-200">High Resolution MP4s (1080p60)</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
                         <span>Instant rendering priority</span>
                       </li>
                       <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
                         <span>Custom narration profiles</span>
                       </li>
                     </ul>
                   </div>
                   <button 
                     onClick={() => setStep(userToken ? "checkout" : "checkout")}
-                    className="w-full mt-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider shadow-lg shadow-blue-600/30 cursor-pointer transition-colors active:scale-[0.98] transform"
+                    className="w-full mt-8 py-2.5 bg-[#1a3829] hover:bg-[#254f3a] border border-amber-500/40 text-amber-200 rounded-lg text-xs font-bold uppercase tracking-wider shadow-lg shadow-black/40 cursor-pointer transition-colors active:scale-[0.98] transform font-scholar-title"
                   >
-                    {userToken ? "Upgrade to Pro" : "Sign In to Upgrade"}
+                    {userToken ? "Ascend to Fellow" : "Sign In to Ascend"}
                   </button>
                 </div>
               </div>

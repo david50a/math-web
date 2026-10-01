@@ -103,36 +103,37 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
       {/* Floating Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-32 right-6 z-50 w-12 h-12 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer border border-white/10"
-        title="Chat with AI Tutor"
+        className="fixed bottom-20 right-6 z-50 w-12 h-12 bg-[#12241b] hover:bg-[#1a3528] text-amber-300 rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer border border-amber-500/40 shadow-black/60 academic-frame"
+        title="Consult Scholar AI Tutor"
       >
-        {isOpen ? <X className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
+        {isOpen ? <X className="w-5 h-5 text-amber-200" /> : <MessageSquare className="w-5 h-5 text-amber-300" />}
       </button>
 
       {/* Slide-out / Pop-up Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-48 right-6 z-50 w-[360px] h-[480px] bg-black/90 border border-white/10 rounded-2xl flex flex-col shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed bottom-36 right-6 z-50 w-[360px] h-[480px] bg-[#0c1813]/95 border border-amber-900/40 rounded-2xl flex flex-col shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200 academic-frame">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
+          <div className="flex items-center justify-between p-4 border-b border-amber-900/30 bg-[#09130f]/90">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-xs font-black uppercase tracking-widest text-white/90">Llama 3 Assistant</span>
+              <div className="w-2.5 h-2.5 bg-amber-400 rounded-full animate-pulse shadow-[0_0_6px_rgba(251,191,36,0.6)]"></div>
+              <span className="text-xs font-scholar-title font-bold tracking-wider text-amber-200">Scholar AI Tutor</span>
+              <span className="text-[9px] bg-amber-500/10 border border-amber-500/20 text-amber-300/80 px-1.5 py-0.5 rounded font-mono">Academic Fellow</span>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-white/40 hover:text-white transition-colors cursor-pointer"
+              className="text-amber-200/50 hover:text-amber-200 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Messages Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin bg-blackboard-canvas">
             {history.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 text-white/40">
-                <MessageSquare className="w-8 h-8 mb-2 text-blue-500/50" />
-                <p className="text-xs font-bold uppercase tracking-wider text-white/60">Ask Llama 3!</p>
-                <p className="text-[11px] mt-1">Ask questions about formulas, equations, derivatives, integrals, or plots generated on screen.</p>
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 text-amber-200/50">
+                <MessageSquare className="w-8 h-8 mb-2 text-amber-400/40" />
+                <p className="text-xs font-scholar-title font-bold tracking-wider text-amber-200">Consult The Academy</p>
+                <p className="text-[11px] mt-1 font-academic italic text-[#ededdf]/70">Inquire into any theorem, mathematical derivation, calculus step, or geometric plot on the blackboard.</p>
               </div>
             ) : (
               history.map((msg, idx) => (
@@ -141,9 +142,9 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-xl px-3 py-2 text-xs leading-relaxed ${msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-tr-none"
-                      : "bg-white/5 border border-white/10 text-white/90 rounded-tl-none"
+                    className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${msg.role === "user"
+                      ? "bg-[#183526] text-amber-100 border border-amber-500/30 rounded-tr-none shadow-sm"
+                      : "bg-[#0f1d16] border border-amber-900/30 text-[#ededdf] rounded-tl-none font-academic text-[13px]"
                       }`}
                   >
                     <FormattedChatMessage content={msg.content} />
@@ -153,9 +154,9 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
             )}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-white/5 border border-white/10 rounded-xl rounded-tl-none px-3 py-2 text-xs text-white/40 flex items-center gap-2">
-                  <RefreshCw className="w-3 h-3 animate-spin text-blue-400" />
-                  <span>Llama 3 is thinking...</span>
+                <div className="bg-[#0f1d16] border border-amber-900/30 rounded-xl rounded-tl-none px-3 py-2 text-xs text-amber-200/60 flex items-center gap-2 font-academic italic">
+                  <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />
+                  <span>The Scholar is formulating the proof...</span>
                 </div>
               </div>
             )}
@@ -163,7 +164,7 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
           </div>
 
           {/* Textarea Input Footer */}
-          <div className="p-3 border-t border-white/10 bg-white/5 flex gap-2">
+          <div className="p-3 border-t border-amber-900/30 bg-[#09130f] flex gap-2">
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -173,14 +174,14 @@ export default function AIChat({ solution, currentSence }: AIChatProps) {
                   handleSend();
                 }
               }}
-              placeholder="Ask Llama 3..."
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500/50 resize-none h-9 scrollbar-none"
+              placeholder="Inquire of the Scholar..."
+              className="flex-1 bg-[#111f18] border border-amber-900/40 rounded-xl px-3 py-2 text-xs text-amber-100 placeholder:text-amber-200/30 focus:outline-none focus:border-amber-400/60 resize-none h-9 scrollbar-none font-sans"
               rows={1}
             />
             <button
               onClick={handleSend}
               disabled={loading || !message.trim()}
-              className="w-9 h-9 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:text-white/40 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              className="w-9 h-9 bg-[#1a3627] hover:bg-[#244b36] disabled:opacity-40 text-amber-300 border border-amber-500/40 rounded-xl flex items-center justify-center transition-colors cursor-pointer shrink-0 shadow-sm"
             >
               <Send className="w-3.5 h-3.5" />
             </button>

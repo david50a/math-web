@@ -402,21 +402,21 @@ export default function VoiceAssistant({
         {!isOpen && (
           <button
             onClick={() => setIsOpen(true)}
-            className="group relative flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-full shadow-2xl shadow-indigo-500/40 border border-white/20 transition-all transform hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md"
-            title="Open AI Math Voice Assistant"
+            className="group relative flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[#12241b] via-[#1a3829] to-[#254d39] hover:from-[#183224] hover:to-[#2f5e46] text-amber-200 rounded-full shadow-2xl shadow-black/80 border border-amber-500/40 transition-all transform hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-md academic-frame"
+            title="Open Scholar Voice Assistant"
           >
             {/* Animated Glow Ring */}
-            <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 opacity-50 blur-sm group-hover:opacity-100 transition duration-500 animate-pulse" />
+            <div className="absolute -inset-1 rounded-full bg-gradient-to-r from-amber-500/40 to-emerald-500/40 opacity-40 blur-sm group-hover:opacity-100 transition duration-500 animate-pulse" />
 
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-white/20">
-              <Bot className="w-5 h-5 text-white animate-bounce" />
+            <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/30">
+              <Bot className="w-5 h-5 text-amber-300 animate-bounce" />
             </div>
             <div className="relative text-left pr-1 hidden sm:block">
-              <p className="text-xs font-bold leading-tight flex items-center gap-1.5">
-                Voice Assistant
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <p className="text-xs font-scholar-title font-bold leading-tight flex items-center gap-1.5 text-amber-200">
+                Scholar Voice Mentor
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
               </p>
-              <p className="text-[10px] text-white/80 font-mono">Click to speak & control</p>
+              <p className="text-[10px] text-amber-200/70 font-academic italic">Oral Explication & Dictation</p>
             </div>
           </button>
         )}
@@ -424,31 +424,31 @@ export default function VoiceAssistant({
         {/* Expanded Voice Assistant Window */}
         {isOpen && (
           <div
-            className={`w-[90vw] max-w-sm sm:max-w-md bg-[#0F111A]/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl shadow-black/80 flex flex-col overflow-hidden transition-all duration-300 ${
+            className={`w-[90vw] max-w-sm sm:max-w-md bg-[#0c1813]/98 backdrop-blur-xl border border-amber-900/40 rounded-2xl shadow-2xl shadow-black/90 flex flex-col overflow-hidden transition-all duration-300 academic-frame ${
               isMinimized ? "h-20" : "h-[540px]"
             }`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-900/60 to-purple-900/60 border-b border-white/10">
+            <div className="flex items-center justify-between px-4 py-3 bg-[#09130f] border-b border-amber-900/30">
               <div className="flex items-center gap-2.5">
-                <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-md">
-                  <Bot className="w-4 h-4 text-white" />
+                <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-[#14261d] border border-amber-500/30 shadow-md">
+                  <Bot className="w-4 h-4 text-amber-300" />
                   {assistantState === "listening" && (
                     <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-[#0F111A] animate-ping" />
                   )}
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                    Math Voice Assistant
+                  <h3 className="text-xs font-scholar-title font-bold text-amber-200 flex items-center gap-1.5">
+                    Scholar Voice Mentor
                     <span
                       className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono uppercase font-bold ${
                         assistantState === "listening"
-                          ? "bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse"
+                          ? "bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse"
                           : assistantState === "speaking"
                           ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
                           : assistantState === "thinking"
                           ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                          : "bg-blue-500/20 text-blue-300 border border-blue-500/40"
+                          : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
                       }`}
                     >
                       {assistantState === "listening"
@@ -456,17 +456,17 @@ export default function VoiceAssistant({
                         : assistantState === "speaking"
                         ? "Speaking 🔊"
                         : assistantState === "thinking"
-                        ? "Thinking..."
+                        ? "Pondering..."
                         : "Ready"}
                     </span>
                   </h3>
-                  <p className="text-[10px] text-white/50 font-mono">
-                    Speak equations, navigation or questions
+                  <p className="text-[10px] text-amber-200/60 font-academic italic">
+                    Dictate propositions or question the fellow
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 text-white/60">
+              <div className="flex items-center gap-1 text-amber-200/60">
                 <button
                   onClick={() => setShowSettings(!showSettings)}
                   className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-all"
@@ -600,16 +600,16 @@ export default function VoiceAssistant({
                 </div>
 
                 {/* Quick Voice Command Suggestion Chips */}
-                <div className="px-3 py-2 bg-black/40 border-t border-white/5 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                  <span className="text-[10px] uppercase font-bold text-white/40 shrink-0 flex items-center gap-1">
-                    <HelpCircle className="w-3 h-3 text-blue-400" />
+                <div className="px-3 py-2 bg-[#09130f] border-t border-amber-900/30 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                  <span className="text-[10px] uppercase font-bold text-amber-300/60 shrink-0 flex items-center gap-1 font-scholar-title">
+                    <HelpCircle className="w-3 h-3 text-amber-400" />
                     Try:
                   </span>
                   {getContextualChips().map((chip) => (
                     <button
                       key={chip}
                       onClick={() => handleQuickPrompt(chip)}
-                      className="px-2.5 py-1 bg-white/5 hover:bg-blue-600/30 border border-white/10 hover:border-blue-500/40 rounded-lg text-[10px] font-mono text-blue-300 hover:text-white whitespace-nowrap transition-all cursor-pointer shrink-0"
+                      className="px-2.5 py-1 bg-[#12231b] hover:bg-[#1a3528] border border-amber-900/30 hover:border-amber-500/40 rounded-lg text-[10px] font-academic italic text-amber-200/80 hover:text-amber-100 whitespace-nowrap transition-all cursor-pointer shrink-0"
                     >
                       {chip}
                     </button>
@@ -617,7 +617,7 @@ export default function VoiceAssistant({
                 </div>
 
                 {/* Bottom Control Bar */}
-                <div className="p-3 bg-[#0A0C14] border-t border-white/10 flex items-center justify-between gap-2">
+                <div className="p-3 bg-[#08110d] border-t border-amber-900/30 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {/* Main Voice Toggle Button */}
                     <button
@@ -625,7 +625,7 @@ export default function VoiceAssistant({
                       className={`px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all cursor-pointer transform active:scale-95 ${
                         assistantState === "listening"
                           ? "bg-red-600 hover:bg-red-500 text-white shadow-red-600/40 animate-pulse"
-                          : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-600/30"
+                          : "bg-[#183626] hover:bg-[#234d37] border border-amber-500/40 text-amber-200 shadow-black/40"
                       }`}
                     >
                       {assistantState === "listening" ? (

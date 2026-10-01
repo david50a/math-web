@@ -129,21 +129,8 @@ Formatting rules:
       equation = matrixParsed;
       console.log("Reconstructed matrix from local OCR:", equation);
     } else {
-      equation = rawText.replace(/\n/g, ' ').replace(/\s{2,}/g, ' ');
-
-      // Normalize LaTeX & OCR artifacts
-      equation = equation
-        .replace(/\\int/g, 'integrate')
-        .replace(/∫/g, 'integrate')
-        .replace(/\\cdot|\\times|×/g, '*')
-        .replace(/\\div|÷/g, '/')
-        .replace(/—|–/g, '-')
-        .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')
-        .replace(/√\(([^)]+)\)/g, 'sqrt($1)')
-        .replace(/√([a-zA-Z0-9]+)/g, 'sqrt($1)')
-        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
-
-      // Normalize any LaTeX matrix structures
+      equation = cleanMathOcrText(rawText);
+      // Normalize any LaTeX matrix structures if present
       equation = normalizeMatrixInString(equation);
     }
 
@@ -155,6 +142,54 @@ Formatting rules:
     res.status(500).json({ error: "Failed to process image.", details: err.message });
   }
 });
+
+// Comprehensive mathematical symbol and OCR artifact normalization
+function cleanMathOcrText(raw: string): string {
+  if (!raw) return "";
+  let s = raw.replace(/\n/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+  // Normalize Unicode dashes and minuses
+  s = s.replace(/[—–−ー]/g, '-');
+
+  // Fix degree/superscript OCR artifacts for powers (e.g., 6x°-17x -> 6x^2 - 17x)
+  s = s.replace(/([a-zA-Z0-9\)])[°º]/g, '$1^2');
+  s = s.replace(/([a-zA-Z0-9\)])²/g, '$1^2');
+  s = s.replace(/([a-zA-Z0-9\)])³/g, '$1^3');
+  s = s.replace(/([a-zA-Z0-9\)])⁴/g, '$1^4');
+  s = s.replace(/([a-zA-Z0-9\)])⁵/g, '$1^5');
+  s = s.replace(/([a-zA-Z0-9\)])⁶/g, '$1^6');
+  s = s.replace(/([a-zA-Z0-9\)])⁷/g, '$1^7');
+  s = s.replace(/([a-zA-Z0-9\)])⁸/g, '$1^8');
+  s = s.replace(/([a-zA-Z0-9\)])⁹/g, '$1^9');
+
+  // Fix variable followed directly by power without caret (e.g. 6x2 - 17x -> 6x^2 - 17x)
+  s = s.replace(/([a-zA-Z])\s*([2-9])(?=\s*[-+=*/]|$)/g, '$1^$2');
+
+  // Normalize multiplication & division
+  s = s.replace(/\\cdot|\\times|[×·]/g, '*');
+  s = s.replace(/\\div|÷/g, '/');
+
+  // Normalize roots
+  s = s.replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)');
+  s = s.replace(/√\(([^)]+)\)/g, 'sqrt($1)');
+  s = s.replace(/√([a-zA-Z0-9]+)/g, 'sqrt($1)');
+
+  // Normalize fractions: \frac{a}{b} -> (a)/(b)
+  s = s.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+
+  // Normalize calculus operations
+  s = s.replace(/\\int|∫/g, 'integrate');
+  s = s.replace(/\\frac\{d\}\{dx\}\s*\(?(.*?)\)?/g, 'derive($1)');
+
+  // Fix letter 'O' confused with digit 0 near equals sign
+  s = s.replace(/=\s*[Oo]\b/g, '= 0');
+  s = s.replace(/\b[Oo]\s*=/g, '0 =');
+
+  // Clean spacing around operators for neat expression
+  s = s.replace(/([0-9a-zA-Z\)])\s*([+\-=])\s*([0-9a-zA-Z\(])/g, '$1 $2 $3');
+
+  return s.trim();
+}
 
 // Helper function to normalize LaTeX and math matrix representations into standard engine syntax
 function normalizeMatrixInString(raw: string): string {
@@ -214,6 +249,20 @@ function normalizeMatrixInString(raw: string): string {
 function parseMatrixFromTesseract(rawText: string): string | null {
   if (!rawText) return null;
 
+  // 1. If it contains an equals sign '=', it is an algebraic equation (e.g. 6x^2 - 17x + 12 = 0), NEVER a matrix
+  if (rawText.includes('=')) {
+    return null;
+  }
+
+  // 2. If it contains typical calculus/trig functions or variable powers, it's not a matrix
+  if (/\b(sin|cos|tan|log|ln|lim|int|integrate|derive)\b/i.test(rawText) || /[a-zA-Z]\^[0-9]/.test(rawText)) {
+    return null;
+  }
+
+  // Check if determinant is requested or indicated by vertical bars
+  const isDet = /det|\|/i.test(rawText) && !/\[\s*\[/.test(rawText);
+
+  // 3. Line-by-line 2D grid detection
   const lines = rawText
     .split('\n')
     .map(l => l.trim())
@@ -222,46 +271,53 @@ function parseMatrixFromTesseract(rawText: string): string | null {
   const rowCandidates: string[][] = [];
 
   for (const line of lines) {
-    // Strip common OCR bracket / vertical line artifacts
+    // Strip common bracket & vertical line artifacts so numbers aren't concatenated with borders
     const cleaned = line
       .replace(/\|{2,}/g, ' ')
-      .replace(/—|–/g, '-')
+      .replace(/\|/g, ' ')
+      .replace(/[—–−]/g, '-')
+      .replace(/[[\]()]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
-    // Extract numbers, fractions, or variables in this line
-    const tokens = cleaned.match(/-?\d+(?:\.\d+)?|\b[a-zA-Z]\b/g);
+    // Extract all numbers on this line
+    const tokens = cleaned.match(/-?\d+(?:\.\d+)?/g);
     if (tokens && tokens.length >= 2) {
       rowCandidates.push(tokens);
     }
   }
 
-  const isDet = /det|\|/i.test(rawText);
-
-  // If multiple rows of consistent length were found
+  // If at least 2 lines of numbers were detected
   if (rowCandidates.length >= 2) {
-    const colCount = rowCandidates[0].length;
-    // Check if at least 2 rows have roughly the same column count
-    const validRows = rowCandidates.filter(r => Math.abs(r.length - colCount) <= 1);
-    if (validRows.length >= 2) {
-      const targetCols = validRows[0].length;
-      const formattedRows = validRows.map(r => {
-        if (r.length < targetCols) {
-          return `[${[...r, ...Array(targetCols - r.length).fill("0")].join(', ')}]`;
-        }
-        return `[${r.slice(0, targetCols).join(', ')}]`;
-      });
-      const mat = `[${formattedRows.join(', ')}]`;
-      return isDet ? `det(${mat})` : mat;
-    }
+    // Determine the most frequent row column count (e.g. 3 or 4 cols)
+    const lengths = rowCandidates.map(r => r.length);
+    const countMap: Record<number, number> = {};
+    lengths.forEach(l => { countMap[l] = (countMap[l] || 0) + 1; });
+    const targetCols = parseInt(Object.keys(countMap).reduce((a, b) => countMap[parseInt(a)] >= countMap[parseInt(b)] ? a : b));
+
+    // Format consistent rows, padding with 0 if an OCR artifact dropped a number
+    const formattedRows = rowCandidates.map(r => {
+      if (r.length < targetCols) {
+        return `[${[...r, ...Array(targetCols - r.length).fill("0")].join(', ')}]`;
+      }
+      return `[${r.slice(0, targetCols).join(', ')}]`;
+    });
+
+    const mat = `[${formattedRows.join(', ')}]`;
+    return isDet ? `det(${mat})` : mat;
   }
 
-  // Fallback: Check total number of tokens if line breaks were lost
+  // 4. Fallback for when OCR completely flattened line-breaks into a single line of space-separated numbers
+  // For example: "9 13 5 2 11 7 6 3 7 4 6 0 7 10 1 2"
   const allTokens = rawText
-    .replace(/—|–/g, '-')
+    .replace(/[—–−]/g, '-')
+    .replace(/[[\]()|]/g, ' ')
     .match(/-?\d+(?:\.\d+)?/g);
 
-  if (allTokens) {
+  // Only consider if there are NO algebraic variables in the text
+  const hasAlgebraLetters = /[a-zA-Z]/.test(rawText.replace(/det|inv|eigen/gi, ''));
+
+  if (!hasAlgebraLetters && allTokens && allTokens.length >= 4) {
     // 4 numbers -> 2x2
     if (allTokens.length === 4) {
       const mat = `[[${allTokens[0]}, ${allTokens[1]}], [${allTokens[2]}, ${allTokens[3]}]]`;

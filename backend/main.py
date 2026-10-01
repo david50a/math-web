@@ -453,32 +453,38 @@ def normalize_matrix_latex(text: str) -> str:
 
 @app.post("/api/ocr")
 async def ocr_api(request: OCRRequest):
-    if request.imageBase64:
+    if not request.imageBase64:
         raise HTTPException(status_code=400, detail="No image provided")
     try:
-        base64_str=re.sub(r'^data:image/w+;base64,','',request.imageBase64)
-        img_data=base64.b64decode(base64_str)
-        img=Image.open(BytesIO(img_data)).convert('RGB')
+        base64_str = re.sub(r'^data:image/\w+;base64,', '', request.imageBase64)
+        img_data = base64.b64decode(base64_str)
+        img = Image.open(BytesIO(img_data)).convert('RGB')
 
-        equation=''
+        equation = ''
         try:
-            equation=pytesseract.image_to_string(img,config='--psm 6').strip()
+            equation = pytesseract.image_to_string(img, config='--psm 6').strip()
         except Exception as e:
             print(f'OCR failed: {e}')
         
-        equation=equation.replace('\n',' ')
-        equation=re.sub(r'\s+', ' ', equation).strip()
-        equation = equation.replace("—", "-")
-        equation = equation.replace("–", "-")
-        equation = equation.replace("−", "-")
-        equation = equation.strip()
+        equation = equation.replace('\n', ' ')
+        equation = re.sub(r'\s+', ' ', equation).strip()
+        equation = equation.replace("—", "-").replace("–", "-").replace("−", "-").strip()
+        # Normalize degree/superscripts to powers (e.g. 6x° -> 6x^2, x² -> x^2)
+        equation = re.sub(r'([a-zA-Z0-9\)])[°º]', r'\1^2', equation)
+        equation = re.sub(r'([a-zA-Z0-9\)])²', r'\1^2', equation)
+        equation = re.sub(r'([a-zA-Z0-9\)])³', r'\1^3', equation)
+        equation = re.sub(r'([a-zA-Z])\s*([2-9])(?=\s*[-+=*/]|$)', r'\1^\2', equation)
+        equation = re.sub(r'=\s*[Oo]\b', '= 0', equation)
+        equation = re.sub(r'([0-9a-zA-Z\)])\s*([+\-=])\s*([0-9a-zA-Z\(])', r'\1 \2 \3', equation).strip()
 
         if not equation:
-            raise Exception(status_code=422,detail="No equation detected")
+            raise HTTPException(status_code=422, detail="No equation detected")
         
-        return {'equation':equation,'format':'latex'}
+        return {'equation': equation, 'format': 'latex'}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500,detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
             
         
 class GraphData(BaseModel):

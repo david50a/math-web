@@ -57,24 +57,34 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
     // Theme Color Mapping
     const colorPalette = {
       chalkboard: {
-        bg: "#1e2e28", // School dark-green chalkboard
-        grid: "rgba(255, 255, 255, 0.08)",
-        gridBold: "rgba(255, 255, 255, 0.15)",
-        axis: "rgba(255, 255, 255, 0.6)",
-        text: "rgba(255, 255, 255, 0.8)",
-        curve: "#10b981", // glowing emerald
-        secondaryCurve: "#f59e0b", // yellow chalk
-        point: "#f43f5e"
+        bg: "#0c1813", // School dark-green chalkboard slate
+        grid: "rgba(255, 255, 255, 0.06)",
+        gridBold: "rgba(255, 255, 255, 0.14)",
+        axis: "rgba(255, 255, 240, 0.75)",
+        text: "#fde047", // yellow chalk text
+        curve: "#4ade80", // glowing mint chalk line
+        secondaryCurve: "#facc15", // yellow chalk
+        point: "#fb7185" // rose chalk
       },
       blueprint: {
-        bg: "#0b2545", // Deep engineering blue
-        grid: "rgba(0, 180, 216, 0.15)",
-        gridBold: "rgba(0, 180, 216, 0.3)",
-        axis: "rgba(144, 224, 239, 0.7)",
-        text: "#caf0f8",
-        curve: "#00b4d8", // cyan line
-        secondaryCurve: "#ee9b00",
-        point: "#e63946"
+        bg: "#041429", // Technical drafting deep blue
+        grid: "rgba(56, 189, 248, 0.14)",
+        gridBold: "rgba(56, 189, 248, 0.32)",
+        axis: "rgba(125, 211, 252, 0.85)",
+        text: "#7dd3fc",
+        curve: "#00f0ff", // Electric cyan precision line
+        secondaryCurve: "#fbbf24", // Drafting amber guide
+        point: "#f43f5e"
+      },
+      cosmos: {
+        bg: "#060314", // Deep cosmic void
+        grid: "rgba(168, 85, 247, 0.12)",
+        gridBold: "rgba(168, 85, 247, 0.28)",
+        axis: "rgba(251, 191, 36, 0.7)", // Golden phi axis
+        text: "#e9d5ff",
+        curve: "#c084fc", // Radiant violet harmonic curve
+        secondaryCurve: "#2dd4bf", // Cosmic teal
+        point: "#fbbf24" // Sacred gold point
       },
       glassmorphic: {
         bg: "rgba(15, 23, 42, 0.85)", // deep space backdrop
@@ -398,15 +408,41 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
 
   }, [graphData, annotations, theme]);
 
+  const isChalkboard = theme === "chalkboard";
+  const isBlueprint = theme === "blueprint";
+  const isCosmos = theme === "cosmos";
+
   return (
-    <div className="relative w-full h-[320px] rounded-xl overflow-hidden shadow-2xl border border-white/5 bg-slate-950">
+    <div className={`relative w-full h-[320px] rounded-xl overflow-hidden shadow-2xl transition-all duration-300 ${
+      isChalkboard 
+        ? "border border-amber-500/30 bg-[#0c1813] academic-frame"
+        : isBlueprint
+        ? "border border-cyan-500/40 bg-[#041429] blueprint-frame"
+        : isCosmos
+        ? "border border-purple-500/40 bg-[#060314] cosmos-frame"
+        : "border border-white/5 bg-slate-950"
+    }`}>
       <canvas
         ref={canvasRef}
         id="math-plot-canvas"
         className="w-full h-full block cursor-crosshair transition-opacity duration-300"
       />
-      <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-[10px] text-white/60 px-2 py-1 rounded font-mono select-none">
-        Cartesian 2D Engine
+      <div className={`absolute top-3 right-3 text-[10px] px-2.5 py-1 rounded select-none ${
+        isChalkboard
+          ? "bg-[#14231b]/90 border border-amber-500/30 text-amber-300 font-scholar-title tracking-wider shadow-md backdrop-blur-md"
+          : isBlueprint
+          ? "bg-[#041a36]/90 border border-cyan-500/40 text-cyan-300 font-mono tracking-wider shadow-md backdrop-blur-md"
+          : isCosmos
+          ? "bg-[#0f092b]/90 border border-purple-500/40 text-purple-200 font-sans tracking-wider shadow-md backdrop-blur-md"
+          : "bg-black/60 backdrop-blur-md text-white/60 font-mono"
+      }`}>
+        {isChalkboard 
+          ? "Cartesian Slate Plot" 
+          : isBlueprint 
+          ? "Analytical Drafting Plot [CAD 2D]" 
+          : isCosmos 
+          ? "Sacred Harmonic Manifold" 
+          : "Cartesian 2D Engine"}
       </div>
     </div>
   );

@@ -78,28 +78,28 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
       />
       
       {/* Modal Card */}
-      <div className="relative w-full max-w-md bg-zinc-950/70 border border-white/10 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+      <div className="relative w-full max-w-md bg-[#0c1813]/95 border border-amber-900/40 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden academic-frame">
         {/* Subtle decorative glow */}
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-10 -right-10 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         
         {/* Close button */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 text-white/40 hover:text-white hover:bg-white/5 p-1.5 rounded-full transition-all cursor-pointer"
+          className="absolute top-4 right-4 text-amber-200/40 hover:text-amber-200 hover:bg-white/5 p-1.5 rounded-full transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Title & Header */}
         <div className="flex flex-col items-center mb-6">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg mb-3">
-            <Sparkles className="w-5 h-5 text-white animate-pulse" />
+          <div className="w-10 h-10 bg-[#14261d] border border-amber-500/40 rounded-lg flex items-center justify-center font-bold text-lg mb-3 shadow-md">
+            <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
           </div>
-          <h2 className="text-2xl font-black uppercase tracking-tighter">
-            {mode === "signin" ? "Sign In" : "Create Account"}
+          <h2 className="text-2xl font-scholar-title font-bold tracking-tight text-amber-100">
+            {mode === "signin" ? "Scholar Sign In" : "Academy Registry"}
           </h2>
-          <p className="text-xs text-white/50 mt-1">
-            {mode === "signin" ? "Welcome back to MathMotion.io" : "Start rendering premium math visualizations"}
+          <p className="text-xs text-amber-200/60 font-academic italic mt-1">
+            {mode === "signin" ? "Welcome back to the Scholar's Studio" : "Begin rendering rigorous math animations"}
           </p>
         </div>
 
@@ -113,31 +113,31 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
 
           {/* Email Input */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-white/50" htmlFor="auth-email">
-              Email Address
+            <label className="text-[10px] font-bold uppercase tracking-wider text-amber-200/60 font-scholar-title" htmlFor="auth-email">
+              Scholar Email
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-white/30 pointer-events-none">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-amber-200/40 pointer-events-none">
                 <Mail className="w-4 h-4" />
               </span>
               <input
                 id="auth-email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder="scholar@academy.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:bg-white/[0.07] transition-all"
+                className="w-full bg-[#111f18] border border-amber-900/40 rounded-lg pl-10 pr-4 py-2.5 text-sm text-amber-100 placeholder:text-amber-200/30 focus:outline-none focus:border-amber-400 focus:bg-[#14261d] transition-all"
               />
             </div>
           </div>
 
           {/* Password Input */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-white/50" htmlFor="auth-password">
-              Password
+            <label className="text-[10px] font-bold uppercase tracking-wider text-amber-200/60 font-scholar-title" htmlFor="auth-password">
+              Password Cipher
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-white/30 pointer-events-none">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-amber-200/40 pointer-events-none">
                 <Lock className="w-4 h-4" />
               </span>
               <input
@@ -146,7 +146,7 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:bg-white/[0.07] transition-all"
+                className="w-full bg-[#111f18] border border-amber-900/40 rounded-lg pl-10 pr-4 py-2.5 text-sm text-amber-100 placeholder:text-amber-200/30 focus:outline-none focus:border-amber-400 focus:bg-[#14261d] transition-all"
               />
             </div>
           </div>
@@ -155,16 +155,16 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-lg shadow-blue-600/20 active:scale-[0.98] transform"
+            className="w-full bg-[#193626] hover:bg-[#234d37] border border-amber-500/40 disabled:opacity-40 text-amber-200 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-lg active:scale-[0.98] transform font-scholar-title"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Processing...
+                Verifying Credentials...
               </>
             ) : (
               <>
-                {mode === "signin" ? "Sign In" : "Sign Up"}
+                {mode === "signin" ? "Enter the Academy" : "Register Credentials"}
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -172,23 +172,23 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
         </form>
 
         {/* Tab Toggle */}
-        <div className="mt-6 pt-4 border-t border-white/5 text-center text-xs text-white/40">
+        <div className="mt-6 pt-4 border-t border-amber-900/30 text-center text-xs text-amber-200/60">
           {mode === "signin" ? (
             <>
-              Don't have an account?{" "}
+              Not yet registered with the Academy?{" "}
               <button 
                 onClick={() => { setMode("signup"); setError(null); }}
-                className="text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer"
+                className="text-amber-300 hover:text-amber-200 font-bold underline cursor-pointer font-scholar-title ml-1"
               >
                 Sign Up
               </button>
             </>
           ) : (
             <>
-              Already have an account?{" "}
+              Already hold an Academy seat?{" "}
               <button 
                 onClick={() => { setMode("signin"); setError(null); }}
-                className="text-blue-400 hover:text-blue-300 font-bold underline cursor-pointer"
+                className="text-amber-300 hover:text-amber-200 font-bold underline cursor-pointer font-scholar-title ml-1"
               >
                 Sign In
               </button>

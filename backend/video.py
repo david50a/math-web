@@ -27,19 +27,19 @@ import numpy as np
 
 DEEP_BG       = "#000000"  # Pure Pitch Black
 BG_MID        = "#000000"  # Pure Black
-PANEL_BG      = "#08080C"  # Deep Obsidian / Black Glass
-PANEL_BORDER  = "#22222E"  # Subtle Border
+PANEL_BG      = "#0B1120"  # Deep Slate Navy
+PANEL_BORDER  = "#64748B"  # Visible Crisp Border
 
-ACCENT_CYAN   = "#38BDF8"  # Primary Math Cyan
-ACCENT_BLUE   = "#60A5FA"  # Function Curve Blue
-ACCENT_TEAL   = "#2DD4BF"  # Lemma Mint
-ACCENT_PURPLE = "#C084FC"  # Vector / Matrix Purple
-ACCENT_GOLD   = "#FBBF24"  # Theorem Gold
-ACCENT_CORAL  = "#FB7185"  # Derivative Rose / Tangent
-ACCENT_GREEN  = "#34D399"  # Proof Emerald
-ACCENT_PINK   = "#F472B6"  # Parameter Pink
-TEXT_DIM      = "#94A3B8"  # Slate Muted
-TEXT_SUBTLE   = "#475569"  # Slate Subtle
+ACCENT_CYAN   = "#38BDF8"  # Vivid Math Cyan
+ACCENT_BLUE   = "#60A5FA"  # Bright Blue
+ACCENT_TEAL   = "#2DD4BF"  # Vivid Mint
+ACCENT_PURPLE = "#C084FC"  # Bright Purple
+ACCENT_GOLD   = "#FDE047"  # Bright Golden Yellow
+ACCENT_CORAL  = "#FB7185"  # Vibrant Rose
+ACCENT_GREEN  = "#4ADE80"  # Vivid Emerald Green
+ACCENT_PINK   = "#F472B6"  # Bright Pink
+TEXT_DIM      = "#CBD5E1"  # Crisp Light Slate (NOT dark grey)
+TEXT_SUBTLE   = "#E2E8F0"  # Near White
 TEXT_BRIGHT   = "#FFFFFF"  # Pure Bright White
 
 RULE_COLORS = {
@@ -47,7 +47,7 @@ RULE_COLORS = {
     "Product Rule":  ACCENT_PURPLE,
     "Sum Rule":      ACCENT_CYAN,
     "Chain Rule":    ACCENT_CORAL,
-    "Constant Rule": TEXT_DIM,
+    "Constant Rule": ACCENT_CYAN,
     "Quotient Rule": ACCENT_PINK,
     "Difference":    ACCENT_TEAL,
     "Substitution":  ACCENT_PURPLE,
@@ -268,17 +268,17 @@ def glowing_title(text: str, font_size=34):
 
 def step_badge(index: int, total: int):
     """Mathematical index capsule: e.g. [ Step k = 1 / n ]."""
-    pill_w = 2.4
-    pill_h = 0.54
+    pill_w = 2.6
+    pill_h = 0.58
     pill_bg = RoundedRectangle(
         corner_radius=0.16, width=pill_w, height=pill_h,
-        fill_color=PANEL_BG, fill_opacity=0.96,
-        stroke_color=ACCENT_CYAN, stroke_width=1.8,
-    )
-    glow_pill = pill_bg.copy().set_stroke(color=ACCENT_CYAN, width=6, opacity=0.22)
+        fill_color="#0F172A", fill_opacity=0.96,
+        stroke_color=ACCENT_CYAN, stroke_width=2.0,
+    ).set_z_index(24)
+    glow_pill = pill_bg.copy().set_stroke(color=ACCENT_CYAN, width=8, opacity=0.35).set_z_index(23)
     
     # LaTeX formatted mathematical step counter
-    step_tex = MathTex(rf"\mathbf{{Step}}\ k = {index} \big/ {total}", font_size=18, color=ACCENT_CYAN)
+    step_tex = MathTex(rf"\mathbf{{Step}}\ k = {index} \big/ {total}", font_size=20, color=ACCENT_CYAN).set_z_index(25)
     step_tex.move_to(pill_bg)
 
     return VGroup(glow_pill, pill_bg, step_tex).to_corner(UR, buff=0.42).shift(DOWN * 0.08)
@@ -287,29 +287,29 @@ def step_badge(index: int, total: int):
 def explanation_card(text: str, rule: str = None, width=None):
     """Formal mathematical lemma/derivation note card with LaTeX rule badge."""
     wrapped = wrap_text(text, 64)
-    body    = Text(wrapped, font_size=19, color=TEXT_BRIGHT, line_spacing=1.35)
+    body    = Text(wrapped, font_size=20, color=TEXT_BRIGHT, line_spacing=1.35).set_z_index(25)
     
     card_w  = width or min(config.frame_width - 1.0, 13.8)
-    card_h  = max(body.height + 0.8, 1.35)
+    card_h  = max(body.height + 0.85, 1.4)
     
     rect = RoundedRectangle(
         corner_radius=0.16, width=card_w, height=card_h,
-        fill_color=PANEL_BG, fill_opacity=0.95,
-        stroke_color=PANEL_BORDER, stroke_width=1.6,
-    )
-    glow_rect = rect.copy().set_stroke(color=ACCENT_CYAN, width=4, opacity=0.15)
+        fill_color="#0F172A", fill_opacity=0.92,
+        stroke_color="#64748B", stroke_width=2.0,
+    ).set_z_index(20)
+    glow_rect = rect.copy().set_stroke(color=ACCENT_CYAN, width=6, opacity=0.25).set_z_index(19)
     
     rule_color = RULE_COLORS.get(rule, ACCENT_CYAN) if rule else ACCENT_CYAN
     left_strip = RoundedRectangle(
         corner_radius=0.04,
-        width=0.08, height=card_h - 0.26,
+        width=0.10, height=card_h - 0.24,
         fill_color=rule_color, fill_opacity=1.0,
         stroke_width=0
-    ).align_to(rect, LEFT).shift(RIGHT * 0.15)
+    ).align_to(rect, LEFT).shift(RIGHT * 0.15).set_z_index(22)
 
     # Prefix explanation with formal derivation arrow (⟹)
-    deriv_arrow = MathTex(r"\implies", font_size=26, color=rule_color)\
-                  .align_to(rect, LEFT).shift(RIGHT * 0.35)
+    deriv_arrow = MathTex(r"\implies", font_size=28, color=rule_color)\
+                  .align_to(rect, LEFT).shift(RIGHT * 0.35).set_z_index(25)
     body.move_to(rect).shift(RIGHT * 0.3)
     
     group = VGroup(glow_rect, rect, left_strip, deriv_arrow, body)
@@ -317,13 +317,13 @@ def explanation_card(text: str, rule: str = None, width=None):
     if rule:
         color   = RULE_COLORS.get(rule, ACCENT_GOLD)
         pill_bg = RoundedRectangle(
-            corner_radius=0.12, height=0.44,
-            width=len(rule) * 0.14 + 1.1,
-            fill_color="#000000", fill_opacity=0.98,
-            stroke_color=color, stroke_width=1.6,
-        )
-        pill_glow = pill_bg.copy().set_stroke(color=color, width=5, opacity=0.28)
-        pill_txt = MathTex(rf"\mathbf{{\mathbb{{T}}hm:}}\ \text{{{rule}}}", font_size=16, color=color)
+            corner_radius=0.12, height=0.46,
+            width=len(rule) * 0.15 + 1.2,
+            fill_color="#020617", fill_opacity=0.98,
+            stroke_color=color, stroke_width=2.0,
+        ).set_z_index(26)
+        pill_glow = pill_bg.copy().set_stroke(color=color, width=6, opacity=0.35).set_z_index(25)
+        pill_txt = MathTex(rf"\mathbf{{\mathbb{{T}}hm:}}\ \text{{{rule}}}", font_size=18, color=color).set_z_index(27)
         pill_txt.move_to(pill_bg)
         pill = VGroup(pill_glow, pill_bg, pill_txt)
         pill.next_to(rect, UP, buff=0.12).align_to(rect, RIGHT).shift(LEFT * 0.3)
@@ -340,9 +340,9 @@ def rule_example_panel(rule: str):
     formula_str, example_str = RULE_EXAMPLES[rule]
     color = RULE_COLORS.get(rule, ACCENT_GOLD)
 
-    header = MathTex(rf"\mathbf{{\underline{{\text{{Definition / Rule:}}\ {rule}}}}}", font_size=18, color=color)
-    formula = MathTex(formula_str, font_size=21, color=TEXT_BRIGHT)
-    example = MathTex(example_str, font_size=18, color=TEXT_DIM)
+    header = MathTex(rf"\mathbf{{\underline{{\text{{Definition / Rule:}}\ {rule}}}}}", font_size=20, color=color).set_z_index(25)
+    formula = MathTex(formula_str, font_size=22, color=TEXT_BRIGHT).set_z_index(25)
+    example = MathTex(example_str, font_size=20, color="#E2E8F0").set_z_index(25)
 
     content = VGroup(header, formula, example).arrange(DOWN, buff=0.22, aligned_edge=LEFT)
 
@@ -351,39 +351,40 @@ def rule_example_panel(rule: str):
     
     bg = RoundedRectangle(
         corner_radius=0.16, width=panel_w, height=panel_h,
-        fill_color=PANEL_BG, fill_opacity=0.96,
-        stroke_color=color, stroke_width=1.5,
-    )
-    glow_bg = bg.copy().set_stroke(color=color, width=6, opacity=0.2)
+        fill_color="#0F172A", fill_opacity=0.94,
+        stroke_color=color, stroke_width=2.0,
+    ).set_z_index(20)
+    glow_bg = bg.copy().set_stroke(color=color, width=8, opacity=0.25).set_z_index(19)
     content.move_to(bg).shift(RIGHT * 0.12)
 
     bar = RoundedRectangle(
         corner_radius=0.04,
-        width=0.08, height=panel_h - 0.22,
-        fill_color=color, fill_opacity=0.9,
+        width=0.10, height=panel_h - 0.20,
+        fill_color=color, fill_opacity=1.0,
         stroke_width=0,
-    ).align_to(bg, LEFT).shift(RIGHT * 0.12)
+    ).align_to(bg, LEFT).shift(RIGHT * 0.12).set_z_index(22)
 
     return VGroup(glow_bg, bg, bar, content)
 
 
 def equation_box(mobject, color=ACCENT_CYAN):
     """Rigorous mathematical step display card with subtle coordinate anchors."""
+    mobject.set_z_index(20)
     card = RoundedRectangle(
         corner_radius=0.16,
-        width=mobject.width + 0.95,
-        height=mobject.height + 0.68,
+        width=mobject.width + 1.0,
+        height=mobject.height + 0.72,
         stroke_color=color,
-        stroke_width=1.8,
-        fill_color=PANEL_BG,
-        fill_opacity=0.90
-    ).move_to(mobject)
+        stroke_width=2.4,
+        fill_color="#0B132B",
+        fill_opacity=0.60
+    ).move_to(mobject).set_z_index(5)
 
-    glow = card.copy().set_stroke(color=color, width=8, opacity=0.22).set_fill(opacity=0)
+    glow = card.copy().set_stroke(color=color, width=10, opacity=0.32).set_fill(opacity=0).set_z_index(4)
     
     # Mathematical frame brackets
-    b_left = MathTex(r"\big[", font_size=28, color=color).align_to(card, LEFT).shift(RIGHT*0.12)
-    b_right = MathTex(r"\big]", font_size=28, color=color).align_to(card, RIGHT).shift(LEFT*0.12)
+    b_left = MathTex(r"\big[", font_size=32, color=color).align_to(card, LEFT).shift(RIGHT*0.12).set_z_index(21)
+    b_right = MathTex(r"\big]", font_size=32, color=color).align_to(card, RIGHT).shift(LEFT*0.12).set_z_index(21)
     
     return VGroup(glow, card, b_left, b_right)
 
@@ -423,26 +424,28 @@ def play_intro(scene: Scene, title_group: VGroup):
 
 def play_outro(scene: Scene, final_eq):
     """Rigorous mathematical conclusion with Q.E.D. / Halmos symbol and conclusion frame."""
+    final_eq.set_z_index(30)
+    
     frame = RoundedRectangle(
         corner_radius=0.18,
-        width=final_eq.width + 1.1,
-        height=final_eq.height + 0.85,
-        stroke_color=ACCENT_GREEN, stroke_width=2.8,
-        fill_color=PANEL_BG, fill_opacity=0.94,
-    ).move_to(final_eq)
+        width=final_eq.width + 1.2,
+        height=final_eq.height + 0.9,
+        stroke_color=ACCENT_GREEN, stroke_width=3.2,
+        fill_color="#064E3B", fill_opacity=0.30,
+    ).move_to(final_eq).set_z_index(10)
     
-    glow_frame = frame.copy().set_stroke(color=ACCENT_GREEN, width=12, opacity=0.3).set_fill(opacity=0)
+    glow_frame = frame.copy().set_stroke(color=ACCENT_GREEN, width=14, opacity=0.45).set_fill(opacity=0).set_z_index(9)
     
     # Formal conclusion box with Halmos square Q.E.D.
     badge_bg = RoundedRectangle(
-        corner_radius=0.16, width=3.8, height=0.68,
-        fill_color="#021C14", fill_opacity=0.96,
-        stroke_color=ACCENT_GREEN, stroke_width=1.8
-    )
-    badge_glow = badge_bg.copy().set_stroke(color=ACCENT_GREEN, width=8, opacity=0.35)
+        corner_radius=0.16, width=4.2, height=0.74,
+        fill_color="#064E3B", fill_opacity=0.92,
+        stroke_color=ACCENT_GREEN, stroke_width=2.2
+    ).set_z_index(25)
+    badge_glow = badge_bg.copy().set_stroke(color=ACCENT_GREEN, width=10, opacity=0.40).set_z_index(24)
     
-    qed_txt = MathTex(r"\therefore\ \mathbf{Result\ Verified}\ \ \blacksquare\ \text{Q.E.D.}",
-                      font_size=20, color=TEXT_BRIGHT)
+    qed_txt = MathTex(r"\therefore\ \mathbf{Final\ Solution}\ \ \blacksquare\ \text{Q.E.D.}",
+                      font_size=22, color=TEXT_BRIGHT).set_z_index(26)
     qed_txt.move_to(badge_bg)
     done_badge = VGroup(badge_glow, badge_bg, qed_txt).next_to(frame, DOWN, buff=0.35)
     
@@ -453,9 +456,9 @@ def play_outro(scene: Scene, final_eq):
     )
     scene.play(
         FadeIn(done_badge, shift=UP * 0.2, run_time=0.6),
-        Flash(done_badge.get_center(), color=ACCENT_GREEN, line_length=0.25, num_lines=12, run_time=0.8)
+        Flash(done_badge.get_center(), color=ACCENT_GREEN, line_length=0.3, num_lines=14, run_time=0.8)
     )
-    scene.wait(2.8)
+    scene.wait(3.5)
 
 
 # MATHEMATICAL GRAPH & FUNCTION PANEL
@@ -888,19 +891,23 @@ class UniversalMathAnimation(Scene):
             badge    = step_badge(i + 1, n)
             theme_color = RULE_COLORS.get(rule, ACCENT_CYAN) if rule else ACCENT_CYAN
 
+            is_final = (i == n - 1)
+            step_color = ACCENT_GREEN if is_final else theme_color
+
             if step.type == "matrix":
                 matrix_data = step.data or [[0]]
                 fmt = [[(str(int(v)) if abs(v-int(v))<1e-9 else f"{v:.2f}") for v in row]
                        for row in matrix_data]
-                new_eq = Matrix(fmt, element_to_mobject=Text, h_buff=1.6, v_buff=1.1)\
-                         .scale(0.72).center().shift(UP*0.55)
+                new_eq = Matrix(fmt, element_to_mobject=Text, element_to_mobject_config={"color": "#FFFFFF"}, h_buff=1.6, v_buff=1.1)\
+                         .scale(0.85).center().shift(UP*0.55).set_z_index(20)
+                new_eq.get_brackets().set_color(step_color)
             elif step.type == "text":
-                new_eq = Text(step.latex.replace("\\\\","\n"), font_size=24,
-                              color=TEXT_BRIGHT).center().shift(UP*0.55)
+                new_eq = Text(step.latex.replace("\\\\","\n"), font_size=28,
+                              color="#FFFFFF").center().shift(UP*0.55).set_z_index(20)
             else:
-                new_eq = MathTex(step.latex, color=theme_color).scale(1.25).center().shift(UP*0.55)
+                new_eq = MathTex(step.latex, color=step_color).scale(1.35).center().shift(UP*0.55).set_z_index(20)
 
-            new_eq_box = equation_box(new_eq, color=theme_color)
+            new_eq_box = equation_box(new_eq, color=step_color)
 
             anims = []
             if pbar:
@@ -913,11 +920,11 @@ class UniversalMathAnimation(Scene):
                 anims.append(FadeIn(new_card, shift=UP*0.15))
 
             if current_equation is None:
-                anims += [FadeIn(new_eq, scale=0.9), FadeIn(new_eq_box)]
+                anims += [FadeIn(new_eq_box), FadeIn(new_eq, scale=0.9)]
             else:
                 anims += [
-                    ReplacementTransform(current_equation, new_eq),
-                    ReplacementTransform(current_eq_box, new_eq_box)
+                    ReplacementTransform(current_eq_box, new_eq_box),
+                    ReplacementTransform(current_equation, new_eq)
                 ]
 
             self.play(*anims, run_time=1.1)
@@ -1086,7 +1093,8 @@ class UniversalMathAnimation(Scene):
             new_card = explanation_card(step.description, rule)
             new_pbar = progress_bar((i+1)/n)
             badge    = step_badge(i+1, n)
-            eq_color = RULE_COLORS.get(rule, ACCENT_GOLD) if rule else ACCENT_CYAN
+            is_final = (i == n - 1)
+            eq_color = ACCENT_GREEN if is_final else (RULE_COLORS.get(rule, ACCENT_GOLD) if rule else ACCENT_CYAN)
 
             # equation mobject
             if step.type == "matrix":
@@ -1094,9 +1102,11 @@ class UniversalMathAnimation(Scene):
                        else (step.data if isinstance(step.data, list) else [[0]]))
                 fmt = [[(str(int(v)) if abs(v-int(v))<1e-9 else f"{v:.2f}") for v in row]
                        for row in raw]
-                new_eq = Matrix(fmt, element_to_mobject=Text, h_buff=1.6, v_buff=1.1).scale(0.68)
+                new_eq = Matrix(fmt, element_to_mobject=Text, element_to_mobject_config={"color": "#FFFFFF"}, h_buff=1.6, v_buff=1.1)\
+                         .scale(0.80).set_z_index(20)
+                new_eq.get_brackets().set_color(eq_color)
             else:
-                new_eq = MathTex(step.latex, color=eq_color).scale(1.2)
+                new_eq = MathTex(step.latex, color=eq_color).scale(1.32).set_z_index(20)
 
             # position: right side if axes present, else centre
             if is_calculus:
@@ -1127,11 +1137,11 @@ class UniversalMathAnimation(Scene):
                 anims.append(FadeIn(new_card, shift=UP*0.1))
 
             if current_equation is None:
-                anims += [FadeIn(new_eq, scale=0.85), FadeIn(new_eq_box)]
+                anims += [FadeIn(new_eq_box), FadeIn(new_eq, scale=0.85)]
             else:
                 anims += [
-                    ReplacementTransform(current_equation, new_eq),
-                    ReplacementTransform(current_eq_box, new_eq_box)
+                    ReplacementTransform(current_eq_box, new_eq_box),
+                    ReplacementTransform(current_equation, new_eq)
                 ]
 
             if current_rule_panel: anims.append(FadeOut(current_rule_panel))
@@ -1196,19 +1206,23 @@ class MathStepsScene(Scene):
             badge    = step_badge(i + 1, n)
             theme_color = RULE_COLORS.get(rule, ACCENT_CYAN) if rule else ACCENT_CYAN
 
+            is_final = (i == n - 1)
+            step_color = ACCENT_GREEN if is_final else theme_color
+
             if step.type == "matrix":
                 matrix_data = step.data or [[0]]
                 fmt = [[(str(int(v)) if abs(v-int(v))<1e-9 else f"{v:.2f}") for v in row]
                        for row in matrix_data]
-                new_eq = Matrix(fmt, element_to_mobject=Text, h_buff=1.6, v_buff=1.1)\
-                         .scale(0.72).center().shift(UP*0.55)
+                new_eq = Matrix(fmt, element_to_mobject=Text, element_to_mobject_config={"color": "#FFFFFF"}, h_buff=1.6, v_buff=1.1)\
+                         .scale(0.85).center().shift(UP*0.55).set_z_index(20)
+                new_eq.get_brackets().set_color(step_color)
             elif step.type == "text":
-                new_eq = Text(step.latex.replace("\\\\","\n"), font_size=24,
-                              color=TEXT_BRIGHT).center().shift(UP*0.55)
+                new_eq = Text(step.latex.replace("\\\\","\n"), font_size=28,
+                              color="#FFFFFF").center().shift(UP*0.55).set_z_index(20)
             else:
-                new_eq = MathTex(step.latex, color=theme_color).scale(1.25).center().shift(UP*0.55)
+                new_eq = MathTex(step.latex, color=step_color).scale(1.35).center().shift(UP*0.55).set_z_index(20)
 
-            new_eq_box = equation_box(new_eq, color=theme_color)
+            new_eq_box = equation_box(new_eq, color=step_color)
 
             anims = []
             if pbar:
@@ -1221,11 +1235,11 @@ class MathStepsScene(Scene):
                 anims.append(FadeIn(new_card, shift=UP*0.15))
 
             if current_equation is None:
-                anims += [FadeIn(new_eq, scale=0.9), FadeIn(new_eq_box)]
+                anims += [FadeIn(new_eq_box), FadeIn(new_eq, scale=0.9)]
             else:
                 anims += [
-                    ReplacementTransform(current_equation, new_eq),
-                    ReplacementTransform(current_eq_box, new_eq_box)
+                    ReplacementTransform(current_eq_box, new_eq_box),
+                    ReplacementTransform(current_equation, new_eq)
                 ]
 
             self.play(*anims, run_time=1.1)

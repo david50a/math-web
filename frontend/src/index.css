@@ -1,1 +1,211 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-slate-blackboard: #0e1713;
+    --color-slate-dark: #09100d;
+    --color-slate-surface: #13221b;
+    --color-slate-border: rgba(110, 231, 183, 0.18);
+    --color-chalk-white: #f5f5ee;
+    --color-chalk-yellow: #fde047;
+    --color-chalk-mint: #6ee7b7;
+    --color-chalk-cyan: #7dd3fc;
+    --color-chalk-rose: #fca5a5;
+    --color-scholar-gold: #d4af37;
+    --color-scholar-amber: #e6ca65;
+    --color-wood-walnut: #28180f;
+    --color-wood-oak: #3d2516;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #0b1612;
+    color: #f3f3eb;
+  }
+}
+
+/* Academic & Chalk Typography Classes */
+.font-academic {
+  font-family: 'Newsreader', Georgia, serif;
+}
+
+.font-scholar-title {
+  font-family: 'Cinzel', 'Newsreader', serif;
+}
+
+.font-chalk {
+  font-family: 'Kalam', cursive, sans-serif;
+}
+
+.font-mono-math {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Blackboard Canvas & Slate Surfaces */
+.bg-blackboard-canvas {
+  background-color: #0c1813;
+  background-image: 
+    radial-gradient(ellipse at 50% 15%, rgba(35, 68, 52, 0.4) 0%, transparent 75%),
+    radial-gradient(circle at 85% 85%, rgba(18, 38, 29, 0.45) 0%, transparent 55%),
+    radial-gradient(circle at 15% 90%, rgba(15, 32, 24, 0.4) 0%, transparent 60%),
+    radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 20px 20px;
+}
+
+.bg-slate-card {
+  background-color: #122119;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.bg-slate-card-deep {
+  background-color: #0d1713;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+/* The Architect's Blueprint - Technical Drafting Canvas */
+.bg-blueprint-canvas {
+  background-color: #041224;
+  background-image: 
+    linear-gradient(rgba(56, 189, 248, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.12) 1px, transparent 1px),
+    linear-gradient(rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px),
+    radial-gradient(ellipse at 50% 10%, rgba(14, 165, 233, 0.15) 0%, transparent 60%);
+  background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px, 100% 100%;
+}
+
+.blueprint-frame {
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 
+    0 0 0 1px rgba(14, 165, 233, 0.15),
+    0 8px 30px rgba(2, 10, 22, 0.8),
+    inset 0 1px 0 rgba(186, 230, 253, 0.1);
+}
+
+/* Generative Cosmos / Sacred Geometry - Ambient Fluid Fabric */
+.bg-cosmos-canvas {
+  background-color: #060412;
+  background-image: 
+    radial-gradient(ellipse at 70% 15%, rgba(139, 92, 246, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse at 20% 80%, rgba(99, 102, 241, 0.18) 0%, transparent 60%),
+    radial-gradient(circle at 50% 50%, rgba(20, 184, 166, 0.1) 0%, transparent 70%),
+    radial-gradient(rgba(244, 244, 245, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 24px 24px;
+}
+
+.cosmos-frame {
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 
+    0 0 25px rgba(147, 51, 234, 0.16),
+    0 8px 32px rgba(6, 4, 18, 0.85),
+    inset 0 1px 0 rgba(216, 180, 254, 0.15);
+}
+
+/* Chalk Text Luminescence & Shadows */
+.chalk-text {
+  color: #f7f7f0;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.8), 0 0 6px rgba(255, 255, 255, 0.25);
+}
+
+.chalk-yellow {
+  color: #fde047;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.85), 0 0 8px rgba(253, 224, 71, 0.4);
+}
+
+.chalk-mint {
+  color: #86efac;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.85), 0 0 8px rgba(134, 239, 172, 0.4);
+}
+
+.chalk-cyan {
+  color: #7dd3fc;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.85), 0 0 8px rgba(125, 211, 252, 0.4);
+}
+
+.chalk-rose {
+  color: #fda4af;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.85), 0 0 8px rgba(253, 164, 175, 0.4);
+}
+
+.scholar-gold {
+  color: #e5c158;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.6), 0 0 10px rgba(229, 193, 88, 0.35);
+}
+
+/* Chalk Borders & Dividers */
+.chalk-border {
+  border: 1px solid rgba(245, 245, 235, 0.16);
+  box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.02), 0 0 12px rgba(16, 185, 129, 0.04);
+}
+
+.chalk-border-dashed {
+  border: 1.5px dashed rgba(245, 245, 235, 0.22);
+}
+
+.scholar-border {
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.06);
+}
+
+.scholar-border-hover:hover {
+  border-color: rgba(212, 175, 55, 0.5);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.12);
+}
+
+/* Wooden Chalkboard Frame & Chalk Rail Trims */
+.academic-frame {
+  box-shadow: 
+    0 0 0 1px rgba(212, 175, 55, 0.2),
+    0 4px 20px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.chalk-rail {
+  background: linear-gradient(180deg, #2b1c14 0%, #1a100a 100%);
+  border-top: 1.5px solid #4a3222;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* KaTeX Blackboard Enhancement */
+.katex {
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.6), 0 0 7px rgba(250, 240, 205, 0.22);
+  font-family: 'KaTeX_Main', 'Newsreader', serif;
+}
+
+.katex-display {
+  margin: 0.5em 0 !important;
+}
+
+/* Chalk Underline Effect */
+.chalk-underline {
+  position: relative;
+}
+.chalk-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 100%;
+  height: 2px;
+  background: rgba(253, 224, 71, 0.6);
+  border-radius: 1px;
+  filter: blur(0.5px);
+}
+
+/* Custom Scrollbars with Slate & Brass Accent */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(12, 24, 19, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.25);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.45);
+}

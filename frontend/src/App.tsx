@@ -27,7 +27,9 @@ import {
   Scan,
   BookOpen,
   Mic,
-  MicOff
+  MicOff,
+  GraduationCap,
+  Scroll
 } from "lucide-react";
 import MathGraph from "./components/MathGraph";
 import Whiteboard, { KatexMath } from "./components/Whiteboard";
@@ -49,22 +51,55 @@ const PRESET_EQUATIONS = [
   { name: "Translate Circle", expr: "translate(circle, 2, -1)" }
 ];
 
-const THEME_CLASSES: Record<ThemeType, { bg: string, border: string, accent: string, text: string, dot: string, label: string }> = {
-  chalkboard: {
-    bg: "bg-[#0c1813]",
-    border: "border-emerald-800/40",
-    accent: "text-amber-300",
-    text: "text-emerald-100",
-    dot: "bg-emerald-500",
-    label: "Chalkboard"
-  },
+interface ThemeInfo {
+  bg: string;
+  border: string;
+  accent: string;
+  text: string;
+  dot: string;
+  label: string;
+  subtitle?: string;
+  bestFor?: string;
+  vibe?: string;
+  isFlagship?: boolean;
+}
+
+const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
   blueprint: {
-    bg: "bg-[#05172e]",
-    border: "border-cyan-800/40",
+    bg: "bg-blueprint-canvas",
+    border: "border-cyan-500/40",
     accent: "text-cyan-400",
-    text: "text-blue-100",
-    dot: "bg-cyan-500",
-    label: "Blueprint"
+    text: "text-cyan-100",
+    dot: "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]",
+    label: "The Architect's Blueprint",
+    subtitle: "Technical & Analytical",
+    bestFor: "Advanced math tools, linear algebra visualizers, algorithmic demos, or engineering calculators.",
+    vibe: "Technical drafting papers, isometric grid patterns, fine 1px structural lines, and monospace typography.",
+    isFlagship: true
+  },
+  chalkboard: {
+    bg: "bg-blackboard-canvas",
+    border: "border-amber-900/40",
+    accent: "text-amber-300",
+    text: "text-[#f5f5ed]",
+    dot: "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]",
+    label: "Chalk & Scholar",
+    subtitle: "Classic Academic / Modern Blackboard",
+    bestFor: "Educational platforms, lecture notes, theorem solvers, and step-by-step proofs.",
+    vibe: "A clean, modern take on university blackboards and polished monograph typography (reminiscent of 3Blue1Brown or classic Springer-Verlag texts).",
+    isFlagship: true
+  },
+  cosmos: {
+    bg: "bg-cosmos-canvas",
+    border: "border-purple-500/40",
+    accent: "text-purple-300",
+    text: "text-purple-100",
+    dot: "bg-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.8)]",
+    label: "Generative Cosmos / Sacred Geometry",
+    subtitle: "Visual & Exploratory",
+    bestFor: "Visual math sandboxes (fractals, Mandelbrot sets, cellular automata, Fourier transforms).",
+    vibe: "Dark, ambient, and fluid—framing mathematics as the hidden fabric of nature and physics.",
+    isFlagship: true
   },
   glassmorphic: {
     bg: "bg-[#120826]",
@@ -670,9 +705,14 @@ export default function App() {
 
 
   const currentScene: VideoScene | undefined = solution?.scenes[activeSceneIndex];
+  const isChalkboard = theme === "chalkboard";
+  const isBlueprint = theme === "blueprint";
+  const isCosmos = theme === "cosmos";
 
   return (
-    <div className={`w-full min-h-screen ${THEME_CLASSES[theme].bg} text-white font-sans flex flex-col overflow-x-hidden antialiased selection:bg-blue-600/30`}>
+    <div className={`w-full min-h-screen ${THEME_CLASSES[theme].bg} text-white font-sans flex flex-col overflow-x-hidden antialiased ${
+      isChalkboard ? "selection:bg-amber-400/30 selection:text-white" : isBlueprint ? "selection:bg-cyan-400/30 selection:text-cyan-100" : isCosmos ? "selection:bg-purple-400/30 selection:text-purple-100" : "selection:bg-blue-600/30"
+    }`}>
 
       {/* Video Modal Overlay */}
       {videoUrl && (
@@ -862,31 +902,100 @@ export default function App() {
       )}
 
       {/* Top Navigation Bar adhering strictly to the theme */}
-      <header className="flex flex-col sm:flex-row justify-between items-center px-6 sm:px-8 py-4 sm:h-20 border-b border-white/10 gap-4">
-        <label htmlFor="equation-bar-input" className="flex items-center gap-2 cursor-pointer select-none">
-          <div className="w-8 h-8 bg-blue-600 rounded-sm flex items-center justify-center font-bold text-xl text-white">Σ</div>
-          <span className="text-xl font-black tracking-tighter uppercase">MathMotion.io</span>
+      <header className={`flex flex-col sm:flex-row justify-between items-center px-6 sm:px-8 py-4 sm:h-20 border-b gap-4 transition-colors ${
+        isChalkboard 
+          ? "border-amber-900/40 bg-[#09130f]/95 backdrop-blur-md" 
+          : isBlueprint
+          ? "border-cyan-500/30 bg-[#041224]/95 backdrop-blur-md font-mono"
+          : isCosmos
+          ? "border-purple-500/30 bg-[#060412]/95 backdrop-blur-md"
+          : "border-white/10"
+      }`}>
+        <label htmlFor="equation-bar-input" className="flex items-center gap-2.5 cursor-pointer select-none">
+          <div className={`w-8 h-8 rounded-sm flex items-center justify-center font-bold text-xl shadow-md ${
+            isChalkboard 
+              ? "bg-[#182c21] border border-amber-500/50 text-amber-300 font-scholar-title" 
+              : isBlueprint
+              ? "bg-[#051e3c] border border-cyan-500/50 text-cyan-300 font-mono"
+              : isCosmos
+              ? "bg-[#150a30] border border-purple-500/50 text-purple-300"
+              : "bg-blue-600 text-white"
+          }`}>
+            {isChalkboard ? "Σ" : isBlueprint ? "⌖" : isCosmos ? "✦" : "Σ"}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xl tracking-tight uppercase ${
+              isChalkboard 
+                ? "font-scholar-title font-bold text-amber-100" 
+                : isBlueprint
+                ? "font-mono font-bold text-cyan-100 tracking-wider"
+                : isCosmos
+                ? "font-sans font-bold text-purple-100"
+                : "font-black tracking-tighter"
+            }`}>MathMotion</span>
+            {(isChalkboard || isBlueprint || isCosmos) && (
+              <span className={`hidden md:inline-block text-[9px] border px-2 py-0.5 rounded uppercase tracking-widest ${
+                isChalkboard
+                  ? "bg-amber-500/15 border-amber-500/30 text-amber-300 font-scholar-title"
+                  : isBlueprint
+                  ? "bg-cyan-500/15 border-cyan-500/40 text-cyan-300 font-mono"
+                  : "bg-purple-500/15 border-purple-500/40 text-purple-300 font-sans"
+              }`}>
+                {THEME_CLASSES[theme].label}
+              </span>
+            )}
+          </div>
         </label>
 
-        <nav className="flex items-center gap-4 sm:gap-8 text-[11px] font-bold uppercase tracking-widest text-white/50">
+        <nav className={`flex items-center gap-4 sm:gap-8 text-[11px] font-bold uppercase tracking-widest ${
+          isChalkboard 
+            ? "text-amber-200/60 font-scholar-title" 
+            : isBlueprint
+            ? "text-cyan-300/60 font-mono"
+            : isCosmos
+            ? "text-purple-300/60 font-sans"
+            : "text-white/50"
+        }`}>
           <button
             onClick={() => setCurrentView("dashboard")}
-            className={`hover:text-white transition-colors cursor-pointer ${currentView === "dashboard" ? "text-white border-b-2 border-blue-600 pb-1" : ""}`}
+            className={`transition-colors cursor-pointer ${
+              currentView === "dashboard" 
+                ? (isChalkboard 
+                    ? "text-amber-300 border-b-2 border-amber-400 pb-1" 
+                    : isBlueprint
+                    ? "text-cyan-300 border-b-2 border-cyan-400 pb-1"
+                    : isCosmos
+                    ? "text-purple-300 border-b-2 border-purple-400 pb-1"
+                    : "text-white border-b-2 border-blue-600 pb-1") 
+                : (isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : "hover:text-white")
+            }`}
           >
-            Dashboard
+            {isChalkboard ? "Scholar Dashboard" : isBlueprint ? "Drafting Deck" : isCosmos ? "Cosmic Visualizer" : "Dashboard"}
           </button>
           <button
             onClick={() => setCurrentView("methods")}
-            className={`hover:text-white transition-colors cursor-pointer flex items-center gap-1.5 ${currentView === "methods" ? "text-white border-b-2 border-blue-600 pb-1" : ""}`}
+            className={`transition-colors cursor-pointer flex items-center gap-1.5 ${
+              currentView === "methods" 
+                ? (isChalkboard 
+                    ? "text-amber-300 border-b-2 border-amber-400 pb-1" 
+                    : isBlueprint
+                    ? "text-cyan-300 border-b-2 border-cyan-400 pb-1"
+                    : isCosmos
+                    ? "text-purple-300 border-b-2 border-purple-400 pb-1"
+                    : "text-white border-b-2 border-blue-600 pb-1") 
+                : (isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : "hover:text-white")
+            }`}
           >
-            <BookOpen className="w-3.5 h-3.5 text-blue-400" />
-            Solving Methods
+            <BookOpen className={`w-3.5 h-3.5 ${isChalkboard ? "text-amber-400" : isBlueprint ? "text-cyan-400" : isCosmos ? "text-purple-400" : "text-blue-400"}`} />
+            {isChalkboard ? "Methods Compendium" : isBlueprint ? "Algorithmic Specs" : isCosmos ? "Harmonic Compendium" : "Solving Methods"}
           </button>
           <button
             onClick={() => setIsPaymentModalOpen(true)}
-            className="hover:text-white transition-colors cursor-pointer"
+            className={`transition-colors cursor-pointer ${
+              isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : "hover:text-white"
+            }`}
           >
-            Pricing Plans
+            {isChalkboard ? "Academy Fellowship" : isBlueprint ? "Enterprise CAD" : isCosmos ? "Cosmic Pro" : "Pricing Plans"}
           </button>
         </nav>
 
@@ -898,30 +1007,42 @@ export default function App() {
               setEquationInput(randomPreset.expr);
               handleSolve(randomPreset.expr);
             }}
-            className="px-4 py-2 border border-white/20 text-white text-xs font-black uppercase tracking-tighter hover:bg-white/5 transition-all cursor-pointer transform active:scale-95 rounded-sm"
+            className={`px-4 py-2 border text-xs font-black uppercase tracking-wider transition-all cursor-pointer transform active:scale-95 rounded-sm ${
+              isChalkboard 
+                ? "bg-[#13221a] hover:bg-[#1a3427] border-amber-500/40 text-amber-200 font-scholar-title shadow-sm" 
+                : "border-white/20 text-white hover:bg-white/5"
+            }`}
             id="new_project_btn"
           >
-            Quick Randomize +
+            {isChalkboard ? "Quick Proposition +" : "Quick Randomize +"}
           </button>
 
           {/* Session controls */}
           {userToken ? (
-            <div className="flex items-center gap-2.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg">
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-xs font-black text-white uppercase select-none">
+            <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg border ${
+              isChalkboard ? "bg-[#101d16] border-amber-900/40" : "bg-white/5 border-white/10"
+            }`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black uppercase select-none ${
+                isChalkboard ? "bg-[#1b3829] text-amber-300 border border-amber-500/30 font-scholar-title" : "bg-blue-600 text-white"
+              }`}>
                 {userEmail?.slice(0, 1) || "U"}
               </div>
               <div className="flex flex-col text-left">
-                <span className="text-[9px] font-bold text-white/40 max-w-[100px] truncate">{userEmail}</span>
-                <span className={`text-[8px] font-black uppercase tracking-wider ${isPremium ? "text-emerald-400" : "text-blue-400"}`}>
-                  {isPremium ? "Pro Tier" : "Free Tier"}
+                <span className={`text-[9px] font-bold max-w-[100px] truncate ${isChalkboard ? "text-amber-200/50" : "text-white/40"}`}>{userEmail}</span>
+                <span className={`text-[8px] font-black uppercase tracking-wider ${
+                  isPremium ? "text-amber-300 font-scholar-title" : (isChalkboard ? "text-amber-200/70" : "text-blue-400")
+                }`}>
+                  {isPremium ? (isChalkboard ? "Academy Fellow" : "Pro Tier") : (isChalkboard ? "Junior Scholar" : "Free Tier")}
                 </span>
               </div>
               {!isPremium && (
                 <button
                   onClick={() => setIsPaymentModalOpen(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-[8px] font-bold px-2 py-1 rounded transition-colors uppercase tracking-widest cursor-pointer ml-1.5"
+                  className={`text-[8px] font-bold px-2 py-1 rounded transition-colors uppercase tracking-widest cursor-pointer ml-1.5 ${
+                    isChalkboard ? "bg-[#1e3c2c] hover:bg-[#284f3a] text-amber-200 border border-amber-500/30" : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                  }`}
                 >
-                  Go Pro
+                  {isChalkboard ? "Ascend" : "Go Pro"}
                 </button>
               )}
               <button
@@ -936,13 +1057,19 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setAuthModalMode("signin"); setIsAuthModalOpen(true); }}
-                className="px-3.5 py-2 text-white/80 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                className={`px-3.5 py-2 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  isChalkboard ? "text-amber-200/80 hover:text-amber-100 font-scholar-title" : "text-white/80 hover:text-white"
+                }`}
               >
                 Sign In
               </button>
               <button
                 onClick={() => { setAuthModalMode("signup"); setIsAuthModalOpen(true); }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-tighter transition-all cursor-pointer rounded-sm transform active:scale-95"
+                className={`px-4 py-2 text-xs font-black uppercase tracking-wider transition-all cursor-pointer rounded-sm transform active:scale-95 ${
+                  isChalkboard 
+                    ? "bg-[#183626] hover:bg-[#234d37] border border-amber-500/40 text-amber-200 font-scholar-title shadow-sm" 
+                    : "bg-blue-600 hover:bg-blue-500 text-white"
+                }`}
               >
                 Sign Up
               </button>
@@ -969,23 +1096,35 @@ export default function App() {
         <main className="flex-1 flex flex-col lg:flex-row h-full">
 
           {/* Left Interactive Editor and Video Slate Section (70% width) */}
-          <section className="flex-1 border-r border-white/10 flex flex-col p-4 sm:p-8" id="left-editor-section">
+          <section className={`flex-1 border-r flex flex-col p-4 sm:p-8 transition-colors ${
+            isChalkboard ? "border-amber-900/30" : "border-white/10"
+          }`} id="left-editor-section">
 
-            {/* Main Huge Typography Header matching Bold Typography Theme */}
+            {/* Main Huge Typography Header matching Academic Blackboard Theme */}
             <div className="flex-1 space-y-8">
               <div className="relative group">
-                <span className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] mb-2 block">
-                  Current Expression
+                <span className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 block flex items-center gap-1.5 ${
+                  isChalkboard ? "text-amber-300 font-scholar-title" : "text-blue-500"
+                }`}>
+                  {isChalkboard ? <><Scroll className="w-3.5 h-3.5 text-amber-400" /> Current Mathematical Proposition</> : "Current Expression"}
                 </span>
-                <h1 className="text-5xl sm:text-7xl lg:text-8xl leading-[0.85] font-black tracking-tighter break-words uppercase">
+                <h1 className={`text-5xl sm:text-7xl lg:text-8xl leading-[0.85] tracking-tight break-words uppercase ${
+                  isChalkboard 
+                    ? "font-academic text-[#faf8f2] [text-shadow:0_0_1px_rgba(255,255,255,0.7),0_0_12px_rgba(253,224,71,0.25)] font-semibold" 
+                    : "font-black tracking-tighter"
+                }`}>
                   {solution?.equation || "∫(sin x + cos x) dx"}
                 </h1>
 
                 <div
-                  className="absolute -top-3 right-0 bg-blue-600 px-3 py-1 text-[9px] font-bold tracking-widest text-white uppercase select-none rounded-[2px]"
+                  className={`absolute -top-3 right-0 px-3 py-1 text-[9px] font-bold tracking-widest uppercase select-none rounded-[2px] shadow-sm ${
+                    isChalkboard 
+                      ? "bg-[#183626] border border-amber-500/40 text-amber-300 font-scholar-title" 
+                      : "bg-blue-600 text-white"
+                  }`}
                   id="solving-indicator"
                 >
-                  {loading ? "PARSING..." : "READY"}
+                  {loading ? (isChalkboard ? "DERIVING..." : "PARSING...") : (isChalkboard ? "AXIOM RIGOR" : "READY")}
                 </div>
               </div>
 
@@ -1001,7 +1140,11 @@ export default function App() {
               )}
 
               {statusMessage && (
-                <div className="bg-blue-950/30 border border-blue-500/20 text-blue-300 rounded-xl p-3 text-xs flex items-center gap-2 animate-pulse font-mono">
+                <div className={`rounded-xl p-3 text-xs flex items-center gap-2 animate-pulse font-mono ${
+                  isChalkboard 
+                    ? "bg-[#12231b] border border-amber-500/30 text-amber-200" 
+                    : "bg-blue-950/30 border border-blue-500/20 text-blue-300"
+                }`}>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   {statusMessage}
                 </div>
@@ -1020,8 +1163,10 @@ export default function App() {
                       typingProgress={typingProgress}
                     />
                   ) : (
-                    <div className="h-[360px] bg-white/5 border border-dashed border-white/10 rounded-2xl flex flex-col items-center justify-center p-6 text-center text-white/40">
-                      <Sparkles className="w-8 h-8 mb-2 text-indigo-400 animate-pulse" />
+                    <div className={`h-[360px] border border-dashed rounded-2xl flex flex-col items-center justify-center p-6 text-center ${
+                      isChalkboard ? "bg-[#0e1a14] border-amber-900/40 text-amber-200/50" : "bg-white/5 border-white/10 text-white/40"
+                    }`}>
+                      <Sparkles className="w-8 h-8 mb-2 text-amber-400 animate-pulse" />
                       <span>No active math whiteboard. Write an equation below to start.</span>
                     </div>
                   )}
@@ -1030,9 +1175,13 @@ export default function App() {
                 {/* 2D Cartesian Function Plot Visualizer Canvas */}
                 <div className="flex flex-col space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">Geometry & Plots Visualizer</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/50"}`}>
+                      Geometry &amp; Plots Visualizer
+                    </span>
                     {currentScene?.graphData.showGraph && (
-                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20 font-mono">
+                      <span className={`text-[10px] px-2 py-0.5 rounded border font-mono ${
+                        isChalkboard ? "bg-[#183626] text-amber-300 border-amber-500/30" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      }`}>
                         Expr: {currentScene.graphData.functionExpr}
                       </span>
                     )}
@@ -1044,22 +1193,34 @@ export default function App() {
                       theme={theme}
                     />
                   ) : (
-                    <div className="h-[320px] bg-[#0A0A0A] border border-white/5 rounded-xl flex items-center justify-center text-white/30 text-xs">
+                    <div className={`h-[320px] rounded-xl flex items-center justify-center text-xs ${
+                      isChalkboard ? "bg-[#0c1813] border border-amber-900/30 text-amber-200/40" : "bg-[#0A0A0A] border border-white/5 text-white/30"
+                    }`}>
                       No coordinate metrics mapped for current step.
                     </div>
                   )}
 
                   {/* Visual coordinate context info cards beneath Graph */}
                   <div className="grid grid-cols-2 gap-3 mt-1.5">
-                    <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
-                      <p className="text-white/40 text-[9px] uppercase font-bold tracking-widest">Calculus Level</p>
-                      <p className="text-base font-bold mt-1 text-white">
+                    <div className={`p-3 rounded-xl ${
+                      isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : "bg-white/5 border border-white/10"
+                    }`}>
+                      <p className={`text-[9px] uppercase font-bold tracking-widest ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/40"}`}>
+                        {isChalkboard ? "Curriculum Rigor Level" : "Calculus Level"}
+                      </p>
+                      <p className={`text-base font-bold mt-1 ${isChalkboard ? "text-amber-100 font-scholar-title" : "text-white"}`}>
                         {solution?.equationType || "Pre-Algebra"}
                       </p>
                     </div>
-                    <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
-                      <p className="text-white/40 text-[9px] uppercase font-bold tracking-widest">Final Solution</p>
-                      <div className="text-sm font-bold mt-1 font-mono text-blue-400 truncate overflow-x-auto whitespace-normal scrollbar-none">
+                    <div className={`p-3 rounded-xl ${
+                      isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : "bg-white/5 border border-white/10"
+                    }`}>
+                      <p className={`text-[9px] uppercase font-bold tracking-widest ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/40"}`}>
+                        {isChalkboard ? "Analytical Solution (Q.E.D.)" : "Final Solution"}
+                      </p>
+                      <div className={`text-sm font-bold mt-1 font-mono truncate overflow-x-auto whitespace-normal scrollbar-none ${
+                        isChalkboard ? "text-amber-300 font-academic" : "text-blue-400"
+                      }`}>
                         {solution ? (
                           <span className="inline-flex items-center gap-1">
                             Ans: <KatexMath math={solution.finalAnswer} block={false} />
@@ -1076,11 +1237,15 @@ export default function App() {
 
             </div>
 
-            {/* New equation entry prompt bar aligned with Bold Typography template */}
-            <div className="mt-8 pt-6 border-t border-white/10" id="equation-entry-panel">
+            {/* New equation entry prompt bar aligned with Academic Chalkboard */}
+            <div className={`mt-8 pt-6 border-t ${isChalkboard ? "border-amber-900/30" : "border-white/10"}`} id="equation-entry-panel">
               {/* Quick Math & LaTeX Symbols Toolbar */}
               <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-blue-400 font-mono mr-1">Insert Symbol:</span>
+                <span className={`text-[9px] font-bold uppercase tracking-wider mr-1 ${
+                  isChalkboard ? "text-amber-300 font-scholar-title" : "text-blue-400 font-mono"
+                }`}>
+                  {isChalkboard ? "Scholar's Chalk Keys:" : "Insert Symbol:"}
+                </span>
                 {[
                   { label: "∫ dx", insert: "integrate(x^2)" },
                   { label: "d/dx", insert: "derive(x^2 + sin(x))" },
@@ -1097,7 +1262,11 @@ export default function App() {
                   <button
                     key={idx}
                     onClick={() => setEquationInput((prev) => prev ? `${prev} ${sym.insert}` : sym.insert)}
-                    className="bg-white/5 hover:bg-blue-600/30 hover:border-blue-500/50 text-white/80 hover:text-white px-2 py-1 text-[10px] font-mono rounded border border-white/10 transition-colors cursor-pointer"
+                    className={`px-2 py-1 text-[10px] font-mono rounded border transition-colors cursor-pointer ${
+                      isChalkboard 
+                        ? "bg-[#13221a] hover:bg-[#1c3829] hover:border-amber-500/50 text-amber-200/90 hover:text-amber-100 border-amber-900/40 shadow-xs" 
+                        : "bg-white/5 hover:bg-blue-600/30 hover:border-blue-500/50 text-white/80 hover:text-white border-white/10"
+                    }`}
                   >
                     {sym.label}
                   </button>
@@ -1111,7 +1280,11 @@ export default function App() {
                     id="equation-bar-input"
                     name="equation-bar-input"
                     placeholder="ENTER NEW EQUATION (e.g., y = x^2 - 4x + 4)..."
-                    className="w-full bg-white/5 border-2 border-white/20 px-4 py-3.5 font-mono text-base focus:outline-none focus:border-blue-600 transition-colors uppercase placeholder:text-white/30 tracking-wide rounded-sm"
+                    className={`w-full border-2 px-4 py-3.5 font-mono text-base focus:outline-none transition-colors uppercase tracking-wide rounded-sm ${
+                      isChalkboard 
+                        ? "bg-[#0c1813] border-amber-900/40 focus:border-amber-400 text-[#faf8f2] placeholder:text-amber-200/30 shadow-inner" 
+                        : "bg-white/5 border-white/20 focus:border-blue-600 placeholder:text-white/30"
+                    }`}
                     value={equationInput}
                     onChange={(e) => setEquationInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -1122,7 +1295,9 @@ export default function App() {
                   />
                   <button
                     onClick={() => setEquationInput("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white text-xs px-2 py-1 bg-white/10 rounded cursor-pointer"
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded cursor-pointer ${
+                      isChalkboard ? "text-amber-200/50 hover:text-amber-200 bg-[#16291e]" : "text-white/40 hover:text-white bg-white/10"
+                    }`}
                   >
                     Clear
                   </button>
@@ -1141,7 +1316,7 @@ export default function App() {
                   title={isRecordingMainInput ? "Stop Dictation" : "Dictate Equation (Voice Input)"}
                   className={`p-3.5 transition-all cursor-pointer rounded-sm flex items-center justify-center border-2 ${isRecordingMainInput
                     ? "bg-red-500/30 border-red-500 text-red-400 animate-pulse"
-                    : "bg-white/10 hover:bg-white/20 text-blue-400 border-white/20"
+                    : (isChalkboard ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40" : "bg-white/10 hover:bg-white/20 text-blue-400 border-white/20")
                     }`}
                 >
                   {isRecordingMainInput ? (
@@ -1155,43 +1330,65 @@ export default function App() {
                   onClick={() => setIsOcrModalOpen(true)}
                   disabled={isOcrLoading}
                   title="Math Image OCR Scanner"
-                  className="bg-white/10 hover:bg-white/20 disabled:bg-white/5 text-white p-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center border-2 border-white/20"
+                  className={`p-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center border-2 disabled:opacity-40 ${
+                    isChalkboard 
+                      ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40" 
+                      : "bg-white/10 hover:bg-white/20 text-white border-white/20"
+                  }`}
                 >
                   {isOcrLoading ? (
-                    <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
+                    <RefreshCw className={`w-5 h-5 animate-spin ${isChalkboard ? "text-amber-400" : "text-blue-400"}`} />
                   ) : (
-                    <Scan className="w-5 h-5 text-blue-400" />
+                    <Scan className={`w-5 h-5 ${isChalkboard ? "text-amber-300" : "text-blue-400"}`} />
                   )}
                 </button>
 
                 <button
                   onClick={() => handleSolve(equationInput)}
                   disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white font-black uppercase tracking-tighter px-8 py-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center gap-2 text-sm"
+                  className={`font-black uppercase tracking-wider px-8 py-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center gap-2 text-sm shadow-lg ${
+                    isChalkboard 
+                      ? "bg-[#1a3829] hover:bg-[#254f3a] disabled:opacity-50 text-amber-200 border border-amber-500/40 font-scholar-title shadow-black/50" 
+                      : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white tracking-tighter"
+                  }`}
                   id="parse_equation_btn"
                 >
                   {loading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      Parsing...
+                      {isChalkboard ? "Deriving Rigor..." : "Parsing..."}
                     </>
-                  ) : "Parse & Synthesize"}
+                  ) : (isChalkboard ? "Derive & Synthesize" : "Parse & Synthesize")}
                 </button>
               </div>
 
               {/* Live KaTeX Equation Preview Card */}
               {equationInput.trim() && (
-                <div className="mt-3 px-4 py-2.5 bg-blue-950/20 border border-blue-500/30 rounded-lg flex items-center justify-between">
-                  <span className="text-[10px] font-mono uppercase text-blue-400 font-bold tracking-wider">Live LaTeX Preview:</span>
-                  <div className="text-sm font-medium text-white px-2 py-0.5 bg-black/40 rounded border border-white/5">
+                <div className={`mt-3 px-4 py-2.5 rounded-lg flex items-center justify-between border ${
+                  isChalkboard 
+                    ? "bg-[#0e1a14] border-amber-900/40" 
+                    : "bg-blue-950/20 border-blue-500/30"
+                }`}>
+                  <span className={`text-[10px] uppercase font-bold tracking-wider ${
+                    isChalkboard ? "text-amber-300 font-scholar-title" : "font-mono text-blue-400"
+                  }`}>
+                    Live LaTeX Preview:
+                  </span>
+                  <div className={`text-sm font-medium px-2 py-0.5 rounded border ${
+                    isChalkboard 
+                      ? "bg-black/50 text-amber-200 border-amber-500/20" 
+                      : "bg-black/40 text-white border-white/5"
+                  }`}>
                     <KatexMath math={equationInput} block={false} />
                   </div>
                 </div>
               )}
 
               {/* Quick-select equations suggestions deck */}
-              <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-white/50">
-                <span className="font-bold uppercase tracking-wider text-[10px]">Ready Presets:</span>
+              <div className={`flex flex-wrap items-center gap-2 mt-3 text-xs ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/50"}`}>
+                <span className="font-bold uppercase tracking-wider text-[10px]">
+                  {isChalkboard ? "Curated Propositions:" : "Ready Presets:"}
+                </span>
                 {PRESET_EQUATIONS.map((preset, idx) => (
                   <button
                     key={idx}
@@ -1199,7 +1396,11 @@ export default function App() {
                       setEquationInput(preset.expr);
                       handleSolve(preset.expr);
                     }}
-                    className="bg-white/5 hover:bg-white/15 hover:text-white text-white/70 px-2.5 py-1 rounded font-mono border border-white/5 transition-all text-[11px] cursor-pointer"
+                    className={`px-2.5 py-1 rounded font-mono border transition-all text-[11px] cursor-pointer ${
+                      isChalkboard 
+                        ? "bg-[#111f18] hover:bg-[#1a3326] text-amber-200/80 hover:text-amber-100 border-amber-900/30" 
+                        : "bg-white/5 hover:bg-white/15 hover:text-white text-white/70 border-white/5"
+                    }`}
                   >
                     {preset.name}
                   </button>
@@ -1210,14 +1411,16 @@ export default function App() {
           </section>
 
           {/* Right Settings and Configuration Sidebar (w-80 sidebar) */}
-          <aside className="w-full lg:w-80 flex flex-col border-t lg:border-t-0 border-white/10" id="right-aside-settings">
+          <aside className={`w-full lg:w-80 flex flex-col border-t lg:border-t-0 transition-colors ${
+            isChalkboard ? "border-amber-900/30 bg-[#09130f]" : "border-white/10"
+          }`} id="right-aside-settings">
 
             {/* Dynamic settings options box */}
-            <div className="p-6 border-b border-white/10">
+            <div className={`p-6 border-b ${isChalkboard ? "border-amber-900/30" : "border-white/10"}`}>
               <div className="flex items-center gap-1.5 mb-4">
-                <Sliders className="w-4 h-4 text-blue-500" />
-                <h2 className="text-xs font-bold text-white/50 uppercase tracking-[0.2em]">
-                  Motion & Playback
+                <Sliders className={`w-4 h-4 ${isChalkboard ? "text-amber-400" : "text-blue-500"}`} />
+                <h2 className={`text-xs font-bold uppercase tracking-[0.2em] ${isChalkboard ? "font-scholar-title text-amber-200/80" : "text-white/50"}`}>
+                  {isChalkboard ? "Lecture & Playback Controls" : "Motion & Playback"}
                 </h2>
               </div>
 
@@ -1225,69 +1428,166 @@ export default function App() {
 
                 {/* Board Skins & Layout Styles selector */}
                 <div>
-                  <label className="text-[10px] uppercase font-bold block mb-2 text-white/60 tracking-wider">
-                    Whiteboard Skin Theme ({Object.keys(THEME_CLASSES).length} Themes)
-                  </label>
-                  <div className="grid grid-cols-2 gap-2" id="skin-themes-deck">
-                    {(Object.keys(THEME_CLASSES) as ThemeType[]).map((tKey) => {
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`text-[10px] uppercase font-bold tracking-wider ${
+                      isChalkboard ? "text-amber-200/80 font-scholar-title" : isBlueprint ? "text-cyan-300 font-mono" : isCosmos ? "text-purple-300 font-sans" : "text-white/70"
+                    }`}>
+                      Flagship Math Themes (3 Editions)
+                    </label>
+                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
+                      isChalkboard ? "border-amber-500/30 text-amber-300 bg-amber-500/10" : isBlueprint ? "border-cyan-500/30 text-cyan-300 bg-cyan-500/10" : isCosmos ? "border-purple-500/30 text-purple-300 bg-purple-500/10" : "border-white/20 text-white/50"
+                    }`}>
+                      Curated
+                    </span>
+                  </div>
+
+                  {/* 3 Flagship Themes Cards */}
+                  <div className="space-y-2 mb-4" id="flagship-themes-deck">
+                    {(["blueprint", "chalkboard", "cosmos"] as ThemeType[]).map((tKey, idx) => {
                       const tInfo = THEME_CLASSES[tKey];
                       const isSelected = theme === tKey;
                       return (
-                        <button
+                        <div
                           key={tKey}
                           onClick={() => handleTheme(tKey)}
-                          className={`py-2 px-2 text-[10px] font-bold uppercase border tracking-tight transition-all rounded flex items-center justify-between gap-1.5 cursor-pointer ${isSelected
-                            ? "bg-white text-black border-white shadow-md shadow-white/20"
-                            : "border-white/20 text-white/80 hover:bg-white/10 hover:border-white/40"
-                            }`}
+                          className={`p-2.5 rounded-lg border transition-all cursor-pointer relative group ${
+                            isSelected
+                              ? tKey === "blueprint"
+                                ? "bg-[#061d3b] border-cyan-400 ring-1 ring-cyan-400 shadow-md shadow-cyan-950/60"
+                                : tKey === "chalkboard"
+                                ? "bg-[#183626] border-amber-400 ring-1 ring-amber-400 shadow-md shadow-amber-950/60"
+                                : "bg-[#170c36] border-purple-400 ring-1 ring-purple-400 shadow-md shadow-purple-950/60"
+                              : isChalkboard
+                              ? "bg-[#0c1813]/60 hover:bg-[#12241b] border-amber-900/30 hover:border-amber-500/30"
+                              : isBlueprint
+                              ? "bg-[#03152b]/60 hover:bg-[#061e3d] border-cyan-500/20 hover:border-cyan-500/40"
+                              : "bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20"
+                          }`}
                         >
-                          <span className="truncate">{tInfo.label}</span>
-                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${tInfo.dot} ${isSelected ? "ring-2 ring-black" : ""}`} />
-                        </button>
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-mono ${isSelected ? "text-amber-300 font-bold" : "opacity-40"}`}>
+                                0{idx + 1}.
+                              </span>
+                              <span className={`text-[11px] font-bold tracking-tight ${
+                                isSelected 
+                                  ? (tKey === "blueprint" ? "text-cyan-200" : tKey === "chalkboard" ? "text-amber-200" : "text-purple-200") 
+                                  : "text-white/90"
+                              }`}>
+                                {tInfo.label}
+                              </span>
+                            </div>
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${tInfo.dot} ${isSelected ? "ring-2 ring-white/60" : ""}`} />
+                          </div>
+
+                          <div className={`text-[9px] uppercase tracking-wider font-semibold mb-1 flex items-center gap-1 ${
+                            isSelected ? (tKey === "blueprint" ? "text-cyan-400" : tKey === "chalkboard" ? "text-amber-300" : "text-purple-300") : "text-white/50"
+                          }`}>
+                            <span>({tInfo.subtitle})</span>
+                          </div>
+
+                          <div className="text-[9px] leading-snug space-y-0.5 opacity-80">
+                            <p className="text-white/70 line-clamp-2">
+                              <span className="font-semibold text-white/90">Best for: </span>
+                              {tInfo.bestFor}
+                            </p>
+                            <p className="text-white/50 italic line-clamp-2">
+                              <span className="font-semibold not-italic text-white/70">Vibe: </span>
+                              {tInfo.vibe}
+                            </p>
+                          </div>
+                        </div>
                       );
                     })}
+                  </div>
+
+                  {/* Alternative Palettes */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={`text-[9px] uppercase font-bold tracking-wider opacity-60 ${
+                      isChalkboard ? "text-amber-200/60 font-scholar-title" : isBlueprint ? "text-cyan-300/60 font-mono" : "text-white/60"
+                    }`}>
+                      Alternative Studio Palettes ({Object.keys(THEME_CLASSES).length - 3})
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5" id="skin-themes-deck">
+                    {(Object.keys(THEME_CLASSES) as ThemeType[])
+                      .filter((k) => k !== "blueprint" && k !== "chalkboard" && k !== "cosmos")
+                      .map((tKey) => {
+                        const tInfo = THEME_CLASSES[tKey];
+                        const isSelected = theme === tKey;
+                        return (
+                          <button
+                            key={tKey}
+                            onClick={() => handleTheme(tKey)}
+                            className={`py-1.5 px-2 text-[10px] font-bold uppercase border tracking-tight transition-all rounded flex items-center justify-between gap-1 cursor-pointer ${
+                              isSelected
+                                ? "bg-white text-black border-white shadow-md shadow-white/20"
+                                : isChalkboard
+                                ? "border-amber-900/30 text-amber-200/60 hover:bg-[#12241b]"
+                                : isBlueprint
+                                ? "border-cyan-500/20 text-cyan-200/60 hover:bg-[#051c38]"
+                                : "border-white/10 text-white/70 hover:bg-white/5 hover:border-white/30"
+                            }`}
+                          >
+                            <span className="truncate">{tInfo.label}</span>
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${tInfo.dot}`} />
+                          </button>
+                        );
+                      })}
                   </div>
                 </div>
 
                 {/* Synthesized voice setting */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] uppercase font-bold block text-white/60 tracking-wider">
-                      Auto Audio Narrator
+                    <label className={`text-[10px] uppercase font-bold block tracking-wider ${isChalkboard ? "text-amber-200/70 font-scholar-title" : "text-white/60"}`}>
+                      {isChalkboard ? "Lecturer Persona" : "Auto Audio Narrator"}
                     </label>
                     <button
                       onClick={() => setIsMuted(!isMuted)}
                       className="text-white/60 hover:text-white"
                       title={isMuted ? "Unmute Voice" : "Mute Voice"}
                     >
-                      {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+                      {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className={`w-4 h-4 ${isChalkboard ? "text-amber-400" : "text-emerald-400"}`} />}
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2" id="narrator-type-deck">
                     <button
                       onClick={() => { setNarrator("natural"); setIsMuted(false); }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${narrator === "natural" && !isMuted ? "bg-blue-600 text-white border-blue-500" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
+                        narrator === "natural" && !isMuted 
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
-                      Professor AI
+                      {isChalkboard ? "Prof. Emeritus" : "Professor AI"}
                     </button>
                     <button
                       onClick={() => { setNarrator("assistant"); setIsMuted(false); }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${narrator === "assistant" && !isMuted ? "bg-blue-600 text-white border-blue-500" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
+                        narrator === "assistant" && !isMuted 
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
-                      Assistant Calm
+                      {isChalkboard ? "Oxford Fellow" : "Assistant Calm"}
                     </button>
                     <button
                       onClick={() => { setNarrator("cyborg"); setIsMuted(false); }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${narrator === "cyborg" && !isMuted ? "bg-blue-600 text-white border-blue-500" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
+                        narrator === "cyborg" && !isMuted 
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
-                      Cosmic Synth
+                      {isChalkboard ? "Cambridge Fellow" : "Cosmic Synth"}
                     </button>
                     <button
                       onClick={() => { setNarrator("mute"); }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${narrator === "mute" || isMuted ? "bg-zinc-800 text-white border-zinc-700" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
+                        narrator === "mute" || isMuted 
+                          ? isChalkboard ? "bg-[#14231b] text-amber-200/70 border-amber-900/50" : "bg-zinc-800 text-white border-zinc-700" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       Muted
@@ -1298,17 +1598,20 @@ export default function App() {
                 {/* Video play speed multiplier */}
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <label className="text-[10px] uppercase font-bold block text-white/60 tracking-wider">
-                      Narration Pace / Speed
+                    <label className={`text-[10px] uppercase font-bold block tracking-wider ${isChalkboard ? "text-amber-200/70 font-scholar-title" : "text-white/60"}`}>
+                      {isChalkboard ? "Lecture Cadence / Speed" : "Narration Pace / Speed"}
                     </label>
-                    <span className="text-[10px] font-mono text-blue-400 font-bold">{speed}x</span>
+                    <span className={`text-[10px] font-mono font-bold ${isChalkboard ? "text-amber-300" : "text-blue-400"}`}>{speed}x</span>
                   </div>
-                  <div className="flex gap-1 bg-white/5 p-1 rounded border border-white/10">
+                  <div className={`flex gap-1 p-1 rounded border ${isChalkboard ? "bg-[#111f18] border-amber-900/40" : "bg-white/5 border-white/10"}`}>
                     {[0.5, 1.0, 1.5, 2.0].map((sVal) => (
                       <button
                         key={sVal}
                         onClick={() => setSpeed(sVal)}
-                        className={`flex-1 text-[10px] py-1 px-1 text-center font-mono rounded transition-colors ${speed === sVal ? "bg-blue-600 text-white font-bold" : "text-white/50 hover:text-white"
+                        className={`flex-1 text-[10px] py-1 px-1 text-center font-mono rounded transition-colors ${
+                          speed === sVal 
+                            ? isChalkboard ? "bg-[#1b3829] text-amber-200 font-bold border border-amber-500/30" : "bg-blue-600 text-white font-bold" 
+                            : isChalkboard ? "text-amber-200/50 hover:text-amber-100" : "text-white/50 hover:text-white"
                           }`}
                       >
                         {sVal}x
@@ -1320,17 +1623,20 @@ export default function App() {
                 {/* Video Render Quality */}
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <label className="text-[10px] uppercase font-bold block text-white/60 tracking-wider">
+                    <label className={`text-[10px] uppercase font-bold block tracking-wider ${isChalkboard ? "text-amber-200/70 font-scholar-title" : "text-white/60"}`}>
                       Video Render Quality
                     </label>
-                    <span className="text-[10px] font-mono text-blue-400 font-bold uppercase">
+                    <span className={`text-[10px] font-mono font-bold uppercase ${isChalkboard ? "text-amber-300" : "text-blue-400"}`}>
                       {videoQuality === "low" ? "480p15 (Low)" : videoQuality === "medium" ? "720p30 (Med)" : "1080p60 (High)"}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-2" id="video-quality-deck">
                     <button
                       onClick={() => setVideoQuality("low")}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${videoQuality === "low" ? "bg-blue-600 text-white border-blue-500" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
+                        videoQuality === "low" 
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       Low
@@ -1343,11 +1649,14 @@ export default function App() {
                           setVideoQuality("medium");
                         }
                       }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded relative ${videoQuality === "medium" ? "bg-blue-600 text-white border-blue-500" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded relative ${
+                        videoQuality === "medium" 
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       Medium
-                      {!isPremium && <span className="absolute -top-1.5 -right-1.5 text-[7px] bg-amber-500 text-black px-1 rounded font-sans font-bold">PRO</span>}
+                      {!isPremium && <span className="absolute -top-1.5 -right-1.5 text-[7px] bg-amber-400 text-black px-1 rounded font-scholar-title font-bold">FELLOW</span>}
                     </button>
                     <button
                       onClick={() => {
@@ -1357,15 +1666,17 @@ export default function App() {
                           setVideoQuality("high");
                         }
                       }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded relative ${videoQuality === "high" ? "bg-blue-600 text-white border-blue-500" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded relative ${
+                        videoQuality === "high" 
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       High
-                      {!isPremium && <span className="absolute -top-1.5 -right-1.5 text-[7px] bg-amber-500 text-black px-1 rounded font-sans font-bold">PRO</span>}
+                      {!isPremium && <span className="absolute -top-1.5 -right-1.5 text-[7px] bg-amber-400 text-black px-1 rounded font-scholar-title font-bold">FELLOW</span>}
                     </button>
                   </div>
                 </div>
-
 
               </div>
             </div>
@@ -1373,9 +1684,9 @@ export default function App() {
             {/* Active Generation and History Log Queue */}
             <div className="flex-1 p-6 flex flex-col min-h-[180px]">
               <div className="flex items-center gap-1.5 mb-4">
-                <Layers className="w-4 h-4 text-blue-500" />
-                <h2 className="text-xs font-bold text-white/50 uppercase tracking-[0.2em]">
-                  Render & Synthesis Queue
+                <Layers className={`w-4 h-4 ${isChalkboard ? "text-amber-400" : "text-blue-500"}`} />
+                <h2 className={`text-xs font-bold uppercase tracking-[0.2em] ${isChalkboard ? "font-scholar-title text-amber-200/80" : "text-white/50"}`}>
+                  {isChalkboard ? "Manuscripts & Derivation Queue" : "Render & Synthesis Queue"}
                 </h2>
               </div>
 
@@ -1387,19 +1698,28 @@ export default function App() {
                       setEquationInput(item.equation);
                       handleSolve(item.equation);
                     }}
-                    className={`group flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 border transition-all cursor-pointer rounded-lg ${solution?.equation.toLowerCase() === item.equation.toLowerCase() ? "border-blue-500 bg-blue-950/20" : "border-white/5"
+                    className={`group flex items-center gap-3 p-3 border transition-all cursor-pointer rounded-lg ${
+                      solution?.equation.toLowerCase() === item.equation.toLowerCase() 
+                        ? isChalkboard ? "border-amber-500/60 bg-[#16291e]" : "border-blue-500 bg-blue-950/20" 
+                        : isChalkboard ? "border-amber-900/30 bg-[#0e1a14] hover:bg-[#14261d]" : "border-white/5 bg-white/5 hover:bg-white/10"
                       }`}
                   >
-                    <div className="w-8 h-8 rounded-lg bg-black/40 flex items-center justify-center font-mono text-xs text-white/60 group-hover:bg-blue-600/20 group-hover:text-blue-400 transition-all border border-white/5">
-                      #0{historyList.length - index}
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs transition-all border ${
+                      isChalkboard 
+                        ? "bg-[#182a20] border-amber-900/40 text-amber-300" 
+                        : "bg-black/40 text-white/60 group-hover:bg-blue-600/20 group-hover:text-blue-400 border-white/5"
+                    }`}>
+                      §0{historyList.length - index}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-[11px] font-black uppercase text-white truncate font-mono">
                         {item.equation}
                       </div>
                       <div className="flex items-center justify-between mt-1">
-                        <span className="text-[9px] text-white/40 tracking-wider font-medium">{item.type}</span>
-                        <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1 py-0.2 rounded font-mono">
+                        <span className={`text-[9px] tracking-wider font-medium ${isChalkboard ? "text-amber-200/50" : "text-white/40"}`}>{item.type}</span>
+                        <span className={`text-[8px] px-1 py-0.2 rounded font-mono ${
+                          isChalkboard ? "bg-amber-500/15 text-amber-300 border border-amber-500/30" : "bg-emerald-500/10 text-emerald-400"
+                        }`}>
                           {item.date}
                         </span>
                       </div>
@@ -1413,15 +1733,19 @@ export default function App() {
               <button
                 onClick={handleExportVideo}
                 disabled={renderingVideo || !solution}
-                className="mt-4 w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 transition-colors font-black uppercase text-xs tracking-tighter cursor-pointer rounded-sm transform active:scale-95 flex items-center justify-center gap-2"
+                className={`mt-4 w-full py-4 transition-colors font-black uppercase text-xs tracking-wider cursor-pointer rounded-sm transform active:scale-95 flex items-center justify-center gap-2 ${
+                  isChalkboard 
+                    ? "bg-[#1a3829] hover:bg-[#254f3a] disabled:opacity-40 text-amber-200 border border-amber-500/40 font-scholar-title shadow-lg shadow-black/40" 
+                    : "bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white tracking-tighter"
+                }`}
                 id="render_sequence_bar"
               >
                 {renderingVideo ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Rendering MP4...
+                    {isChalkboard ? "Rendering Manim Proof..." : "Rendering MP4..."}
                   </>
-                ) : "Export Video Solution"}
+                ) : (isChalkboard ? "Export Video Manuscript" : "Export Video Solution")}
               </button>
             </div>
 
@@ -1429,51 +1753,28 @@ export default function App() {
         </main>
       )}
 
-      {/* Synchronized Live Video Timeline Overlay Footer matching "Bold Typography" */}
-      <footer className="bg-[#0F0F0F] border-t border-white/10 flex flex-col md:flex-row items-center px-6 sm:px-8 py-4 md:h-28 gap-4 md:gap-8">
+      {/* Synchronized Live Video Timeline Overlay Footer matching Academic Slate */}
+      <footer className={`border-t flex flex-col md:flex-row items-center px-6 sm:px-8 py-4 md:h-28 gap-4 md:gap-8 transition-colors ${
+        isChalkboard ? "bg-[#09130f] border-amber-900/40" : "bg-[#0F0F0F] border-white/10"
+      }`}>
 
         {/* Playback absolute timestamp block */}
-        <div className="flex flex-row md:flex-col gap-2 md:gap-1 justify-between w-full md:w-20 border-b md:border-b-0 pb-2 md:pb-0 border-white/10">
-          <div className="text-sm font-black uppercase font-mono tracking-tight flex items-center gap-1.5" id="total_time_tracker">
-            <Clock className="w-3.5 h-3.5 text-blue-500" />
+        <div className={`flex flex-row md:flex-col gap-2 md:gap-1 justify-between w-full md:w-28 shrink-0 border-b md:border-b-0 pb-2 md:pb-0 ${
+          isChalkboard ? "border-amber-900/30" : "border-white/10"
+        }`}>
+          <div className={`text-sm font-black uppercase font-mono tracking-tight flex items-center gap-1.5 ${
+            isChalkboard ? "text-amber-300 font-scholar-title" : ""
+          }`} id="total_time_tracker">
+            <Clock className={`w-3.5 h-3.5 ${isChalkboard ? "text-amber-400" : "text-blue-500"}`} />
             00:0{solution?.scenes.length ? activeSceneIndex + 1 : 0}:00
           </div>
-          <div className="text-[9px] font-bold text-white/30 uppercase tracking-widest">
-            {solution?.scenes.length ? `Scene ${activeSceneIndex + 1}/${solution.scenes.length}` : "No Board"}
+          <div className={`text-[9px] font-bold uppercase tracking-widest ${isChalkboard ? "text-amber-200/50 font-scholar-title" : "text-white/30"}`}>
+            {solution?.scenes.length ? (isChalkboard ? `Lemma §0${activeSceneIndex + 1}/${solution.scenes.length}` : `Scene ${activeSceneIndex + 1}/${solution.scenes.length}`) : "No Board"}
           </div>
         </div>
 
-        {/* Horizontal step segment tracks highlighting in real time based on selection */}
-        <div className="flex-1 flex gap-2 w-full h-12 items-center overflow-x-auto py-1 scrollbar-none" id="timeline-tracks-deck">
-          {solution && solution.scenes.length > 0 ? (
-            solution.scenes.map((scene, idx) => {
-              const isActive = idx === activeSceneIndex;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setActiveSceneIndex(idx);
-                    setIsPlaying(false); // Pause auto playback when manually stepping
-                  }}
-                  className={`h-full flex-1 min-w-[120px] border-l border-r px-3 flex flex-col justify-center transition-all duration-300 text-left rounded-[3px] cursor-pointer ${isActive
-                    ? "bg-blue-600/30 border-blue-500 text-white"
-                    : "bg-white/5 hover:bg-white/10 border-white/10 text-white/40"
-                    }`}
-                >
-                  <span className="text-[8px] font-bold uppercase block opacity-60">Step 0{scene.sceneNumber}</span>
-                  <span className="text-[10px] font-bold truncate block">{scene.title}</span>
-                </button>
-              );
-            })
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-[10px] text-white/20 uppercase tracking-widest font-mono">
-              Waiting for equation parsing to map step timeline...
-            </div>
-          )}
-        </div>
-
-        {/* High-fidelity Video deck triggers */}
-        <div className="flex gap-3 justify-center w-full md:w-auto">
+        {/* High-fidelity Video deck triggers (Backward, Play/Pause, Forward) placed prominently on the left */}
+        <div className="flex gap-2.5 items-center justify-center shrink-0">
           <button
             onClick={() => {
               if (solution) {
@@ -1483,10 +1784,14 @@ export default function App() {
               }
             }}
             disabled={!solution || activeSceneIndex === 0}
-            className="w-10 h-10 border border-white/20 flex items-center justify-center hover:bg-white/5 active:bg-white/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer rounded-sm"
+            className={`w-10 h-10 border flex items-center justify-center transition-colors disabled:opacity-30 cursor-pointer rounded-sm ${
+              isChalkboard 
+                ? "border-amber-900/40 text-amber-200 hover:bg-[#14261d]" 
+                : "border-white/20 text-white hover:bg-white/5 active:bg-white/10"
+            }`}
             title="Backward Step"
           >
-            <SkipBack className="w-4 h-4 text-white" />
+            <SkipBack className="w-4 h-4" />
           </button>
 
           <button
@@ -1495,7 +1800,11 @@ export default function App() {
               setIsPlaying(!isPlaying);
             }}
             disabled={!solution}
-            className="w-12 h-12 bg-white text-black flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all transform active:scale-90 font-bold disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-black cursor-pointer rounded-sm"
+            className={`w-12 h-12 flex items-center justify-center transition-all transform active:scale-90 font-bold disabled:opacity-30 cursor-pointer rounded-sm ${
+              isChalkboard 
+                ? "bg-amber-400 hover:bg-amber-300 text-black shadow-lg shadow-amber-400/20" 
+                : "bg-white text-black hover:bg-blue-600 hover:text-white"
+            }`}
             title={isPlaying ? "Pause Scene Presentation" : "Play Scene Presentation"}
           >
             {isPlaying ? (
@@ -1514,11 +1823,53 @@ export default function App() {
               }
             }}
             disabled={!solution || activeSceneIndex === (solution?.scenes.length || 1) - 1}
-            className="w-10 h-10 border border-white/20 flex items-center justify-center hover:bg-white/5 active:bg-white/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer rounded-sm"
+            className={`w-10 h-10 border flex items-center justify-center transition-colors disabled:opacity-30 cursor-pointer rounded-sm ${
+              isChalkboard 
+                ? "border-amber-900/40 text-amber-200 hover:bg-[#14261d]" 
+                : "border-white/20 text-white hover:bg-white/5 active:bg-white/10"
+            }`}
             title="Forward Step"
           >
-            <SkipForward className="w-4 h-4 text-white" />
+            <SkipForward className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Horizontal step segment tracks highlighting in real time based on selection with right padding for floating widgets */}
+        <div className="flex-1 flex gap-2 w-full h-12 items-center overflow-x-auto py-1 scrollbar-none pr-56 sm:pr-72" id="timeline-tracks-deck">
+          {solution && solution.scenes.length > 0 ? (
+            solution.scenes.map((scene, idx) => {
+              const isActive = idx === activeSceneIndex;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setActiveSceneIndex(idx);
+                    setIsPlaying(false); // Pause auto playback when manually stepping
+                  }}
+                  className={`h-full flex-1 min-w-[120px] border-l border-r px-3 flex flex-col justify-center transition-all duration-300 text-left rounded-[3px] cursor-pointer ${
+                    isActive
+                      ? isChalkboard 
+                        ? "bg-[#183626] border-amber-500/60 text-amber-200 shadow-md" 
+                        : "bg-blue-600/30 border-blue-500 text-white"
+                      : isChalkboard 
+                        ? "bg-[#0e1a14] hover:bg-[#14261d] border-amber-900/30 text-amber-200/50" 
+                        : "bg-white/5 hover:bg-white/10 border-white/10 text-white/40"
+                    }`}
+                >
+                  <span className={`text-[8px] font-bold uppercase block opacity-60 ${isChalkboard ? "font-scholar-title" : ""}`}>
+                    {isChalkboard ? `Lemma §0${scene.sceneNumber}` : `Step 0${scene.sceneNumber}`}
+                  </span>
+                  <span className={`text-[10px] font-bold truncate block ${isChalkboard ? "font-academic text-[11px]" : ""}`}>{scene.title}</span>
+                </button>
+              );
+            })
+          ) : (
+            <div className={`flex-1 flex items-center justify-center text-[10px] uppercase tracking-widest font-mono ${
+              isChalkboard ? "text-amber-200/30 font-scholar-title" : "text-white/20"
+            }`}>
+              Waiting for equation parsing to map derivation timeline...
+            </div>
+          )}
         </div>
 
       </footer>

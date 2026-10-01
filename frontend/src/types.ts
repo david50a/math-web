@@ -65,8 +65,9 @@ export interface EquationSolution {
 }
 
 export type ThemeType = 
-  | "chalkboard" 
   | "blueprint" 
+  | "chalkboard" 
+  | "cosmos"
   | "glassmorphic" 
   | "darkroom" 
   | "cyberpunk" 
