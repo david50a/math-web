@@ -69,6 +69,21 @@ const THEME_STYLES: Record<ThemeType, { bg: string, card: string, header: string
     card: "bg-[#0e0724] border-purple-500/40 shadow-xl shadow-purple-950/40",
     header: "bg-[#09051a]/95 border-purple-500/30"
   },
+  lightAcademic: {
+    bg: "bg-[#F8FAFC]",
+    card: "bg-white border-[#E2E8F0] shadow-md shadow-slate-200/50 text-[#0F172A]",
+    header: "bg-white/95 border-[#E2E8F0] text-[#0F172A]"
+  },
+  darkAI: {
+    bg: "bg-[#0B1020]",
+    card: "bg-[#111827] border-[#273449] shadow-xl shadow-indigo-950/40 text-[#F8FAFC]",
+    header: "bg-[#0B1020]/95 border-[#273449] text-[#F8FAFC]"
+  },
+  notebook: {
+    bg: "bg-[#FAF8F3]",
+    card: "bg-[#FFFDF8] border-[#E2DAC7] shadow-md shadow-stone-300/40 text-[#242018]",
+    header: "bg-[#FAF8F3]/95 border-[#E2DAC7] text-[#242018]"
+  },
   glassmorphic: {
     bg: "bg-[#120826]",
     card: "bg-[#1d0d3d]/60 border-purple-500/30 backdrop-blur-md",
@@ -1247,46 +1262,153 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
   });
 
   const isChalkboard = theme === "chalkboard";
+  const isLightAcademic = theme === "lightAcademic";
+  const isDarkAI = theme === "darkAI";
+  const isNotebook = theme === "notebook";
+  const isBlueprint = theme === "blueprint";
+  const isCosmos = theme === "cosmos";
+  const isLight = isLightAcademic || isNotebook;
   const activeTheme = THEME_STYLES[theme] || THEME_STYLES.chalkboard;
 
+  // Curated theme style classes
+  const bannerCardClass = isLightAcademic
+    ? "bg-white border border-[#E2E8F0] text-[#0F172A] shadow-md shadow-slate-200/50 academic-light-frame"
+    : isDarkAI
+    ? "bg-[#111827] border border-[#273449] text-[#F8FAFC] shadow-xl shadow-indigo-950/40 dark-ai-frame"
+    : isNotebook
+    ? "bg-[#FFFDF8] border border-[#E2DAC7] text-[#242018] shadow-md shadow-stone-300/40 notebook-frame"
+    : isBlueprint
+    ? "bg-[#061b36] border border-cyan-500/40 text-cyan-50 shadow-xl"
+    : isCosmos
+    ? "bg-[#0e0724] border border-purple-500/40 text-purple-50 shadow-xl"
+    : isChalkboard
+    ? "bg-[#101e17] border border-amber-900/40 text-amber-100 shadow-xl academic-frame"
+    : "bg-[#0F0F14] border border-white/15 text-white shadow-2xl";
+
+  const detailedCardClass = isLightAcademic
+    ? "bg-white border border-[#E2E8F0] text-[#0F172A] shadow-md shadow-slate-200/50 academic-light-frame"
+    : isDarkAI
+    ? "bg-[#111827] border border-[#273449] text-[#F8FAFC] shadow-xl shadow-indigo-950/40 dark-ai-frame"
+    : isNotebook
+    ? "bg-[#FFFDF8] border border-[#E2DAC7] text-[#242018] shadow-md shadow-stone-300/40 notebook-frame"
+    : isBlueprint
+    ? "bg-[#061b36] border border-cyan-500/40 text-cyan-50 shadow-xl"
+    : isCosmos
+    ? "bg-[#0e0724] border border-purple-500/40 text-purple-50 shadow-xl"
+    : isChalkboard
+    ? "bg-[#101e17] border border-amber-900/40 text-amber-100 shadow-xl academic-frame"
+    : "bg-[#0F0F14] border border-white/15 text-white shadow-2xl";
+
+  const innerBoxClass = isLightAcademic
+    ? "bg-slate-50/80 border border-slate-200 text-slate-800"
+    : isDarkAI
+    ? "bg-[#0B1020]/90 border border-[#273449] text-slate-200"
+    : isNotebook
+    ? "bg-[#FAF8F3] border border-[#E2DAC7] text-stone-800"
+    : isBlueprint
+    ? "bg-[#041224] border border-cyan-500/30 text-cyan-100"
+    : isCosmos
+    ? "bg-[#060412] border border-purple-500/30 text-purple-100"
+    : isChalkboard
+    ? "bg-[#0c1813] border border-amber-900/30 text-amber-100"
+    : "bg-black/40 border border-white/10 text-white/70";
+
+  const mathFormulaBoxClass = isLightAcademic
+    ? "bg-white border border-slate-200 text-[#0F172A] shadow-xs"
+    : isDarkAI
+    ? "bg-[#111827] border border-[#273449] text-cyan-300"
+    : isNotebook
+    ? "bg-[#FFFDF8] border border-[#E2DAC7] text-stone-900 shadow-xs"
+    : isBlueprint
+    ? "bg-[#082244] border border-cyan-500/30 text-cyan-200"
+    : isCosmos
+    ? "bg-[#130b30] border border-purple-500/30 text-purple-200"
+    : isChalkboard
+    ? "bg-[#111f18] text-amber-200"
+    : "bg-white/5 text-white";
+
+  const primaryBtnClass = isLightAcademic
+    ? "bg-[#2563EB] hover:bg-blue-700 text-white shadow-blue-500/20"
+    : isDarkAI
+    ? "bg-[#6366F1] hover:bg-indigo-600 text-white shadow-indigo-950/40"
+    : isNotebook
+    ? "bg-[#1E40AF] hover:bg-blue-900 text-[#FAF8F3] shadow-stone-400/30"
+    : isBlueprint
+    ? "bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-950/40"
+    : isCosmos
+    ? "bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950/40"
+    : isChalkboard
+    ? "bg-[#1a3527] hover:bg-[#234735] border border-amber-500/40 text-amber-200 font-scholar-title shadow-black/50"
+    : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30";
+
   return (
-    <div className={`w-full min-h-screen ${activeTheme.bg} text-white flex flex-col font-sans antialiased ${isChalkboard ? "selection:bg-amber-400/30" : "selection:bg-blue-600/30"}`}>
+    <div className={`w-full min-h-screen ${activeTheme.bg} ${isLight ? "text-slate-900" : "text-white"} flex flex-col font-sans antialiased ${isChalkboard ? "selection:bg-amber-400/30" : "selection:bg-blue-600/30"}`}>
 
       {/* Top Header Bar */}
-      <header className={`border-b ${activeTheme.header} ${isChalkboard ? "bg-[#0b1612]/95 backdrop-blur-md" : "bg-[#0F0F14]/90 backdrop-blur-md"} sticky top-0 z-40 px-6 sm:px-10 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4`}>
+      <header className={`border-b ${activeTheme.header} ${isChalkboard ? "bg-[#0b1612]/95 backdrop-blur-md" : isLight ? "backdrop-blur-md" : "bg-[#0F0F14]/90 backdrop-blur-md"} sticky top-0 z-40 px-6 sm:px-10 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4`}>
         <div>
           <div className="flex items-center gap-2.5">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
               isChalkboard 
                 ? "bg-[#16271e] border border-amber-500/40 text-amber-300 shadow-sm" 
+                : isLightAcademic
+                ? "bg-blue-50 border border-blue-200 text-[#2563EB]"
+                : isDarkAI
+                ? "bg-indigo-950/70 border border-[#273449] text-cyan-400"
+                : isNotebook
+                ? "bg-stone-100 border border-[#E2DAC7] text-[#1E40AF]"
                 : "bg-blue-600/20 border border-blue-500/40 text-blue-400"
             }`}>
               <Layers className="w-4 h-4" />
             </div>
-            <h1 className={`text-xl ${isChalkboard ? "font-scholar-title text-amber-100 font-bold" : "font-black uppercase tracking-tight text-white"} flex items-center gap-2`}>
-              {isChalkboard ? "The Scholar's Compendium of Proofs & Methods" : "All Engine Multi-Method Resolution Explorer"}
+            <h1 className={`text-xl ${isChalkboard ? "font-scholar-title text-amber-100 font-bold" : isLightAcademic ? "font-sans font-black uppercase tracking-tight text-slate-900" : isDarkAI ? "font-mono font-bold uppercase tracking-tight text-white" : isNotebook ? "font-academic font-bold uppercase tracking-tight text-[#242018]" : "font-black uppercase tracking-tight text-white"} flex items-center gap-2`}>
+              {isChalkboard ? "The Scholar's Compendium of Proofs & Methods" : isLightAcademic ? "Academic Proofs & Methods Explorer" : isNotebook ? "Mathematics Notebook: Proofs & Methods" : isDarkAI ? "Neural Multi-Method Resolution Explorer" : "All Engine Multi-Method Resolution Explorer"}
             </h1>
             <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
               isChalkboard 
                 ? "bg-amber-500/15 border border-amber-500/30 text-amber-300 font-scholar-title" 
+                : isLightAcademic
+                ? "bg-blue-50 border border-blue-200 text-blue-700 font-sans"
+                : isDarkAI
+                ? "bg-indigo-950/60 border border-[#273449] text-cyan-300 font-mono"
+                : isNotebook
+                ? "bg-stone-100 border border-[#E2DAC7] text-stone-800 font-academic"
                 : "bg-blue-600/30 border border-blue-500/40 text-blue-300"
             }`}>
-              {isChalkboard ? "Comprehensive Rigor" : "All Backend Engine Options Included"}
+              {isChalkboard ? "Comprehensive Rigor" : isLightAcademic ? "Curriculum Rigor" : isNotebook ? "Digital Notebook" : isDarkAI ? "Multi-Path Tensors" : "All Backend Options"}
             </span>
           </div>
-          <p className={`text-xs mt-1 max-w-2xl ${isChalkboard ? "text-[#ededdf]/70 font-academic italic" : "text-white/50 font-mono"}`}>
+          <p className={`text-xs mt-1 max-w-2xl ${isChalkboard ? "text-[#ededdf]/70 font-academic italic" : isLightAcademic ? "text-slate-600 font-sans" : isDarkAI ? "text-slate-400 font-mono" : isNotebook ? "text-stone-600 font-academic italic" : "text-white/50 font-mono"}`}>
             Full academic coverage of Algebra, Calculus Integrals, Derivatives, Linear Algebra, Statistics, and Geometry engines.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           {/* View Mode Toggle Button */}
-          <div className="flex bg-white/5 border border-white/10 p-1 rounded-xl">
+          <div className={`flex p-1 rounded-xl border ${
+            isLightAcademic ? "bg-slate-100 border-slate-200" :
+            isNotebook ? "bg-stone-100 border-[#E2DAC7]" :
+            isDarkAI ? "bg-[#0B1020] border-[#273449]" :
+            isChalkboard ? "bg-[#0e1c15] border-amber-900/40" :
+            "bg-white/5 border-white/10"
+          }`}>
             <button
               onClick={() => setViewMode("single")}
               className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${
                 viewMode === "single" 
-                  ? isChalkboard ? "bg-[#1e382b] border border-amber-500/40 text-amber-300 shadow-sm" : "bg-blue-600 text-white" 
+                  ? isLightAcademic
+                    ? "bg-[#2563EB] text-white shadow-sm"
+                    : isDarkAI
+                    ? "bg-[#6366F1] text-white shadow-sm"
+                    : isNotebook
+                    ? "bg-[#1E40AF] text-[#FAF8F3] shadow-sm font-academic"
+                    : isChalkboard 
+                    ? "bg-[#1e382b] border border-amber-500/40 text-amber-300 shadow-sm font-scholar-title" 
+                    : "bg-blue-600 text-white" 
+                  : isLight
+                  ? "text-slate-600 hover:text-slate-900"
+                  : isDarkAI
+                  ? "text-slate-400 hover:text-white"
                   : "text-white/60 hover:text-white"
                 }`}
             >
@@ -1297,7 +1419,19 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
               onClick={() => setViewMode("sideBySide")}
               className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer ${
                 viewMode === "sideBySide" 
-                  ? isChalkboard ? "bg-[#1e382b] border border-amber-500/40 text-amber-300 shadow-sm" : "bg-blue-600 text-white" 
+                  ? isLightAcademic
+                    ? "bg-[#2563EB] text-white shadow-sm"
+                    : isDarkAI
+                    ? "bg-[#6366F1] text-white shadow-sm"
+                    : isNotebook
+                    ? "bg-[#1E40AF] text-[#FAF8F3] shadow-sm font-academic"
+                    : isChalkboard 
+                    ? "bg-[#1e382b] border border-amber-500/40 text-amber-300 shadow-sm font-scholar-title" 
+                    : "bg-blue-600 text-white" 
+                  : isLight
+                  ? "text-slate-600 hover:text-slate-900"
+                  : isDarkAI
+                  ? "text-slate-400 hover:text-white"
                   : "text-white/60 hover:text-white"
                 }`}
             >
@@ -1310,8 +1444,14 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
             <button
               onClick={onClose}
               className={`px-4 py-2 border text-xs font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer ${
-                isChalkboard 
-                  ? "bg-[#14231b] hover:bg-[#1a3025] border-amber-900/40 text-amber-200" 
+                isLightAcademic
+                  ? "bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-xs"
+                  : isDarkAI
+                  ? "bg-[#111827] hover:bg-[#182338] border-[#273449] text-cyan-300"
+                  : isNotebook
+                  ? "bg-[#FFFDF8] hover:bg-[#FAF5EA] border-[#E2DAC7] text-stone-800 shadow-xs font-academic"
+                  : isChalkboard 
+                  ? "bg-[#14231b] hover:bg-[#1a3025] border-amber-900/40 text-amber-200 font-scholar-title" 
                   : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white"
               }`}
             >
@@ -1322,15 +1462,33 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
       </header>
 
       {/* Interactive Custom Equation Writer Header Section */}
-      <div className={`w-full border-b px-6 sm:px-10 py-5 ${isChalkboard ? "bg-[#0d1813] border-amber-900/30" : "bg-[#0F0F14] border-white/10"}`}>
+      <div className={`w-full border-b px-6 sm:px-10 py-5 ${
+        isLightAcademic ? "bg-slate-50/70 border-slate-200" :
+        isDarkAI ? "bg-[#0B1020] border-[#273449]" :
+        isNotebook ? "bg-[#FAF8F3] border-[#E2DAC7]" :
+        isChalkboard ? "bg-[#0d1813] border-amber-900/30" :
+        "bg-[#0F0F14] border-white/10"
+      }`}>
         <div className="max-w-7xl mx-auto space-y-4">
 
           <div className="flex items-center justify-between">
-            <label className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${isChalkboard ? "text-amber-300 font-scholar-title" : "text-blue-400"}`}>
-              <Edit3 className={`w-4 h-4 ${isChalkboard ? "text-amber-400" : "text-blue-400"}`} />
-              {isChalkboard ? "Transcribe Equation or Proposition" : "Write / Type Custom Equation or Problem"}
+            <label className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${
+              isLightAcademic ? "text-blue-700 font-sans" :
+              isDarkAI ? "text-cyan-400 font-mono" :
+              isNotebook ? "text-stone-800 font-academic" :
+              isChalkboard ? "text-amber-300 font-scholar-title" :
+              "text-blue-400"
+            }`}>
+              <Edit3 className="w-4 h-4" />
+              {isChalkboard ? "Transcribe Equation or Proposition" : isLightAcademic ? "Type Equation for Multi-Method Solving" : isNotebook ? "Write In Notebook (All Solutions)" : "Write / Type Custom Equation or Problem"}
             </label>
-            <span className={`text-[10px] ${isChalkboard ? "text-amber-200/50 font-academic italic" : "text-white/40 font-mono"}`}>
+            <span className={`text-[10px] ${
+              isLightAcademic ? "text-slate-500 font-sans" :
+              isDarkAI ? "text-slate-400 font-mono" :
+              isNotebook ? "text-stone-600 font-academic italic" :
+              isChalkboard ? "text-amber-200/50 font-academic italic" :
+              "text-white/40 font-mono"
+            }`}>
               Type any math equation to generate & compare all engine solving options
             </span>
           </div>
@@ -1349,16 +1507,26 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                   }
                 }}
                 placeholder="Write equation here (e.g. x^2 - 5x + 6 = 0, integrate(x*e^x), derive(x*sin(x)), det([[1,2],[3,4]]))..."
-                className={`w-full rounded-xl px-4 py-3 text-sm font-mono placeholder-white/40 focus:outline-none transition-all shadow-inner border ${
-                  isChalkboard 
-                    ? "bg-[#111f18] border-amber-900/40 text-amber-200 focus:border-amber-400" 
-                    : "bg-white/5 border-white/20 focus:border-blue-500 text-blue-300"
+                className={`w-full rounded-xl px-4 py-3 text-sm font-mono focus:outline-none transition-all shadow-inner border ${
+                  isLightAcademic
+                    ? "bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#2563EB] shadow-xs"
+                    : isDarkAI
+                    ? "bg-[#111827] border-[#273449] text-slate-100 placeholder:text-slate-500 focus:border-[#6366F1]"
+                    : isNotebook
+                    ? "bg-[#FFFDF8] border-[#E2DAC7] text-stone-900 placeholder:text-stone-400 focus:border-[#1E40AF] shadow-xs font-academic"
+                    : isChalkboard 
+                    ? "bg-[#111f18] border-amber-900/40 text-amber-200 focus:border-amber-400 placeholder:text-amber-200/30" 
+                    : "bg-white/5 border-white/20 focus:border-blue-500 text-blue-300 placeholder-white/40"
                 }`}
               />
               {customWriterInput && (
                 <button
                   onClick={() => setCustomWriterInput("")}
-                  className="absolute right-3 top-3 text-white/40 hover:text-white text-xs font-mono px-1.5 py-0.5 rounded bg-white/5 cursor-pointer"
+                  className={`absolute right-3 top-3 text-xs font-mono px-1.5 py-0.5 rounded cursor-pointer ${
+                    isLight ? "text-slate-400 hover:text-slate-700 bg-slate-100" :
+                    isDarkAI ? "text-slate-400 hover:text-white bg-[#0B1020]" :
+                    "text-white/40 hover:text-white bg-white/5"
+                  }`}
                 >
                   Clear [×]
                 </button>
@@ -1368,11 +1536,7 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
             <button
               onClick={() => solve(customWriterInput)}
               disabled={loading}
-              className={`px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all transform active:scale-95 shrink-0 ${
-                isChalkboard 
-                  ? "bg-[#1a3527] hover:bg-[#234735] border border-amber-500/40 text-amber-200 shadow-black/50" 
-                  : "bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30"
-              }`}
+              className={`px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all transform active:scale-95 shrink-0 ${primaryBtnClass}`}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
               {loading ? "Solving..." : "Analyze All Engine Options"}
@@ -1382,8 +1546,8 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
           {/* Status Message / Error Banner */}
           {statusMessage && (
             <div className={`p-3 rounded-xl flex items-center gap-2 text-xs font-mono ${loading
-                ? "bg-blue-950/40 border border-blue-500/30 text-blue-300"
-                : "bg-red-950/40 border border-red-500/30 text-red-300"
+                ? isLight ? "bg-blue-50 border border-blue-200 text-blue-700" : "bg-blue-950/40 border border-blue-500/30 text-blue-300"
+                : isLight ? "bg-red-50 border border-red-200 text-red-700" : "bg-red-950/40 border border-red-500/30 text-red-300"
               }`}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />}
               <span>{statusMessage}</span>
@@ -1392,15 +1556,27 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
 
           {/* Quick-Insert Symbol Palette */}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-white/40 mr-1 flex items-center gap-1">
-              <Type className="w-3 h-3 text-blue-400" />
+            <span className={`text-[10px] font-bold uppercase tracking-wider mr-1 flex items-center gap-1 ${
+              isLight ? "text-slate-500" : isDarkAI ? "text-slate-400" : "text-white/40"
+            }`}>
+              <Type className={`w-3 h-3 ${isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-blue-800" : "text-blue-400"}`} />
               Quick Insert:
             </span>
             {MATH_SYMBOL_BUTTONS.map((btn) => (
               <button
                 key={btn.label}
                 onClick={() => insertSymbolIntoWriter(btn.insertText)}
-                className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/40 text-xs font-mono font-bold text-blue-300 rounded-lg transition-all cursor-pointer transform active:scale-95"
+                className={`px-2.5 py-1 text-xs font-mono font-bold rounded-lg transition-all cursor-pointer transform active:scale-95 ${
+                  isLightAcademic
+                    ? "bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-400 text-slate-700 hover:text-blue-700 shadow-xs"
+                    : isDarkAI
+                    ? "bg-[#111827] hover:bg-[#1f2937] border border-[#273449] hover:border-indigo-500/50 text-cyan-300 hover:text-cyan-200"
+                    : isNotebook
+                    ? "bg-[#FFFDF8] hover:bg-[#F2ECE0] border border-[#E2DAC7] hover:border-blue-400 text-stone-800 hover:text-blue-900 shadow-xs"
+                    : isChalkboard
+                    ? "bg-[#13221a] hover:bg-[#1c3829] border border-amber-900/40 hover:border-amber-500/50 text-amber-200/90 hover:text-amber-100"
+                    : "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/40 text-blue-300"
+                }`}
                 title={`Insert ${btn.insertText}`}
               >
                 {btn.label}
@@ -1410,9 +1586,17 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
 
           {/* Live KaTeX Render Preview */}
           {customWriterInput && (
-            <div className="p-3 bg-black/50 border border-blue-500/30 rounded-xl flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Formatted LaTeX Preview:</span>
-              <div className="text-base text-blue-200 font-mono">
+            <div className={`p-3 rounded-xl flex items-center justify-between border ${
+              isLightAcademic ? "bg-white border-blue-200 text-blue-800 shadow-xs" :
+              isDarkAI ? "bg-[#111827] border-[#273449] text-cyan-300" :
+              isNotebook ? "bg-[#FFFDF8] border-[#E2DAC7] text-stone-900 shadow-xs" :
+              isChalkboard ? "bg-[#0e1a14] border-amber-900/40 text-amber-200" :
+              "bg-black/50 border-blue-500/30 text-blue-200"
+            }`}>
+              <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                isLight ? "text-slate-500" : isDarkAI ? "text-slate-400" : "text-white/40"
+              }`}>Formatted LaTeX Preview:</span>
+              <div className="text-base font-mono">
                 <KatexMath math={formatInputToLatex(customWriterInput)} block={false} />
               </div>
             </div>
@@ -1422,24 +1606,54 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
       </div>
 
       {/* Category Pills Filter */}
-      <div className="w-full border-b border-white/10 bg-[#0A0A0E] px-6 sm:px-10 py-3">
+      <div className={`w-full border-b px-6 sm:px-10 py-3 ${
+        isLightAcademic ? "bg-slate-100/80 border-slate-200" :
+        isDarkAI ? "bg-[#070b14] border-[#273449]" :
+        isNotebook ? "bg-[#F5EFE3] border-[#E2DAC7]" :
+        isChalkboard ? "bg-[#09130f] border-amber-900/30" :
+        "bg-[#0A0A0E] border-white/10"
+      }`}>
         <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 mr-2 flex items-center gap-1">
-            <ListFilter className="w-3.5 h-3.5 text-blue-400" />
+          <span className={`text-[10px] font-bold uppercase tracking-widest mr-2 flex items-center gap-1 ${
+            isLight ? "text-slate-500" : isDarkAI ? "text-slate-400" : "text-white/40"
+          }`}>
+            <ListFilter className={`w-3.5 h-3.5 ${
+              isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-blue-800" : "text-blue-400"
+            }`} />
             Engine Modules:
           </span>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${selectedCategory === cat
-                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
-                : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat;
+            return (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                  isSelected
+                    ? isLightAcademic
+                      ? "bg-[#2563EB] text-white shadow-sm font-sans"
+                      : isDarkAI
+                      ? "bg-[#6366F1] text-white shadow-indigo-950/40 font-mono"
+                      : isNotebook
+                      ? "bg-[#1E40AF] text-[#FAF8F3] shadow-sm font-academic"
+                      : isChalkboard
+                      ? "bg-[#183626] border border-amber-500/50 text-amber-200 shadow-sm font-scholar-title"
+                      : "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                    : isLightAcademic
+                    ? "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                    : isDarkAI
+                    ? "bg-[#111827] text-slate-400 border border-[#273449] hover:bg-[#1a2333] hover:text-white font-mono"
+                    : isNotebook
+                    ? "bg-[#FFFDF8] text-stone-700 border border-[#E2DAC7] hover:bg-[#FAF5EA] font-academic"
+                    : isChalkboard
+                    ? "bg-[#101e17] text-amber-200/70 border border-amber-900/30 hover:bg-[#162a20]"
+                    : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
                 }`}
-            >
-              {cat}
-            </button>
-          ))}
+              >
+                {cat}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -1451,20 +1665,36 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
 
           {/* Search Box */}
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-white/40" />
+            <Search className={`w-4 h-4 absolute left-3.5 top-3.5 ${
+              isLight ? "text-slate-400" : isDarkAI ? "text-slate-500" : "text-white/40"
+            }`} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search equations (e.g. 'x^2', 'integrate', 'matrix', 'eigen')..."
-              className="w-full bg-white/5 border border-white/15 focus:border-blue-500 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-white/40 focus:outline-none transition-all font-mono"
+              className={`w-full rounded-xl pl-10 pr-4 py-2.5 text-xs transition-all font-mono focus:outline-none border ${
+                isLightAcademic
+                  ? "bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-[#2563EB] shadow-xs"
+                  : isDarkAI
+                  ? "bg-[#111827] border-[#273449] text-slate-100 placeholder:text-slate-500 focus:border-[#6366F1]"
+                  : isNotebook
+                  ? "bg-[#FFFDF8] border-[#E2DAC7] text-stone-900 placeholder:text-stone-400 focus:border-[#1E40AF] shadow-xs font-academic"
+                  : isChalkboard
+                  ? "bg-[#101e17] border-amber-900/40 text-amber-100 placeholder:text-amber-200/30 focus:border-amber-400"
+                  : "bg-white/5 border-white/15 focus:border-blue-500 text-white placeholder-white/40"
+              }`}
             />
           </div>
 
           {/* Question Selector Deck */}
           <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-white/50 flex items-center gap-2 px-1">
-              <QuestionIcon className="w-3.5 h-3.5 text-blue-400" />
+            <h3 className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 px-1 ${
+              isLight ? "text-slate-600" : isDarkAI ? "text-slate-400 font-mono" : "text-white/50"
+            }`}>
+              <QuestionIcon className={`w-3.5 h-3.5 ${
+                isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-blue-800" : "text-blue-400"
+              }`} />
               Engine Math Problems Deck ({filteredQuestions.length})
             </h3>
 
@@ -1483,23 +1713,60 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                       setActiveMethodIndex(0);
                       setCustomWriterInput(qData.questionInput);
                     }}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2 ${isSelected
-                      ? "bg-blue-600/15 border-blue-500/60 text-white shadow-lg shadow-blue-950/40"
-                      : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white"
-                      }`}
+                    className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                      isSelected
+                        ? isLightAcademic
+                          ? "bg-blue-50/90 border-blue-500 text-slate-900 shadow-md"
+                          : isDarkAI
+                          ? "bg-indigo-950/60 border-indigo-500 text-white shadow-lg shadow-indigo-950/40"
+                          : isNotebook
+                          ? "bg-[#F5EFE3] border-[#1E40AF] text-stone-900 shadow-md"
+                          : isChalkboard
+                          ? "bg-[#183626] border-amber-500/60 text-amber-200 shadow-md"
+                          : "bg-blue-600/15 border-blue-500/60 text-white shadow-lg shadow-blue-950/40"
+                        : isLightAcademic
+                        ? "bg-white hover:bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 shadow-xs"
+                        : isDarkAI
+                        ? "bg-[#111827] hover:bg-[#182338] border-[#273449] text-slate-300 hover:text-white"
+                        : isNotebook
+                        ? "bg-[#FFFDF8] hover:bg-[#FAF5EA] border-[#E2DAC7] text-stone-800 hover:text-stone-950 shadow-xs"
+                        : isChalkboard
+                        ? "bg-[#101e17] hover:bg-[#162a20] border-amber-900/30 text-amber-200/70 hover:text-amber-100"
+                        : "bg-white/5 hover:bg-white/10 border-white/10 text-white/70 hover:text-white"
+                    }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-blue-300 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-500/30">
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                        isLightAcademic
+                          ? "text-blue-700 bg-blue-50 border-blue-200"
+                          : isDarkAI
+                          ? "text-cyan-300 bg-indigo-950/60 border-[#273449]"
+                          : isNotebook
+                          ? "text-blue-900 bg-stone-100 border-[#E2DAC7]"
+                          : isChalkboard
+                          ? "text-amber-300 bg-black/40 border-amber-500/30 font-scholar-title"
+                          : "text-blue-300 bg-blue-950/50 border-blue-500/30"
+                      }`}>
                         {qData.category}
                       </span>
-                      <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/40 px-2 py-0.5 rounded">
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                        isLight
+                          ? "text-emerald-700 bg-emerald-50 border border-emerald-200"
+                          : "text-emerald-400 bg-emerald-950/40"
+                      }`}>
                         {qData.methods.length} Ways to Solve
                       </span>
                     </div>
 
-                    <div className="text-sm font-bold tracking-tight text-white font-mono flex items-center justify-between">
+                    <div className={`text-sm font-bold tracking-tight font-mono flex items-center justify-between ${
+                      isLight ? "text-slate-900" : "text-white"
+                    }`}>
                       <KatexMath math={qData.latexQuestion} block={false} />
-                      <ChevronRight className={`w-4 h-4 transition-transform ${isSelected ? "text-blue-400 translate-x-1" : "text-white/30"}`} />
+                      <ChevronRight className={`w-4 h-4 transition-transform ${
+                        isSelected 
+                          ? isLightAcademic ? "text-blue-600 translate-x-1" : isDarkAI ? "text-cyan-400 translate-x-1" : isNotebook ? "text-blue-800 translate-x-1" : "text-blue-400 translate-x-1"
+                          : isLight ? "text-slate-400" : "text-white/30"
+                      }`} />
                     </div>
                   </div>
                 );
@@ -1513,12 +1780,16 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
         <div className="lg:col-span-8 space-y-6">
 
           {/* Active Question Banner */}
-          <div className="bg-[#0F0F14] border border-white/15 rounded-2xl p-6 shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className={`rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${bannerCardClass}`}>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 block mb-1">
+              <span className={`text-[10px] font-bold uppercase tracking-widest block mb-1 ${
+                isLight ? "text-slate-500" : isDarkAI ? "text-slate-400" : "text-white/40"
+              }`}>
                 Active Problem Under Engine Analysis
               </span>
-              <h2 className="text-xl font-black text-white font-mono flex items-center gap-3">
+              <h2 className={`text-xl font-black font-mono flex items-center gap-3 ${
+                isLight ? "text-slate-900" : "text-white"
+              }`}>
                 <KatexMath math={currentQuestion.latexQuestion} block={false} />
               </h2>
             </div>
@@ -1526,7 +1797,7 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
             {onTryExample && (
               <button
                 onClick={() => onTryExample(currentQuestion.questionInput)}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all cursor-pointer transform active:scale-95 shrink-0"
+                className={`px-5 py-2.5 font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer transform active:scale-95 shrink-0 ${primaryBtnClass}`}
               >
                 <Calculator className="w-4 h-4" />
                 Solve in Interactive Board
@@ -1537,31 +1808,57 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
           {/* Method Selection Bar / Tabs */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-white/50 flex items-center gap-2">
-                <Compass className="w-4 h-4 text-blue-400" />
+              <h3 className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${
+                isLight ? "text-slate-600" : isDarkAI ? "text-slate-400 font-mono" : "text-white/50"
+              }`}>
+                <Compass className={`w-4 h-4 ${
+                  isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-blue-800" : "text-blue-400"
+                }`} />
                 Engine Solution Options ({currentQuestion.methods.length} Available)
               </h3>
             </div>
 
             {/* Method Tabs Navigation */}
-            <div className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
+            <div className={`flex flex-wrap gap-2 border-b pb-3 ${
+              isLight ? "border-slate-200" : isDarkAI ? "border-[#273449]" : "border-white/10"
+            }`}>
               {currentQuestion.methods.map((m, idx) => {
                 const isMethodSelected = idx === activeMethodIndex;
                 return (
                   <button
                     key={m.methodId}
                     onClick={() => setActiveMethodIndex(idx)}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 border ${isMethodSelected
-                      ? "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-600/30"
-                      : "bg-white/5 hover:bg-white/10 border-white/10 text-white/60 hover:text-white"
-                      }`}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 border ${
+                      isMethodSelected
+                        ? isLightAcademic
+                          ? "bg-[#2563EB] text-white border-blue-600 shadow-md shadow-blue-500/20"
+                          : isDarkAI
+                          ? "bg-[#6366F1] text-white border-indigo-500 shadow-md shadow-indigo-950/40"
+                          : isNotebook
+                          ? "bg-[#1E40AF] text-[#FAF8F3] border-[#1E40AF] shadow-md shadow-stone-300/40 font-academic"
+                          : isChalkboard
+                          ? "bg-[#183626] text-amber-200 border-amber-500/60 shadow-md font-scholar-title"
+                          : "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-600/30"
+                        : isLightAcademic
+                        ? "bg-white hover:bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 shadow-xs"
+                        : isDarkAI
+                        ? "bg-[#111827] hover:bg-[#1a2333] border-[#273449] text-slate-400 hover:text-white font-mono"
+                        : isNotebook
+                        ? "bg-[#FFFDF8] hover:bg-[#FAF5EA] border-[#E2DAC7] text-stone-700 hover:text-stone-900 shadow-xs font-academic"
+                        : isChalkboard
+                        ? "bg-[#101e17] hover:bg-[#162a20] border-amber-900/30 text-amber-200/60"
+                        : "bg-white/5 hover:bg-white/10 border-white/10 text-white/60 hover:text-white"
+                    }`}
                   >
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${isMethodSelected ? "bg-white/20 text-white" : "bg-white/10 text-white/60"
-                      }`}>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                      isMethodSelected ? "bg-white/20 text-white" : isLight ? "bg-black/10 text-slate-700" : "bg-white/10 text-white/60"
+                    }`}>
                       {idx + 1}
                     </span>
                     <span>{m.methodName.split(":")[0]}</span>
-                    <span className="text-[9px] opacity-75 font-mono px-1.5 py-0.5 rounded bg-black/20">
+                    <span className={`text-[9px] opacity-80 font-mono px-1.5 py-0.5 rounded ${
+                      isLight ? "bg-slate-200 text-slate-800" : "bg-black/20"
+                    }`}>
                       {m.badgeTag}
                     </span>
                   </button>
@@ -1572,17 +1869,31 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
 
           {/* View Mode 1: Single Method Detailed View */}
           {viewMode === "single" ? (
-            <div className="bg-[#0F0F14] border border-white/15 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-8">
+            <div className={`rounded-2xl p-6 sm:p-8 space-y-8 ${detailedCardClass}`}>
 
               {/* Method Title Header */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/10 pb-4 gap-3">
+              <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-3 ${
+                isLight ? "border-slate-200" : isDarkAI ? "border-[#273449]" : "border-white/10"
+              }`}>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-blue-300 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-500/30">
+                    <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                      isLightAcademic
+                        ? "text-blue-700 bg-blue-50 border-blue-200"
+                        : isDarkAI
+                        ? "text-cyan-300 bg-indigo-950/60 border-[#273449]"
+                        : isNotebook
+                        ? "text-blue-900 bg-stone-100 border-[#E2DAC7]"
+                        : isChalkboard
+                        ? "text-amber-300 bg-black/40 border-amber-500/30"
+                        : "text-blue-300 bg-blue-950/60 border-blue-500/30"
+                    }`}>
                       {currentMethod.badgeTag}
                     </span>
                   </div>
-                  <h3 className="text-xl font-black text-white tracking-tight">
+                  <h3 className={`text-xl font-black tracking-tight ${
+                    isLight ? "text-slate-900" : isChalkboard ? "text-[#faf8f2] font-scholar-title" : "text-white"
+                  }`}>
                     {currentMethod.methodName}
                   </h3>
                 </div>
@@ -1607,42 +1918,76 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
 
               {/* Technique Summary */}
               <div className="space-y-1">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-white/40">Approach Summary</h4>
-                <p className="text-sm text-white/80 leading-relaxed">
+                <h4 className={`text-xs font-bold uppercase tracking-widest ${
+                  isLight ? "text-slate-500" : isDarkAI ? "text-slate-400" : "text-white/40"
+                }`}>Approach Summary</h4>
+                <p className={`text-sm leading-relaxed ${
+                  isLightAcademic ? "text-slate-700 font-sans" :
+                  isDarkAI ? "text-slate-300 font-mono" :
+                  isNotebook ? "text-stone-800 font-academic italic" :
+                  isChalkboard ? "text-[#ededdf] font-academic" :
+                  "text-white/80"
+                }`}>
                   {currentMethod.techniqueSummary}
                 </p>
               </div>
 
               {/* Core Formula Box */}
-              <div className="p-5 bg-black/60 border border-blue-500/30 rounded-xl space-y-2 relative overflow-hidden">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-blue-400 font-bold">
+              <div className={`p-5 rounded-xl space-y-2 relative overflow-hidden border ${
+                isLightAcademic ? "bg-blue-50/50 border-blue-200 text-blue-900" :
+                isDarkAI ? "bg-[#0B1020] border-[#273449] text-cyan-300" :
+                isNotebook ? "bg-[#FAF8F3] border-[#E2DAC7] text-[#1E40AF]" :
+                isChalkboard ? "bg-[#0c1813] border-amber-900/40 text-amber-200" :
+                "bg-black/60 border-blue-500/30 text-blue-300"
+              }`}>
+                <div className={`text-[10px] font-mono uppercase tracking-widest font-bold ${
+                  isLightAcademic ? "text-blue-700" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-blue-800" : isChalkboard ? "text-amber-300 font-scholar-title" : "text-blue-400"
+                }`}>
                   Core Formula / Method Identity
                 </div>
-                <div className="py-2 text-center text-lg text-blue-300">
+                <div className="py-2 text-center text-lg">
                   <KatexMath math={currentMethod.formulaLatex} block={true} />
                 </div>
               </div>
 
               {/* Step-by-Step Resolution */}
               <div className="space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-white/50 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-blue-400" />
+                <h4 className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${
+                  isLight ? "text-slate-600" : isDarkAI ? "text-slate-400 font-mono" : "text-white/50"
+                }`}>
+                  <Sparkles className={`w-4 h-4 ${
+                    isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-blue-800" : "text-blue-400"
+                  }`} />
                   Step-by-Step Resolution Walkthrough
                 </h4>
 
                 <div className="space-y-3">
                   {currentMethod.steps.map((step, idx) => (
-                    <div key={idx} className="p-4 bg-black/40 border border-white/10 rounded-xl space-y-2">
+                    <div key={idx} className={`p-4 rounded-xl space-y-2 border ${innerBoxClass}`}>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-blue-400 text-xs uppercase tracking-wider flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-blue-600/30 text-blue-300 flex items-center justify-center text-[10px]">
+                        <span className={`font-bold text-xs uppercase tracking-wider flex items-center gap-2 ${
+                          isLightAcademic ? "text-blue-700 font-sans" :
+                          isDarkAI ? "text-cyan-400 font-mono" :
+                          isNotebook ? "text-[#1E40AF] font-academic" :
+                          isChalkboard ? "text-amber-300 font-scholar-title" :
+                          "text-blue-400"
+                        }`}>
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
+                            isLightAcademic ? "bg-blue-100 text-blue-700" :
+                            isDarkAI ? "bg-indigo-950 text-cyan-300 border border-[#273449]" :
+                            isNotebook ? "bg-stone-200 text-[#1E40AF]" :
+                            isChalkboard ? "bg-[#183626] text-amber-200 border border-amber-500/40" :
+                            "bg-blue-600/30 text-blue-300"
+                          }`}>
                             {idx + 1}
                           </span>
                           {step.stepTitle}
                         </span>
                       </div>
-                      <p className="text-xs text-white/70">{step.description}</p>
-                      <div className="py-2 px-3 bg-white/5 rounded-lg text-sm text-white font-mono flex items-center justify-center">
+                      <p className={`text-xs ${
+                        isLight ? "text-slate-600" : isDarkAI ? "text-slate-300" : isChalkboard ? "text-amber-200/80 font-academic italic" : "text-white/70"
+                      }`}>{step.description}</p>
+                      <div className={`py-2 px-3 rounded-lg text-sm font-mono flex items-center justify-center border ${mathFormulaBoxClass}`}>
                         <KatexMath math={step.latex} block={true} />
                       </div>
                     </div>
@@ -1651,25 +1996,43 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
               </div>
 
               {/* Final Result Verification Box */}
-              <div className="p-4 bg-emerald-950/30 border border-emerald-500/40 rounded-xl flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
+              <div className={`p-4 rounded-xl flex items-center justify-between border ${
+                isLightAcademic ? "bg-emerald-50 border-emerald-300 text-emerald-900" :
+                isDarkAI ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300" :
+                isNotebook ? "bg-emerald-50/80 border-emerald-300 text-emerald-950" :
+                isChalkboard ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-300" :
+                "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
+              }`}>
+                <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   Method Result:
                 </span>
-                <div className="text-base font-bold text-emerald-200 font-mono">
+                <div className="text-base font-bold font-mono">
                   <KatexMath math={currentMethod.finalResultLatex} block={false} />
                 </div>
               </div>
 
               {/* Pros & Cons Comparison Card */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-xl space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 block">Advantages</span>
-                  <p className="text-xs text-emerald-200/80">{currentMethod.prosAndCons.pros}</p>
+                <div className={`p-4 rounded-xl space-y-1 border ${
+                  isLightAcademic ? "bg-emerald-50/80 border-emerald-200 text-emerald-900" :
+                  isDarkAI ? "bg-emerald-950/30 border-emerald-500/30 text-emerald-300" :
+                  isNotebook ? "bg-emerald-50/60 border-emerald-200 text-emerald-950" :
+                  isChalkboard ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-200" :
+                  "bg-emerald-950/20 border-emerald-500/30 text-emerald-200/80"
+                }`}>
+                  <span className="text-xs font-bold uppercase tracking-widest block text-emerald-600">Advantages</span>
+                  <p className="text-xs">{currentMethod.prosAndCons.pros}</p>
                 </div>
-                <div className="p-4 bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-widest text-amber-400 block">Trade-offs</span>
-                  <p className="text-xs text-amber-200/80">{currentMethod.prosAndCons.cons}</p>
+                <div className={`p-4 rounded-xl space-y-1 border ${
+                  isLightAcademic ? "bg-amber-50/80 border-amber-200 text-amber-900" :
+                  isDarkAI ? "bg-amber-950/30 border-amber-500/30 text-amber-300" :
+                  isNotebook ? "bg-amber-50/60 border-amber-200 text-amber-950" :
+                  isChalkboard ? "bg-amber-950/30 border-amber-500/40 text-amber-200" :
+                  "bg-amber-950/20 border-amber-500/30 text-amber-200/80"
+                }`}>
+                  <span className="text-xs font-bold uppercase tracking-widest block text-amber-600">Trade-offs</span>
+                  <p className="text-xs">{currentMethod.prosAndCons.cons}</p>
                 </div>
               </div>
 
@@ -1678,15 +2041,24 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
             /* View Mode 2: Side-by-Side Comparison of All Methods for this question */
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {currentQuestion.methods.map((method, idx) => (
-                <div key={method.methodId} className="bg-[#0F0F14] border border-white/15 rounded-2xl p-6 shadow-2xl space-y-6 flex flex-col justify-between">
+                <div key={method.methodId} className={`rounded-2xl p-6 shadow-2xl space-y-6 flex flex-col justify-between ${detailedCardClass}`}>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-3 gap-2">
+                    <div className={`flex items-center justify-between border-b pb-3 gap-2 ${
+                      isLight ? "border-slate-200" : isDarkAI ? "border-[#273449]" : "border-white/10"
+                    }`}>
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] shrink-0">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                          isLightAcademic ? "bg-[#2563EB] text-white" :
+                          isDarkAI ? "bg-[#6366F1] text-white" :
+                          isNotebook ? "bg-[#1E40AF] text-[#FAF8F3]" :
+                          "bg-blue-600 text-white"
+                        }`}>
                           {idx + 1}
                         </span>
-                        <span className="text-xs font-black text-blue-400 uppercase tracking-wider truncate">
+                        <span className={`text-xs font-black uppercase tracking-wider truncate ${
+                          isLightAcademic ? "text-blue-700" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-stone-900 font-academic" : "text-blue-400"
+                        }`}>
                           {method.methodName}
                         </span>
                       </div>
@@ -1704,26 +2076,43 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                           )}
                           <span>Video</span>
                         </button>
-                        <span className="text-[9px] font-mono bg-blue-950/50 border border-blue-500/30 text-blue-300 px-2 py-0.5 rounded">
+                        <span className={`text-[9px] font-mono px-2 py-0.5 rounded border ${
+                          isLightAcademic ? "bg-blue-50 border-blue-200 text-blue-700" :
+                          isDarkAI ? "bg-indigo-950/60 border-[#273449] text-cyan-300" :
+                          isNotebook ? "bg-stone-100 border-[#E2DAC7] text-stone-800 font-academic" :
+                          "bg-blue-950/50 border-blue-500/30 text-blue-300"
+                        }`}>
                           {method.badgeTag}
                         </span>
                       </div>
                     </div>
 
-                    <p className="text-xs text-white/70 leading-relaxed">
+                    <p className={`text-xs leading-relaxed ${
+                      isLight ? "text-slate-600" : isDarkAI ? "text-slate-300" : isChalkboard ? "text-amber-200/80 font-academic" : "text-white/70"
+                    }`}>
                       {method.techniqueSummary}
                     </p>
 
-                    <div className="p-3 bg-black/60 border border-blue-500/30 rounded-lg text-center text-sm text-blue-300">
+                    <div className={`p-3 rounded-lg text-center text-sm border ${
+                      isLightAcademic ? "bg-blue-50/50 border-blue-200 text-blue-900" :
+                      isDarkAI ? "bg-[#0B1020] border-[#273449] text-cyan-300" :
+                      isNotebook ? "bg-[#FAF8F3] border-[#E2DAC7] text-[#1E40AF]" :
+                      isChalkboard ? "bg-[#0c1813] border-amber-900/40 text-amber-200" :
+                      "bg-black/60 border-blue-500/30 text-blue-300"
+                    }`}>
                       <KatexMath math={method.formulaLatex} block={true} />
                     </div>
 
                     <div className="space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 block">Key Resolution Steps</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-widest block ${
+                        isLight ? "text-slate-500" : isDarkAI ? "text-slate-400" : "text-white/40"
+                      }`}>Key Resolution Steps</span>
                       {method.steps.map((s, sIdx) => (
-                        <div key={sIdx} className="p-2.5 bg-black/40 border border-white/10 rounded-lg space-y-1">
-                          <span className="text-[10px] font-bold text-white/60 block">{s.stepTitle}</span>
-                          <div className="text-xs font-mono text-white">
+                        <div key={sIdx} className={`p-2.5 rounded-lg space-y-1 border ${innerBoxClass}`}>
+                          <span className={`text-[10px] font-bold block ${
+                            isLight ? "text-slate-700" : isDarkAI ? "text-slate-300" : "text-white/60"
+                          }`}>{s.stepTitle}</span>
+                          <div className={`text-xs font-mono p-1.5 rounded border ${mathFormulaBoxClass}`}>
                             <KatexMath math={s.latex} block={false} />
                           </div>
                         </div>
@@ -1731,10 +2120,15 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-white/10">
-                    <div className="p-3 bg-emerald-950/30 border border-emerald-500/40 rounded-lg flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase text-emerald-400">Result:</span>
-                      <div className="text-sm font-bold text-emerald-200 font-mono">
+                  <div className={`pt-3 border-t ${isLight ? "border-slate-200" : isDarkAI ? "border-[#273449]" : "border-white/10"}`}>
+                    <div className={`p-3 rounded-lg flex items-center justify-between border ${
+                      isLightAcademic ? "bg-emerald-50 border-emerald-300 text-emerald-900" :
+                      isDarkAI ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300" :
+                      isNotebook ? "bg-emerald-50/80 border-emerald-300 text-emerald-900" :
+                      "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
+                    }`}>
+                      <span className="text-[10px] font-bold uppercase text-emerald-600">Result:</span>
+                      <div className="text-sm font-bold font-mono">
                         <KatexMath math={method.finalResultLatex} block={false} />
                       </div>
                     </div>
@@ -1752,15 +2146,23 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
       {/* Video Solution Modal */}
       {videoModalUrl && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#12141F] border border-white/20 rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className={`rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4 border ${
+            isLightAcademic ? "bg-white border-slate-200 text-slate-900" :
+            isDarkAI ? "bg-[#111827] border-[#273449] text-white" :
+            isNotebook ? "bg-[#FFFDF8] border-[#E2DAC7] text-stone-900" :
+            isChalkboard ? "bg-[#0f1d16] border-amber-900/40 text-amber-100" :
+            "bg-[#12141F] border-white/20 text-white"
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-3 ${
+              isLight ? "border-slate-200" : isDarkAI ? "border-[#273449]" : "border-white/10"
+            }`}>
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
                   <Video className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">Solution Video Animation</h3>
-                  <p className="text-[11px] font-mono text-white/50 truncate max-w-md">{videoModalTitle}</p>
+                  <h3 className={`text-sm font-bold uppercase tracking-wider ${isLight ? "text-slate-900" : "text-white"}`}>Solution Video Animation</h3>
+                  <p className={`text-[11px] font-mono truncate max-w-md ${isLight ? "text-slate-500" : "text-white/50"}`}>{videoModalTitle}</p>
                 </div>
               </div>
               <button
@@ -1768,7 +2170,9 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                   URL.revokeObjectURL(videoModalUrl);
                   setVideoModalUrl(null);
                 }}
-                className="text-white/50 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                  isLight ? "text-slate-400 hover:text-slate-800 hover:bg-slate-100" : "text-white/50 hover:text-white hover:bg-white/10"
+                }`}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1787,7 +2191,9 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
               <a
                 href={videoModalUrl}
                 download={`math-solution-${Date.now()}.mp4`}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase tracking-wider rounded-xl flex items-center gap-2 transition-all cursor-pointer"
+                className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
+                  isLight ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200" : "bg-white/10 hover:bg-white/20 text-white"
+                }`}
               >
                 <Download className="w-3.5 h-3.5" />
                 Download MP4
@@ -1797,7 +2203,7 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
                   URL.revokeObjectURL(videoModalUrl);
                   setVideoModalUrl(null);
                 }}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+                className={`px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer ${primaryBtnClass}`}
               >
                 Done
               </button>

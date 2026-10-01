@@ -86,6 +86,36 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
         secondaryCurve: "#2dd4bf", // Cosmic teal
         point: "#fbbf24" // Sacred gold point
       },
+      lightAcademic: {
+        bg: "#FFFFFF",
+        grid: "rgba(226, 232, 240, 0.85)",
+        gridBold: "rgba(203, 213, 225, 0.95)",
+        axis: "rgba(71, 85, 105, 0.85)",
+        text: "#0F172A",
+        curve: "#2563EB", // Royal primary blue
+        secondaryCurve: "#7C3AED", // Secondary purple
+        point: "#DC2626"
+      },
+      darkAI: {
+        bg: "#0B1020",
+        grid: "rgba(39, 52, 73, 0.65)",
+        gridBold: "rgba(99, 102, 241, 0.35)",
+        axis: "rgba(148, 163, 184, 0.8)",
+        text: "#F8FAFC",
+        curve: "#6366F1", // Neural Indigo
+        secondaryCurve: "#06B6D4", // Cyan
+        point: "#22D3EE"
+      },
+      notebook: {
+        bg: "#FAF8F3", // Warm ivory paper
+        grid: "rgba(186, 205, 224, 0.45)", // Blue-gray quadrille
+        gridBold: "rgba(140, 175, 210, 0.7)",
+        axis: "rgba(71, 85, 105, 0.8)", // Graphite pencil
+        text: "#1E293B",
+        curve: "#1E40AF", // Fountain pen blue
+        secondaryCurve: "#DC2626", // Red margin ink
+        point: "#B91C1C"
+      },
       glassmorphic: {
         bg: "rgba(15, 23, 42, 0.85)", // deep space backdrop
         grid: "rgba(255, 255, 255, 0.05)",
@@ -411,6 +441,9 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
   const isChalkboard = theme === "chalkboard";
   const isBlueprint = theme === "blueprint";
   const isCosmos = theme === "cosmos";
+  const isLightAcademic = theme === "lightAcademic";
+  const isDarkAI = theme === "darkAI";
+  const isNotebook = theme === "notebook";
 
   return (
     <div className={`relative w-full h-[320px] rounded-xl overflow-hidden shadow-2xl transition-all duration-300 ${
@@ -420,6 +453,12 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
         ? "border border-cyan-500/40 bg-[#041429] blueprint-frame"
         : isCosmos
         ? "border border-purple-500/40 bg-[#060314] cosmos-frame"
+        : isLightAcademic
+        ? "border border-[#E2E8F0] bg-white academic-light-frame"
+        : isDarkAI
+        ? "border border-[#273449] bg-[#0B1020] dark-ai-frame"
+        : isNotebook
+        ? "border border-[#E2DAC7] bg-[#FAF8F3] notebook-frame"
         : "border border-white/5 bg-slate-950"
     }`}>
       <canvas
@@ -434,6 +473,12 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
           ? "bg-[#041a36]/90 border border-cyan-500/40 text-cyan-300 font-mono tracking-wider shadow-md backdrop-blur-md"
           : isCosmos
           ? "bg-[#0f092b]/90 border border-purple-500/40 text-purple-200 font-sans tracking-wider shadow-md backdrop-blur-md"
+          : isLightAcademic
+          ? "bg-white/95 border border-slate-200 text-blue-600 font-sans font-bold tracking-wide shadow-sm backdrop-blur-md"
+          : isDarkAI
+          ? "bg-[#0e172e]/90 border border-indigo-500/40 text-cyan-300 font-mono tracking-wider shadow-md backdrop-blur-md"
+          : isNotebook
+          ? "bg-[#FFFDF8]/95 border border-[#E2DAC7] text-stone-700 font-academic tracking-wide shadow-sm backdrop-blur-md"
           : "bg-black/60 backdrop-blur-md text-white/60 font-mono"
       }`}>
         {isChalkboard 
@@ -442,6 +487,12 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
           ? "Analytical Drafting Plot [CAD 2D]" 
           : isCosmos 
           ? "Sacred Harmonic Manifold" 
+          : isLightAcademic
+          ? "Cartesian Academic Function Plot"
+          : isDarkAI
+          ? "Neural Tensor Coordinate Grid"
+          : isNotebook
+          ? "Notebook Quadrille Graph"
           : "Cartesian 2D Engine"}
       </div>
     </div>

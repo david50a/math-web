@@ -73,6 +73,33 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
       accentDot: "bg-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.9)]",
       gridLines: "bg-[radial-gradient(rgba(168,85,247,0.08)_1px,transparent_1px)] bg-[size:20px_20px]"
     },
+    lightAcademic: {
+      outer: "bg-white border-[#E2E8F0] text-[#0F172A] shadow-xl shadow-slate-200/50 academic-light-frame font-sans",
+      boardBg: "bg-light-academic-canvas border-[#E2E8F0]",
+      fontFamily: "font-sans",
+      primaryText: "text-[#2563EB] font-bold",
+      secondaryText: "text-[#7C3AED] font-semibold",
+      accentDot: "bg-[#2563EB] shadow-[0_0_8px_rgba(37,99,235,0.4)]",
+      gridLines: "bg-[linear-gradient(rgba(226,232,240,0.85)_1px,transparent_1px),linear-gradient(90deg,rgba(226,232,240,0.85)_1px,transparent_1px)] bg-[size:24px_24px]"
+    },
+    darkAI: {
+      outer: "bg-[#111827] border-[#273449] text-[#F8FAFC] shadow-2xl shadow-indigo-950/60 dark-ai-frame font-mono",
+      boardBg: "bg-dark-ai-canvas border-[#273449]",
+      fontFamily: "font-mono-math",
+      primaryText: "text-[#6366F1] [text-shadow:0_0_10px_rgba(99,102,241,0.6)] font-bold",
+      secondaryText: "text-[#06B6D4] [text-shadow:0_0_8px_rgba(6,182,212,0.5)] font-mono",
+      accentDot: "bg-[#6366F1] shadow-[0_0_10px_rgba(99,102,241,0.8)]",
+      gridLines: "bg-[linear-gradient(rgba(99,102,241,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.08)_1px,transparent_1px)] bg-[size:20px_20px]"
+    },
+    notebook: {
+      outer: "bg-[#FFFDF8] border-[#E2DAC7] text-[#242018] shadow-xl shadow-stone-300/40 notebook-frame font-academic",
+      boardBg: "bg-notebook-canvas border-[#E5DECE]",
+      fontFamily: "font-academic",
+      primaryText: "text-[#1E40AF] font-bold",
+      secondaryText: "text-[#DC2626] font-medium",
+      accentDot: "bg-[#1E40AF] shadow-[0_0_6px_rgba(30,64,175,0.4)]",
+      gridLines: "bg-[linear-gradient(rgba(186,205,224,0.35)_1px,transparent_1px),linear-gradient(90deg,rgba(186,205,224,0.35)_1px,transparent_1px)] bg-[size:20px_20px]"
+    },
     glassmorphic: {
       outer: "bg-slate-900/85 border-slate-800 text-slate-100 shadow-slate-950/30 backdrop-blur-md",
       boardBg: "bg-slate-950/40 border-slate-800/50",
@@ -150,13 +177,17 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
   const isChalkboard = theme === "chalkboard";
   const isBlueprint = theme === "blueprint";
   const isCosmos = theme === "cosmos";
+  const isLightAcademic = theme === "lightAcademic";
+  const isDarkAI = theme === "darkAI";
+  const isNotebook = theme === "notebook";
+  const isLight = isLightAcademic || isNotebook;
   const style = themesList[theme] || themesList.chalkboard;
 
   // Render a clean visual simulation of formula steps
   return (
     <div className={`flex flex-col h-full rounded-2xl border p-5 sm:p-6 transition-all duration-300 relative ${style.outer}`}>
       {/* Visual board watermark/header */}
-      <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+      <div className={`flex items-center justify-between mb-4 border-b ${isLight ? "border-slate-200" : "border-white/10"} pb-3`}>
         <div className="flex items-center gap-2">
           <span className={`w-2.5 h-2.5 rounded-full ${style.accentDot} animate-pulse`} />
           <span className={`text-[11px] uppercase tracking-wider font-semibold ${
@@ -166,6 +197,12 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
               ? "font-mono text-cyan-300 tracking-widest" 
               : isCosmos 
               ? "font-sans font-bold text-purple-200 tracking-wider" 
+              : isLightAcademic
+              ? "font-sans font-bold text-blue-600 tracking-wider"
+              : isDarkAI
+              ? "font-mono font-bold text-indigo-400 tracking-widest"
+              : isNotebook
+              ? "font-academic font-bold text-stone-700 tracking-wider"
               : "font-mono opacity-60"
           }`}>
             {isChalkboard 
@@ -174,6 +211,12 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
               ? `SPEC §0${scene.sceneNumber} // ${scene.subTitle}` 
               : isCosmos 
               ? `Harmonic Axiom §0${scene.sceneNumber} • ${scene.subTitle}` 
+              : isLightAcademic
+              ? `Theorem §0${scene.sceneNumber} • ${scene.subTitle}`
+              : isDarkAI
+              ? `AI TENSOR §0${scene.sceneNumber} // ${scene.subTitle}`
+              : isNotebook
+              ? `Note §0${scene.sceneNumber} • ${scene.subTitle}`
               : `SCENE ${scene.sceneNumber}: ${scene.subTitle}`}
           </span>
         </div>
@@ -184,15 +227,27 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
             ? "bg-[#051c38] border border-cyan-500/40 text-cyan-300 font-mono tracking-widest shadow-sm"
             : isCosmos
             ? "bg-[#130b2e] border border-purple-500/40 text-purple-200 font-sans tracking-wider shadow-sm"
+            : isLightAcademic
+            ? "bg-blue-50 border border-blue-200 text-blue-700 font-sans tracking-wide shadow-xs"
+            : isDarkAI
+            ? "bg-[#0b1329] border border-indigo-500/40 text-cyan-300 font-mono tracking-widest shadow-sm"
+            : isNotebook
+            ? "bg-[#FAF5EA] border border-[#E2DAC7] text-stone-700 font-academic tracking-wide shadow-xs"
             : "bg-black/30 border border-white/5 text-white/50 font-mono"
         }`}>
-          <Sparkles className={`w-3 h-3 animate-spin ${isChalkboard ? "text-amber-300" : isBlueprint ? "text-cyan-400" : isCosmos ? "text-purple-400" : "text-blue-400"}`} />
+          <Sparkles className={`w-3 h-3 ${isChalkboard ? "text-amber-300" : isBlueprint ? "text-cyan-400" : isCosmos ? "text-purple-400" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-amber-700" : "text-blue-400"}`} />
           {isChalkboard 
             ? "Modern Blackboard Lecture" 
             : isBlueprint 
             ? "Technical Drafting Spec [1px GRID]" 
             : isCosmos 
             ? "Sacred Geometry & Harmonics" 
+            : isLightAcademic
+            ? "Peer-Reviewed Academic Rigor"
+            : isDarkAI
+            ? "Neural Core Synthesis [FP32]"
+            : isNotebook
+            ? "Mathematician's Digital Notebook"
             : "Whiteboard Animation Active"}
         </div>
       </div>
@@ -206,24 +261,24 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
         <div className="relative z-10 space-y-4">
           <div className="space-y-1">
             <span className={`text-[10px] tracking-wider block uppercase ${
-              isChalkboard ? "font-scholar-title text-amber-300/70" : isBlueprint ? "text-cyan-400/80 font-mono" : isCosmos ? "text-purple-300/80 font-mono" : "text-white/40 font-mono"
+              isChalkboard ? "font-scholar-title text-amber-300/70" : isBlueprint ? "text-cyan-400/80 font-mono" : isCosmos ? "text-purple-300/80 font-mono" : isLightAcademic ? "text-blue-600 font-sans font-bold" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-600 font-academic font-bold" : "text-white/40 font-mono"
             }`}>
-              {isChalkboard ? "Proposition Title" : isBlueprint ? "Drafting Spec Item" : isCosmos ? "Harmonic Theorem" : "Title"}
+              {isChalkboard ? "Proposition Title" : isBlueprint ? "Drafting Spec Item" : isCosmos ? "Harmonic Theorem" : isLightAcademic ? "Mathematical Theorem" : isDarkAI ? "Calculated Target" : isNotebook ? "Problem Proposition" : "Title"}
             </span>
             <h2 className={`text-xl sm:text-2xl font-semibold tracking-tight ${style.fontFamily} ${
-              isChalkboard ? "text-[#f7f7f0] font-academic tracking-wide" : isBlueprint ? "text-cyan-100 font-mono" : isCosmos ? "text-purple-50 font-sans" : ""
+              isChalkboard ? "text-[#f7f7f0] font-academic tracking-wide" : isBlueprint ? "text-cyan-100 font-mono" : isCosmos ? "text-purple-50 font-sans" : isLightAcademic ? "text-slate-900 font-bold" : isDarkAI ? "text-[#F8FAFC] font-mono" : isNotebook ? "text-stone-900 font-academic font-bold" : ""
             }`}>
               {scene.title}
             </h2>
           </div>
 
           <div className={`py-3 border-y ${
-            isChalkboard ? "border-white/15 bg-black/15 -mx-6 px-6" : isBlueprint ? "border-cyan-500/20 bg-cyan-950/20 -mx-6 px-6" : isCosmos ? "border-purple-500/20 bg-purple-950/20 -mx-6 px-6" : "border-white/5"
+            isChalkboard ? "border-white/15 bg-black/15 -mx-6 px-6" : isBlueprint ? "border-cyan-500/20 bg-cyan-950/20 -mx-6 px-6" : isCosmos ? "border-purple-500/20 bg-purple-950/20 -mx-6 px-6" : isLightAcademic ? "border-slate-200 bg-white/70 -mx-6 px-6" : isDarkAI ? "border-[#273449] bg-[#0c1326]/60 -mx-6 px-6" : isNotebook ? "border-[#E2DAC7] bg-[#FFFDF8]/70 -mx-6 px-6" : "border-white/5"
           }`}>
             <span className={`text-[10px] tracking-wider block uppercase mb-1 ${
-              isChalkboard ? "font-scholar-title text-amber-300/70" : isBlueprint ? "text-cyan-400/80 font-mono" : isCosmos ? "text-purple-300/80 font-mono" : "text-white/40 font-mono"
+              isChalkboard ? "font-scholar-title text-amber-300/70" : isBlueprint ? "text-cyan-400/80 font-mono" : isCosmos ? "text-purple-300/80 font-mono" : isLightAcademic ? "text-blue-600 font-sans font-bold" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-600 font-academic font-bold" : "text-white/40 font-mono"
             }`}>
-              {isChalkboard ? "Chalk Derivation Formula" : isBlueprint ? "Analytical Derivation" : isCosmos ? "Cosmic Fabric Derivation" : "Mathematical formula"}
+              {isChalkboard ? "Chalk Derivation Formula" : isBlueprint ? "Analytical Derivation" : isCosmos ? "Cosmic Fabric Derivation" : isLightAcademic ? "Exact Mathematical Formula" : isDarkAI ? "Neural Symbolic Formula" : isNotebook ? "Notebook Formulation" : "Mathematical formula"}
             </span>
             <div className={`text-2xl sm:text-3xl font-medium tracking-wide py-1 text-center select-all select-none selection:bg-amber-400/20 overflow-x-auto whitespace-normal break-words scrollbar-none scroll-smooth ${style.fontFamily} ${style.primaryText}`}>
               <KatexMath math={scene.primaryMath} block={true} />
@@ -233,9 +288,9 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
           {scene.secondaryMath && (
             <div className="space-y-1">
               <span className={`text-[10px] tracking-wider block uppercase ${
-                isChalkboard ? "font-scholar-title text-emerald-400/70" : isBlueprint ? "text-sky-400/80 font-mono" : isCosmos ? "text-amber-300/80 font-mono" : "text-white/40 font-mono"
+                isChalkboard ? "font-scholar-title text-emerald-400/70" : isBlueprint ? "text-sky-400/80 font-mono" : isCosmos ? "text-amber-300/80 font-mono" : isLightAcademic ? "text-purple-600 font-bold" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-red-700 font-academic font-bold" : "text-white/40 font-mono"
               }`}>
-                {isChalkboard ? "Scholastic Commentary & Step" : isBlueprint ? "Calculated Coordinate Invariants" : isCosmos ? "Harmonic Phase & Ratio" : "Working step details"}
+                {isChalkboard ? "Scholastic Commentary & Step" : isBlueprint ? "Calculated Coordinate Invariants" : isCosmos ? "Harmonic Phase & Ratio" : isLightAcademic ? "Intermediate Derivation Step" : isDarkAI ? "Tensor State Metric" : isNotebook ? "Margin Note & Intermediate Result" : "Working step details"}
               </span>
               <div className={`text-sm sm:text-base opacity-95 ${
                 isChalkboard ? "font-chalk text-emerald-200 tracking-wide text-base" : isBlueprint ? "font-mono text-cyan-200" : isCosmos ? "font-sans text-purple-200" : `italic ${style.fontFamily} ${style.secondaryText}`
@@ -291,16 +346,55 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
           </div>
         )}
 
+        {/* Academic Research Accent for Light Academic */}
+        {isLightAcademic && (
+          <div className="relative z-10 -mx-6 -mb-6 mt-4 pt-2 pb-1.5 px-4 bg-slate-100 border-t border-slate-200 flex items-center justify-between font-sans text-[9px] text-slate-600">
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] uppercase tracking-widest font-bold text-blue-600">Academic Standard:</span>
+              <span className="font-mono text-[10px] text-slate-800 font-semibold">Q.E.D. Proof Notation</span>
+            </div>
+            <div className="text-[8px] uppercase text-slate-500 tracking-widest font-mono">
+              ISO-80000 Math Standard
+            </div>
+          </div>
+        )}
+
+        {/* Neural Telemetry Accent for Dark AI */}
+        {isDarkAI && (
+          <div className="relative z-10 -mx-6 -mb-6 mt-4 pt-2 pb-1.5 px-4 bg-[#080d1a] border-t border-[#273449] flex items-center justify-between font-mono text-[9px] text-indigo-400">
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] uppercase tracking-widest font-bold text-cyan-400">NEURAL KERNEL:</span>
+              <span className="text-[10px] text-indigo-300">FP32 TENSOR SYNTHESIS • STEP VERIFIED</span>
+            </div>
+            <div className="text-[8px] uppercase text-cyan-400/80 tracking-widest">
+              PRECISION: 99.98%
+            </div>
+          </div>
+        )}
+
+        {/* Notebook Paper Details for Digital Notebook */}
+        {isNotebook && (
+          <div className="relative z-10 -mx-6 -mb-6 mt-4 pt-2 pb-1.5 px-4 bg-[#F5EFE0] border-t border-[#E2DAC7] flex items-center justify-between font-academic text-[10px] text-stone-700">
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] uppercase tracking-widest font-bold text-stone-600">Fountain Pen:</span>
+              <span className="text-blue-900 font-semibold">Royal Blue • 0.5mm Tip</span>
+            </div>
+            <div className="text-[8px] uppercase text-stone-500 tracking-widest font-mono">
+              Quadrille 5x5mm Rule
+            </div>
+          </div>
+        )}
+
         {/* Narrating indicator overlay */}
         {isNarrating && (
           <div className={`absolute right-4 bottom-8 z-20 flex items-center gap-2 backdrop-blur-md px-3 py-1.5 rounded-lg border text-[10px] select-none shadow-lg ${
-            isChalkboard ? "bg-[#0c1813]/90 border-amber-500/30 font-scholar-title text-amber-300" : isBlueprint ? "bg-[#041a34]/90 border-cyan-500/40 font-mono text-cyan-300" : isCosmos ? "bg-[#0f092b]/90 border-purple-500/40 text-purple-200" : "bg-black/80 border-white/20 text-white"
+            isChalkboard ? "bg-[#0c1813]/90 border-amber-500/30 font-scholar-title text-amber-300" : isBlueprint ? "bg-[#041a34]/90 border-cyan-500/40 font-mono text-cyan-300" : isCosmos ? "bg-[#0f092b]/90 border-purple-500/40 text-purple-200" : isLightAcademic ? "bg-white/95 border-blue-300 text-blue-700 font-semibold" : isDarkAI ? "bg-[#0c1326]/95 border-indigo-500/40 text-cyan-300" : isNotebook ? "bg-[#FAF5EA]/95 border-[#E2DAC7] text-stone-800 font-academic" : "bg-black/80 border-white/20 text-white"
           }`}>
             <span className="flex h-2 w-2 relative">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isChalkboard ? "bg-amber-400" : isBlueprint ? "bg-cyan-400" : "bg-purple-400"}`}></span>
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${isChalkboard ? "bg-amber-500" : isBlueprint ? "bg-cyan-500" : "bg-purple-500"}`}></span>
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isChalkboard ? "bg-amber-400" : isBlueprint ? "bg-cyan-400" : isLightAcademic ? "bg-blue-600" : isDarkAI ? "bg-cyan-400" : isNotebook ? "bg-blue-800" : "bg-purple-400"}`}></span>
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${isChalkboard ? "bg-amber-500" : isBlueprint ? "bg-cyan-500" : isLightAcademic ? "bg-blue-600" : isDarkAI ? "bg-indigo-500" : isNotebook ? "bg-blue-800" : "bg-purple-500"}`}></span>
             </span>
-            {isChalkboard ? "Lecturer Voice In Sync" : isBlueprint ? "Telemetry Voice Stream" : "Harmonic Voice Resonating"}
+            {isChalkboard ? "Lecturer Voice In Sync" : isBlueprint ? "Telemetry Voice Stream" : isLightAcademic ? "Academic Narration Audio" : isDarkAI ? "Neural Voice Processing" : isNotebook ? "Study Voice Reading" : "Harmonic Voice Resonating"}
           </div>
         )}
       </div>
@@ -313,6 +407,12 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
           ? "bg-[#041427] border-cyan-500/30 shadow-inner"
           : isCosmos
           ? "bg-[#0a061c] border-purple-500/30 shadow-inner"
+          : isLightAcademic
+          ? "bg-slate-50 border-slate-200 shadow-sm"
+          : isDarkAI
+          ? "bg-[#0B1020] border-[#273449] shadow-inner"
+          : isNotebook
+          ? "bg-[#FFFDF8] border-[#E2DAC7] shadow-sm"
           : "bg-black/40 border-white/5"
       }`}>
         <div className="flex-shrink-0 pt-0.5">
@@ -323,23 +423,29 @@ export default function Whiteboard({ scene, theme, isNarrating, typingProgress }
               ? "bg-[#051c38] border-cyan-500/40 text-cyan-300 shadow-sm"
               : isCosmos
               ? "bg-[#120a30] border-purple-500/40 text-purple-300 shadow-sm"
+              : isLightAcademic
+              ? "bg-blue-50 border-blue-200 text-blue-600 shadow-xs"
+              : isDarkAI
+              ? "bg-[#131b2e] border-indigo-500/40 text-cyan-400 shadow-sm"
+              : isNotebook
+              ? "bg-[#FAF5EA] border-[#E2DAC7] text-stone-800 shadow-xs"
               : "bg-white/5 border-white/10 text-white/70"
           }`}>
-            {isChalkboard ? <GraduationCap className="w-4 h-4 text-amber-400" /> : isBlueprint ? <Cpu className="w-4 h-4 text-cyan-400" /> : isCosmos ? <Sparkles className="w-4 h-4 text-purple-400" /> : <Terminal className="w-4 h-4 text-blue-400" />}
+            {isChalkboard ? <GraduationCap className="w-4 h-4 text-amber-400" /> : isBlueprint ? <Cpu className="w-4 h-4 text-cyan-400" /> : isCosmos ? <Sparkles className="w-4 h-4 text-purple-400" /> : isLightAcademic ? <GraduationCap className="w-4 h-4 text-blue-600" /> : isDarkAI ? <Cpu className="w-4 h-4 text-indigo-400" /> : isNotebook ? <BookOpen className="w-4 h-4 text-stone-700" /> : <Terminal className="w-4 h-4 text-blue-400" />}
           </div>
         </div>
         <div className="flex-1 flex flex-col justify-start">
           <span className={`text-[10px] uppercase tracking-wider mb-0.5 ${
-            isChalkboard ? "text-amber-300/70 font-scholar-title font-semibold" : isBlueprint ? "text-cyan-400/80 font-mono" : isCosmos ? "text-purple-300/80 font-sans font-semibold" : "text-white/40 font-mono"
+            isChalkboard ? "text-amber-300/70 font-scholar-title font-semibold" : isBlueprint ? "text-cyan-400/80 font-mono" : isCosmos ? "text-purple-300/80 font-sans font-semibold" : isLightAcademic ? "text-blue-600 font-semibold" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-700 font-academic font-semibold" : "text-white/40 font-mono"
           }`}>
-            {isChalkboard ? "The Scholar's Lecture Commentary" : isBlueprint ? "Engineering Technical Commentary" : isCosmos ? "The Cosmic Harmonic Commentary" : "Automated Narration Audio / Script"}
+            {isChalkboard ? "The Scholar's Lecture Commentary" : isBlueprint ? "Engineering Technical Commentary" : isCosmos ? "The Cosmic Harmonic Commentary" : isLightAcademic ? "Academic Step-by-Step Proof Explanation" : isDarkAI ? "Neural Solver Derivation Log" : isNotebook ? "Handwritten Problem Notes & Insights" : "Automated Narration Audio / Script"}
           </span>
           <p className={`text-xs leading-relaxed overflow-y-auto pr-1 select-none whitespace-normal break-words ${
-            isChalkboard ? "font-academic text-[#ededdf] text-[13px] leading-relaxed" : isBlueprint ? "font-mono text-cyan-100 text-xs" : isCosmos ? "font-sans text-purple-100 text-[13px]" : "font-sans text-white/80"
+            isChalkboard ? "font-academic text-[#ededdf] text-[13px] leading-relaxed" : isBlueprint ? "font-mono text-cyan-100 text-xs" : isCosmos ? "font-sans text-purple-100 text-[13px]" : isLightAcademic ? "font-sans text-slate-800 text-[13px]" : isDarkAI ? "font-mono text-[#F8FAFC] text-xs" : isNotebook ? "font-academic text-stone-900 text-[13.5px] leading-relaxed" : "font-sans text-white/80"
           }`}>
             {scene.explanation.substring(0, Math.floor(scene.explanation.length * typingProgress))}
             {typingProgress < 1 && (
-              <span className={`inline-block w-1.5 h-3.5 ml-0.5 animate-pulse ${isChalkboard ? "bg-amber-400" : isBlueprint ? "bg-cyan-400" : "bg-purple-400"}`} />
+              <span className={`inline-block w-1.5 h-3.5 ml-0.5 animate-pulse ${isChalkboard ? "bg-amber-400" : isBlueprint ? "bg-cyan-400" : isLightAcademic ? "bg-blue-600" : isDarkAI ? "bg-cyan-400" : isNotebook ? "bg-blue-800" : "bg-purple-400"}`} />
             )}
           </p>
         </div>

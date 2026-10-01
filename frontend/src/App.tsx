@@ -39,7 +39,15 @@ import PaymentModal from "./components/PaymentModal";
 import AIChat from "./components/AIChat";
 import Explanation from "./components/Explanation";
 import VoiceAssistant from "./components/VoiceAssistant";
-import { createSpeechRecognition, parseSpokenMath } from "./utils/speechUtils";
+import {
+  createSpeechRecognition,
+  parseSpokenMath,
+  cleanLatexForSpeech,
+  getBestHumanVoice,
+  initSpeechVoices,
+  getVoiceDisplayName,
+  VoicePersona,
+} from "./utils/speechUtils";
 
 // Static reference presets for instant exploration
 const PRESET_EQUATIONS = [
@@ -99,6 +107,42 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     subtitle: "Visual & Exploratory",
     bestFor: "Visual math sandboxes (fractals, Mandelbrot sets, cellular automata, Fourier transforms).",
     vibe: "Dark, ambient, and fluid—framing mathematics as the hidden fabric of nature and physics.",
+    isFlagship: true
+  },
+  lightAcademic: {
+    bg: "bg-light-academic-canvas",
+    border: "border-[#E2E8F0]",
+    accent: "text-[#2563EB]",
+    text: "text-[#0F172A]",
+    dot: "bg-[#2563EB] shadow-[0_0_8px_rgba(37,99,235,0.4)]",
+    label: "Light Academic",
+    subtitle: "Clean & Trustworthy",
+    bestFor: "Clean, high-trust environment for rigorous math solving, textbook problem exploration, and paper proof verification.",
+    vibe: "Pure white cards (#FFFFFF), crisp slate text (#0F172A), cobalt blue primary (#2563EB), and vivid purple accents (#7C3AED).",
+    isFlagship: true
+  },
+  darkAI: {
+    bg: "bg-dark-ai-canvas",
+    border: "border-[#273449]",
+    accent: "text-[#6366F1]",
+    text: "text-[#F8FAFC]",
+    dot: "bg-[#6366F1] shadow-[0_0_8px_rgba(99,102,241,0.7)]",
+    label: "Dark AI",
+    subtitle: "Next-Gen AI Core",
+    bestFor: "Default dark theme for deep algorithmic focus, neural tensor graphing, and modern AI math tutoring.",
+    vibe: "Deep neural background (#0B1020), slate dark cards (#111827), indigo primary (#6366F1), and cyan highlights (#06B6D4).",
+    isFlagship: true
+  },
+  notebook: {
+    bg: "bg-notebook-canvas",
+    border: "border-[#E2DAC7]",
+    accent: "text-[#1E40AF]",
+    text: "text-[#242018]",
+    dot: "bg-[#1E40AF] shadow-[0_0_8px_rgba(30,64,175,0.4)]",
+    label: "Notebook",
+    subtitle: "Digital Math Notebook",
+    bestFor: "Simulating a mathematician's authentic personal lab notebook, scratchpad algebra, and study notes.",
+    vibe: "Warm ivory paper (#FAF8F3), quadrille graph lines, Parker fountain pen blue (#1E40AF), and red margin indicators.",
     isFlagship: true
   },
   glassmorphic: {
@@ -198,6 +242,11 @@ export default function App() {
     setTheme(newTheme);
     localStorage.setItem('math_theme', newTheme);
   };
+
+  // Initialize speech voices cache on mount
+  useEffect(() => {
+    initSpeechVoices();
+  }, []);
 
   // Verify token on mount
   useEffect(() => {
@@ -487,7 +536,7 @@ export default function App() {
     };
   }, [activeSceneIndex, solution, speed, narrator, isMuted]);
 
-  // Audio trigger
+  // Audio trigger using human neural voices and natural mathematical speech
   const triggerAudioNarration = (text: string) => {
     try {
       if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -495,53 +544,24 @@ export default function App() {
       // Stop ongoing voice
       window.speechSynthesis.cancel();
 
-      // Clean LaTeX commands from narrative audio output so it speaks human words
-      const cleanerSpeech = text
-        .replace(/\\sin/g, "sine")
-        .replace(/\\cos/g, "cosine")
-        .replace(/\\pi/g, "pie")
-        .replace(/\\frac/g, "fraction")
-        .replace(/\\quad/g, " ")
-        .replace(/\\text\{([^}]+)\}/g, "$1")
-        .replace(/\\approx/g, "approximately")
-        .replace(/\\lim_\{x \\to 0\}/g, "the limit as x approaches zero of")
-        .replace(/_1/g, " sub one")
-        .replace(/_2/g, " sub two")
-        .replace(/\^2/g, " squared")
-        .replace(/D =/g, "the discriminant equals")
-        .replace(/\\pm/g, "plus or minus");
+      // Clean LaTeX commands from narrative audio output so it speaks natural human mathematical language
+      const cleanerSpeech = cleanLatexForSpeech(text);
+      if (!cleanerSpeech) return;
 
       const utterance = new SpeechSynthesisUtterance(cleanerSpeech);
 
       // Select appropriate synthesized tone profile
-      const voices = window.speechSynthesis.getVoices();
-      const maleVoice = voices.find(v => {
-        const name = v.name.toLowerCase();
-        return name.includes("male") ||
-          name.includes("david") ||
-          name.includes("guy") ||
-          name.includes("george") ||
-          name.includes("daniel") ||
-          name.includes("thomas") ||
-          name.includes("james") ||
-          name.includes("microsoft david");
-      });
+      const persona: VoicePersona =
+        narrator === "assistant" ? "scholar" : narrator === "cyborg" ? "friendly" : "natural";
+      const humanVoice = getBestHumanVoice({ persona });
 
-      if (maleVoice) {
-        utterance.voice = maleVoice;
+      if (humanVoice) {
+        utterance.voice = humanVoice;
       }
 
-      if (narrator === "cyborg") {
-        utterance.pitch = 0.4;
-        utterance.rate = 0.85 * speed;
-      } else if (narrator === "assistant") {
-        utterance.pitch = 1.0; // Lowered from 1.3 for male voice
-        utterance.rate = 1.1 * speed;
-      } else {
-        // Natural profile
-        utterance.pitch = 0.9; // Slightly lower pitch for deeper male voice
-        utterance.rate = 0.95 * speed;
-      }
+      // Natural human pitch and conversational cadence
+      utterance.pitch = 1.0;
+      utterance.rate = Math.min(1.4, Math.max(0.75, 0.98 * speed));
 
       utteranceRef.current = utterance;
       window.speechSynthesis.speak(utterance);
@@ -708,10 +728,14 @@ export default function App() {
   const isChalkboard = theme === "chalkboard";
   const isBlueprint = theme === "blueprint";
   const isCosmos = theme === "cosmos";
+  const isLightAcademic = theme === "lightAcademic";
+  const isDarkAI = theme === "darkAI";
+  const isNotebook = theme === "notebook";
+  const isLight = isLightAcademic || isNotebook;
 
   return (
-    <div className={`w-full min-h-screen ${THEME_CLASSES[theme].bg} text-white font-sans flex flex-col overflow-x-hidden antialiased ${
-      isChalkboard ? "selection:bg-amber-400/30 selection:text-white" : isBlueprint ? "selection:bg-cyan-400/30 selection:text-cyan-100" : isCosmos ? "selection:bg-purple-400/30 selection:text-purple-100" : "selection:bg-blue-600/30"
+    <div className={`w-full min-h-screen ${THEME_CLASSES[theme].bg} ${isLight ? THEME_CLASSES[theme].text : "text-white"} font-sans flex flex-col overflow-x-hidden antialiased ${
+      isChalkboard ? "selection:bg-amber-400/30 selection:text-white" : isBlueprint ? "selection:bg-cyan-400/30 selection:text-cyan-100" : isCosmos ? "selection:bg-purple-400/30 selection:text-purple-100" : isLightAcademic ? "selection:bg-blue-600/20 selection:text-blue-900" : isNotebook ? "selection:bg-amber-200 selection:text-stone-900" : isDarkAI ? "selection:bg-indigo-500/30 selection:text-indigo-100" : "selection:bg-blue-600/30"
     }`}>
 
       {/* Video Modal Overlay */}
@@ -909,6 +933,12 @@ export default function App() {
           ? "border-cyan-500/30 bg-[#041224]/95 backdrop-blur-md font-mono"
           : isCosmos
           ? "border-purple-500/30 bg-[#060412]/95 backdrop-blur-md"
+          : isLightAcademic
+          ? "border-[#E2E8F0] bg-white/95 backdrop-blur-md"
+          : isDarkAI
+          ? "border-[#273449] bg-[#0B1020]/95 backdrop-blur-md font-mono"
+          : isNotebook
+          ? "border-[#E2DAC7] bg-[#FAF8F3]/95 backdrop-blur-md font-academic"
           : "border-white/10"
       }`}>
         <label htmlFor="equation-bar-input" className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -919,9 +949,15 @@ export default function App() {
               ? "bg-[#051e3c] border border-cyan-500/50 text-cyan-300 font-mono"
               : isCosmos
               ? "bg-[#150a30] border border-purple-500/50 text-purple-300"
+              : isLightAcademic
+              ? "bg-[#2563EB] text-white shadow-sm"
+              : isDarkAI
+              ? "bg-[#1e1b4b] border border-indigo-500/50 text-cyan-300 font-mono"
+              : isNotebook
+              ? "bg-[#FFFDF8] border border-[#E2DAC7] text-blue-900 font-academic shadow-xs"
               : "bg-blue-600 text-white"
           }`}>
-            {isChalkboard ? "Σ" : isBlueprint ? "⌖" : isCosmos ? "✦" : "Σ"}
+            {isChalkboard ? "Σ" : isBlueprint ? "⌖" : isCosmos ? "✦" : isDarkAI ? "◈" : isNotebook ? "✎" : "Σ"}
           </div>
           <div className="flex items-center gap-2">
             <span className={`text-xl tracking-tight uppercase ${
@@ -931,15 +967,29 @@ export default function App() {
                 ? "font-mono font-bold text-cyan-100 tracking-wider"
                 : isCosmos
                 ? "font-sans font-bold text-purple-100"
+                : isLightAcademic
+                ? "font-sans font-black text-slate-900"
+                : isDarkAI
+                ? "font-mono font-black text-[#F8FAFC] tracking-wider"
+                : isNotebook
+                ? "font-academic font-bold text-stone-900"
                 : "font-black tracking-tighter"
             }`}>MathMotion</span>
-            {(isChalkboard || isBlueprint || isCosmos) && (
+            {(isChalkboard || isBlueprint || isCosmos || isLightAcademic || isDarkAI || isNotebook) && (
               <span className={`hidden md:inline-block text-[9px] border px-2 py-0.5 rounded uppercase tracking-widest ${
                 isChalkboard
                   ? "bg-amber-500/15 border-amber-500/30 text-amber-300 font-scholar-title"
                   : isBlueprint
                   ? "bg-cyan-500/15 border-cyan-500/40 text-cyan-300 font-mono"
-                  : "bg-purple-500/15 border-purple-500/40 text-purple-300 font-sans"
+                  : isCosmos
+                  ? "bg-purple-500/15 border-purple-500/40 text-purple-300 font-sans"
+                  : isLightAcademic
+                  ? "bg-blue-50 border-blue-200 text-blue-700 font-sans font-semibold"
+                  : isDarkAI
+                  ? "bg-indigo-950/60 border-indigo-500/40 text-cyan-300 font-mono"
+                  : isNotebook
+                  ? "bg-[#F4ECE1] border-[#E2DAC7] text-stone-700 font-academic font-semibold"
+                  : "bg-white/10 border-white/20 text-white/70"
               }`}>
                 {THEME_CLASSES[theme].label}
               </span>
@@ -954,6 +1004,12 @@ export default function App() {
             ? "text-cyan-300/60 font-mono"
             : isCosmos
             ? "text-purple-300/60 font-sans"
+            : isLightAcademic
+            ? "text-slate-500 font-sans"
+            : isDarkAI
+            ? "text-slate-400 font-mono"
+            : isNotebook
+            ? "text-stone-600 font-academic"
             : "text-white/50"
         }`}>
           <button
@@ -966,11 +1022,17 @@ export default function App() {
                     ? "text-cyan-300 border-b-2 border-cyan-400 pb-1"
                     : isCosmos
                     ? "text-purple-300 border-b-2 border-purple-400 pb-1"
+                    : isLightAcademic
+                    ? "text-blue-600 border-b-2 border-blue-600 pb-1 font-bold"
+                    : isDarkAI
+                    ? "text-cyan-300 border-b-2 border-indigo-400 pb-1"
+                    : isNotebook
+                    ? "text-blue-900 border-b-2 border-blue-800 pb-1 font-bold"
                     : "text-white border-b-2 border-blue-600 pb-1") 
-                : (isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : "hover:text-white")
+                : (isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : isLight ? "hover:text-slate-900" : "hover:text-white")
             }`}
           >
-            {isChalkboard ? "Scholar Dashboard" : isBlueprint ? "Drafting Deck" : isCosmos ? "Cosmic Visualizer" : "Dashboard"}
+            {isChalkboard ? "Scholar Dashboard" : isBlueprint ? "Drafting Deck" : isCosmos ? "Cosmic Visualizer" : isLightAcademic ? "Academic Workspace" : isDarkAI ? "Neural Deck" : isNotebook ? "Notebook Workspace" : "Dashboard"}
           </button>
           <button
             onClick={() => setCurrentView("methods")}
@@ -982,20 +1044,26 @@ export default function App() {
                     ? "text-cyan-300 border-b-2 border-cyan-400 pb-1"
                     : isCosmos
                     ? "text-purple-300 border-b-2 border-purple-400 pb-1"
+                    : isLightAcademic
+                    ? "text-blue-600 border-b-2 border-blue-600 pb-1 font-bold"
+                    : isDarkAI
+                    ? "text-cyan-300 border-b-2 border-indigo-400 pb-1"
+                    : isNotebook
+                    ? "text-blue-900 border-b-2 border-blue-800 pb-1 font-bold"
                     : "text-white border-b-2 border-blue-600 pb-1") 
-                : (isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : "hover:text-white")
+                : (isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : isLight ? "hover:text-slate-900" : "hover:text-white")
             }`}
           >
-            <BookOpen className={`w-3.5 h-3.5 ${isChalkboard ? "text-amber-400" : isBlueprint ? "text-cyan-400" : isCosmos ? "text-purple-400" : "text-blue-400"}`} />
-            {isChalkboard ? "Methods Compendium" : isBlueprint ? "Algorithmic Specs" : isCosmos ? "Harmonic Compendium" : "Solving Methods"}
+            <BookOpen className={`w-3.5 h-3.5 ${isChalkboard ? "text-amber-400" : isBlueprint ? "text-cyan-400" : isCosmos ? "text-purple-400" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-stone-700" : "text-blue-400"}`} />
+            {isChalkboard ? "Methods Compendium" : isBlueprint ? "Algorithmic Specs" : isCosmos ? "Harmonic Compendium" : isLightAcademic ? "Proofs & Methods" : isDarkAI ? "Kernel Methods" : isNotebook ? "Solving Log" : "Solving Methods"}
           </button>
           <button
             onClick={() => setIsPaymentModalOpen(true)}
             className={`transition-colors cursor-pointer ${
-              isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : "hover:text-white"
+              isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : isLight ? "hover:text-slate-900" : "hover:text-white"
             }`}
           >
-            {isChalkboard ? "Academy Fellowship" : isBlueprint ? "Enterprise CAD" : isCosmos ? "Cosmic Pro" : "Pricing Plans"}
+            {isChalkboard ? "Academy Fellowship" : isBlueprint ? "Enterprise CAD" : isCosmos ? "Cosmic Pro" : isLightAcademic ? "Pro Researcher" : isDarkAI ? "Enterprise AI" : isNotebook ? "Fellowship Edition" : "Pricing Plans"}
           </button>
         </nav>
 
@@ -1203,23 +1271,23 @@ export default function App() {
                   {/* Visual coordinate context info cards beneath Graph */}
                   <div className="grid grid-cols-2 gap-3 mt-1.5">
                     <div className={`p-3 rounded-xl ${
-                      isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : "bg-white/5 border border-white/10"
+                      isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : isLightAcademic ? "bg-white border border-[#E2E8F0] academic-light-frame" : isDarkAI ? "bg-[#111827] border border-[#273449] dark-ai-frame" : isNotebook ? "bg-[#FFFDF8] border border-[#E2DAC7] notebook-frame" : "bg-white/5 border border-white/10"
                     }`}>
-                      <p className={`text-[9px] uppercase font-bold tracking-widest ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/40"}`}>
-                        {isChalkboard ? "Curriculum Rigor Level" : "Calculus Level"}
+                      <p className={`text-[9px] uppercase font-bold tracking-widest ${isChalkboard ? "text-amber-200/60 font-scholar-title" : isLightAcademic ? "text-slate-500 font-sans" : isDarkAI ? "text-slate-400 font-mono" : isNotebook ? "text-stone-600 font-academic" : "text-white/40"}`}>
+                        {isChalkboard ? "Curriculum Rigor Level" : isLightAcademic ? "Academic Domain" : isDarkAI ? "Tensor Classification" : isNotebook ? "Notebook Topic" : "Calculus Level"}
                       </p>
-                      <p className={`text-base font-bold mt-1 ${isChalkboard ? "text-amber-100 font-scholar-title" : "text-white"}`}>
+                      <p className={`text-base font-bold mt-1 ${isChalkboard ? "text-amber-100 font-scholar-title" : isLight ? "text-slate-900" : "text-white"}`}>
                         {solution?.equationType || "Pre-Algebra"}
                       </p>
                     </div>
                     <div className={`p-3 rounded-xl ${
-                      isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : "bg-white/5 border border-white/10"
+                      isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : isLightAcademic ? "bg-white border border-[#E2E8F0] academic-light-frame" : isDarkAI ? "bg-[#111827] border border-[#273449] dark-ai-frame" : isNotebook ? "bg-[#FFFDF8] border border-[#E2DAC7] notebook-frame" : "bg-white/5 border border-white/10"
                     }`}>
-                      <p className={`text-[9px] uppercase font-bold tracking-widest ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/40"}`}>
-                        {isChalkboard ? "Analytical Solution (Q.E.D.)" : "Final Solution"}
+                      <p className={`text-[9px] uppercase font-bold tracking-widest ${isChalkboard ? "text-amber-200/60 font-scholar-title" : isLightAcademic ? "text-slate-500 font-sans" : isDarkAI ? "text-slate-400 font-mono" : isNotebook ? "text-stone-600 font-academic" : "text-white/40"}`}>
+                        {isChalkboard ? "Analytical Solution (Q.E.D.)" : isLightAcademic ? "Rigorous Resolution" : isDarkAI ? "Calculated Root Vector" : isNotebook ? "Derived Solution" : "Final Solution"}
                       </p>
                       <div className={`text-sm font-bold mt-1 font-mono truncate overflow-x-auto whitespace-normal scrollbar-none ${
-                        isChalkboard ? "text-amber-300 font-academic" : "text-blue-400"
+                        isChalkboard ? "text-amber-300 font-academic" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-blue-900 font-academic" : "text-blue-400"
                       }`}>
                         {solution ? (
                           <span className="inline-flex items-center gap-1">
@@ -1238,13 +1306,13 @@ export default function App() {
             </div>
 
             {/* New equation entry prompt bar aligned with Academic Chalkboard */}
-            <div className={`mt-8 pt-6 border-t ${isChalkboard ? "border-amber-900/30" : "border-white/10"}`} id="equation-entry-panel">
+            <div className={`mt-8 pt-6 border-t ${isChalkboard ? "border-amber-900/30" : isLight ? "border-slate-200" : "border-white/10"}`} id="equation-entry-panel">
               {/* Quick Math & LaTeX Symbols Toolbar */}
               <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
                 <span className={`text-[9px] font-bold uppercase tracking-wider mr-1 ${
-                  isChalkboard ? "text-amber-300 font-scholar-title" : "text-blue-400 font-mono"
+                  isChalkboard ? "text-amber-300 font-scholar-title" : isLightAcademic ? "text-blue-700 font-sans" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-700 font-academic font-bold" : "text-blue-400 font-mono"
                 }`}>
-                  {isChalkboard ? "Scholar's Chalk Keys:" : "Insert Symbol:"}
+                  {isChalkboard ? "Scholar's Chalk Keys:" : isNotebook ? "Notebook Math Keys:" : isLightAcademic ? "Academic Notation:" : isDarkAI ? "Neural Math Tokens:" : "Insert Symbol:"}
                 </span>
                 {[
                   { label: "∫ dx", insert: "integrate(x^2)" },
@@ -1265,6 +1333,12 @@ export default function App() {
                     className={`px-2 py-1 text-[10px] font-mono rounded border transition-colors cursor-pointer ${
                       isChalkboard 
                         ? "bg-[#13221a] hover:bg-[#1c3829] hover:border-amber-500/50 text-amber-200/90 hover:text-amber-100 border-amber-900/40 shadow-xs" 
+                        : isLightAcademic
+                        ? "bg-white hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-700 border-slate-200 shadow-xs"
+                        : isDarkAI
+                        ? "bg-[#111827] hover:bg-[#1f2937] hover:border-indigo-500/50 text-cyan-300 hover:text-cyan-200 border-[#273449]"
+                        : isNotebook
+                        ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] hover:border-blue-400 text-stone-800 hover:text-blue-900 border-[#E2DAC7] shadow-xs"
                         : "bg-white/5 hover:bg-blue-600/30 hover:border-blue-500/50 text-white/80 hover:text-white border-white/10"
                     }`}
                   >
@@ -1283,6 +1357,12 @@ export default function App() {
                     className={`w-full border-2 px-4 py-3.5 font-mono text-base focus:outline-none transition-colors uppercase tracking-wide rounded-sm ${
                       isChalkboard 
                         ? "bg-[#0c1813] border-amber-900/40 focus:border-amber-400 text-[#faf8f2] placeholder:text-amber-200/30 shadow-inner" 
+                        : isLightAcademic
+                        ? "bg-white border-[#E2E8F0] focus:border-[#2563EB] text-[#0F172A] placeholder:text-slate-400 shadow-xs"
+                        : isDarkAI
+                        ? "bg-[#111827] border-[#273449] focus:border-[#6366F1] text-[#F8FAFC] placeholder:text-slate-500 shadow-inner"
+                        : isNotebook
+                        ? "bg-[#FFFDF8] border-[#E2DAC7] focus:border-[#1E40AF] text-[#242018] placeholder:text-stone-400 shadow-xs"
                         : "bg-white/5 border-white/20 focus:border-blue-600 placeholder:text-white/30"
                     }`}
                     value={equationInput}
@@ -1296,7 +1376,13 @@ export default function App() {
                   <button
                     onClick={() => setEquationInput("")}
                     className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded cursor-pointer ${
-                      isChalkboard ? "text-amber-200/50 hover:text-amber-200 bg-[#16291e]" : "text-white/40 hover:text-white bg-white/10"
+                      isChalkboard 
+                        ? "text-amber-200/50 hover:text-amber-200 bg-[#16291e]" 
+                        : isLightAcademic
+                        ? "text-slate-400 hover:text-slate-700 bg-slate-100"
+                        : isNotebook
+                        ? "text-stone-400 hover:text-stone-700 bg-stone-100"
+                        : "text-white/40 hover:text-white bg-white/10"
                     }`}
                   >
                     Clear
@@ -1316,7 +1402,7 @@ export default function App() {
                   title={isRecordingMainInput ? "Stop Dictation" : "Dictate Equation (Voice Input)"}
                   className={`p-3.5 transition-all cursor-pointer rounded-sm flex items-center justify-center border-2 ${isRecordingMainInput
                     ? "bg-red-500/30 border-red-500 text-red-400 animate-pulse"
-                    : (isChalkboard ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40" : "bg-white/10 hover:bg-white/20 text-blue-400 border-white/20")
+                    : (isChalkboard ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40" : isLightAcademic ? "bg-white hover:bg-slate-50 text-blue-600 border-slate-200 shadow-xs" : isNotebook ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] text-blue-900 border-[#E2DAC7] shadow-xs" : isDarkAI ? "bg-[#111827] hover:bg-[#1a2336] text-cyan-300 border-[#273449]" : "bg-white/10 hover:bg-white/20 text-blue-400 border-white/20")
                     }`}
                 >
                   {isRecordingMainInput ? (
@@ -1333,13 +1419,19 @@ export default function App() {
                   className={`p-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center border-2 disabled:opacity-40 ${
                     isChalkboard 
                       ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40" 
+                      : isLightAcademic
+                      ? "bg-white hover:bg-slate-50 text-blue-600 border-slate-200 shadow-xs"
+                      : isNotebook
+                      ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] text-stone-700 border-[#E2DAC7] shadow-xs"
+                      : isDarkAI
+                      ? "bg-[#111827] hover:bg-[#1a2336] text-cyan-300 border-[#273449]"
                       : "bg-white/10 hover:bg-white/20 text-white border-white/20"
                   }`}
                 >
                   {isOcrLoading ? (
                     <RefreshCw className={`w-5 h-5 animate-spin ${isChalkboard ? "text-amber-400" : "text-blue-400"}`} />
                   ) : (
-                    <Scan className={`w-5 h-5 ${isChalkboard ? "text-amber-300" : "text-blue-400"}`} />
+                    <Scan className={`w-5 h-5 ${isChalkboard ? "text-amber-300" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-stone-700" : "text-blue-400"}`} />
                   )}
                 </button>
 
@@ -1349,6 +1441,12 @@ export default function App() {
                   className={`font-black uppercase tracking-wider px-8 py-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center gap-2 text-sm shadow-lg ${
                     isChalkboard 
                       ? "bg-[#1a3829] hover:bg-[#254f3a] disabled:opacity-50 text-amber-200 border border-amber-500/40 font-scholar-title shadow-black/50" 
+                      : isLightAcademic
+                      ? "bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-sans shadow-blue-500/25"
+                      : isDarkAI
+                      ? "bg-[#6366F1] hover:bg-indigo-600 disabled:opacity-50 text-white font-mono shadow-indigo-950/60"
+                      : isNotebook
+                      ? "bg-[#1E40AF] hover:bg-blue-900 disabled:opacity-50 text-[#FAF8F3] font-academic shadow-stone-400/40"
                       : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white tracking-tighter"
                   }`}
                   id="parse_equation_btn"
@@ -1356,9 +1454,9 @@ export default function App() {
                   {loading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      {isChalkboard ? "Deriving Rigor..." : "Parsing..."}
+                      {isChalkboard ? "Deriving Rigor..." : isLightAcademic ? "Solving Step-by-Step..." : isNotebook ? "Recording in Notebook..." : "Parsing..."}
                     </>
-                  ) : (isChalkboard ? "Derive & Synthesize" : "Parse & Synthesize")}
+                  ) : (isChalkboard ? "Derive & Synthesize" : isLightAcademic ? "Solve & Prove" : isNotebook ? "Record Solution" : "Parse & Synthesize")}
                 </button>
               </div>
 
@@ -1367,16 +1465,28 @@ export default function App() {
                 <div className={`mt-3 px-4 py-2.5 rounded-lg flex items-center justify-between border ${
                   isChalkboard 
                     ? "bg-[#0e1a14] border-amber-900/40" 
+                    : isLightAcademic
+                    ? "bg-blue-50/60 border-blue-200"
+                    : isDarkAI
+                    ? "bg-[#111827] border-[#273449]"
+                    : isNotebook
+                    ? "bg-[#FAF5EA] border-[#E2DAC7]"
                     : "bg-blue-950/20 border-blue-500/30"
                 }`}>
                   <span className={`text-[10px] uppercase font-bold tracking-wider ${
-                    isChalkboard ? "text-amber-300 font-scholar-title" : "font-mono text-blue-400"
+                    isChalkboard ? "text-amber-300 font-scholar-title" : isLightAcademic ? "text-blue-700 font-sans font-semibold" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-700 font-academic font-semibold" : "font-mono text-blue-400"
                   }`}>
                     Live LaTeX Preview:
                   </span>
                   <div className={`text-sm font-medium px-2 py-0.5 rounded border ${
                     isChalkboard 
                       ? "bg-black/50 text-amber-200 border-amber-500/20" 
+                      : isLightAcademic
+                      ? "bg-white text-blue-700 border-blue-200 shadow-xs"
+                      : isDarkAI
+                      ? "bg-[#0B1020] text-cyan-300 border-[#273449]"
+                      : isNotebook
+                      ? "bg-[#FFFDF8] text-stone-900 border-[#E2DAC7] shadow-xs"
                       : "bg-black/40 text-white border-white/5"
                   }`}>
                     <KatexMath math={equationInput} block={false} />
@@ -1430,20 +1540,20 @@ export default function App() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className={`text-[10px] uppercase font-bold tracking-wider ${
-                      isChalkboard ? "text-amber-200/80 font-scholar-title" : isBlueprint ? "text-cyan-300 font-mono" : isCosmos ? "text-purple-300 font-sans" : "text-white/70"
+                      isChalkboard ? "text-amber-200/80 font-scholar-title" : isBlueprint ? "text-cyan-300 font-mono" : isCosmos ? "text-purple-300 font-sans" : isLight ? "text-slate-800 font-sans font-bold" : "text-white/70"
                     }`}>
-                      Flagship Math Themes (3 Editions)
+                      Flagship Math Themes (6 Editions)
                     </label>
                     <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
-                      isChalkboard ? "border-amber-500/30 text-amber-300 bg-amber-500/10" : isBlueprint ? "border-cyan-500/30 text-cyan-300 bg-cyan-500/10" : isCosmos ? "border-purple-500/30 text-purple-300 bg-purple-500/10" : "border-white/20 text-white/50"
+                      isChalkboard ? "border-amber-500/30 text-amber-300 bg-amber-500/10" : isBlueprint ? "border-cyan-500/30 text-cyan-300 bg-cyan-500/10" : isCosmos ? "border-purple-500/30 text-purple-300 bg-purple-500/10" : isLight ? "border-blue-300 text-blue-700 bg-blue-50" : "border-white/20 text-white/50"
                     }`}>
                       Curated
                     </span>
                   </div>
 
-                  {/* 3 Flagship Themes Cards */}
+                  {/* 6 Flagship Themes Cards */}
                   <div className="space-y-2 mb-4" id="flagship-themes-deck">
-                    {(["blueprint", "chalkboard", "cosmos"] as ThemeType[]).map((tKey, idx) => {
+                    {(["lightAcademic", "darkAI", "notebook", "chalkboard", "blueprint", "cosmos"] as ThemeType[]).map((tKey, idx) => {
                       const tInfo = THEME_CLASSES[tKey];
                       const isSelected = theme === tKey;
                       return (
@@ -1452,11 +1562,23 @@ export default function App() {
                           onClick={() => handleTheme(tKey)}
                           className={`p-2.5 rounded-lg border transition-all cursor-pointer relative group ${
                             isSelected
-                              ? tKey === "blueprint"
+                              ? tKey === "lightAcademic"
+                                ? "bg-white border-[#2563EB] ring-2 ring-[#2563EB]/40 shadow-md shadow-blue-500/20"
+                                : tKey === "darkAI"
+                                ? "bg-[#111827] border-[#6366F1] ring-2 ring-[#6366F1]/40 shadow-md shadow-indigo-950/60"
+                                : tKey === "notebook"
+                                ? "bg-[#FFFDF8] border-[#1E40AF] ring-2 ring-[#1E40AF]/40 shadow-md shadow-amber-900/20"
+                                : tKey === "blueprint"
                                 ? "bg-[#061d3b] border-cyan-400 ring-1 ring-cyan-400 shadow-md shadow-cyan-950/60"
                                 : tKey === "chalkboard"
                                 ? "bg-[#183626] border-amber-400 ring-1 ring-amber-400 shadow-md shadow-amber-950/60"
                                 : "bg-[#170c36] border-purple-400 ring-1 ring-purple-400 shadow-md shadow-purple-950/60"
+                              : isLightAcademic
+                              ? "bg-slate-50/70 hover:bg-slate-100 border-slate-200"
+                              : isNotebook
+                              ? "bg-[#FAF8F3]/70 hover:bg-[#F3EFE6] border-[#E2DAC7]"
+                              : isDarkAI
+                              ? "bg-[#111827]/70 hover:bg-[#1a2336] border-[#273449]"
                               : isChalkboard
                               ? "bg-[#0c1813]/60 hover:bg-[#12241b] border-amber-900/30 hover:border-amber-500/30"
                               : isBlueprint
@@ -1466,13 +1588,13 @@ export default function App() {
                         >
                           <div className="flex items-center justify-between gap-1 mb-1">
                             <div className="flex items-center gap-1.5">
-                              <span className={`text-[10px] font-mono ${isSelected ? "text-amber-300 font-bold" : "opacity-40"}`}>
+                              <span className={`text-[10px] font-mono ${isSelected ? "text-amber-300 font-bold" : isLight ? "text-slate-500" : "opacity-40"}`}>
                                 0{idx + 1}.
                               </span>
                               <span className={`text-[11px] font-bold tracking-tight ${
                                 isSelected 
-                                  ? (tKey === "blueprint" ? "text-cyan-200" : tKey === "chalkboard" ? "text-amber-200" : "text-purple-200") 
-                                  : "text-white/90"
+                                  ? (tKey === "lightAcademic" ? "text-blue-600" : tKey === "darkAI" ? "text-cyan-300" : tKey === "notebook" ? "text-blue-900" : tKey === "blueprint" ? "text-cyan-200" : tKey === "chalkboard" ? "text-amber-200" : "text-purple-200") 
+                                  : isLight ? "text-slate-800" : "text-white/90"
                               }`}>
                                 {tInfo.label}
                               </span>
@@ -1481,18 +1603,18 @@ export default function App() {
                           </div>
 
                           <div className={`text-[9px] uppercase tracking-wider font-semibold mb-1 flex items-center gap-1 ${
-                            isSelected ? (tKey === "blueprint" ? "text-cyan-400" : tKey === "chalkboard" ? "text-amber-300" : "text-purple-300") : "text-white/50"
+                            isSelected ? (tKey === "lightAcademic" ? "text-blue-600" : tKey === "darkAI" ? "text-indigo-400" : tKey === "notebook" ? "text-stone-700 font-academic" : tKey === "blueprint" ? "text-cyan-400" : tKey === "chalkboard" ? "text-amber-300" : "text-purple-300") : (isLight ? "text-slate-500" : "text-white/50")
                           }`}>
                             <span>({tInfo.subtitle})</span>
                           </div>
 
-                          <div className="text-[9px] leading-snug space-y-0.5 opacity-80">
-                            <p className="text-white/70 line-clamp-2">
-                              <span className="font-semibold text-white/90">Best for: </span>
+                          <div className={`text-[9px] leading-snug space-y-0.5 ${isLight ? "opacity-90" : "opacity-80"}`}>
+                            <p className={`${isLight ? "text-slate-600" : "text-white/70"} line-clamp-2`}>
+                              <span className={`font-semibold ${isLight ? "text-slate-900" : "text-white/90"}`}>Best for: </span>
                               {tInfo.bestFor}
                             </p>
-                            <p className="text-white/50 italic line-clamp-2">
-                              <span className="font-semibold not-italic text-white/70">Vibe: </span>
+                            <p className={`${isLight ? "text-slate-500" : "text-white/50"} italic line-clamp-2`}>
+                              <span className={`font-semibold not-italic ${isLight ? "text-slate-700" : "text-white/70"}`}>Vibe: </span>
                               {tInfo.vibe}
                             </p>
                           </div>
@@ -1504,14 +1626,14 @@ export default function App() {
                   {/* Alternative Palettes */}
                   <div className="flex items-center justify-between mb-1.5">
                     <label className={`text-[9px] uppercase font-bold tracking-wider opacity-60 ${
-                      isChalkboard ? "text-amber-200/60 font-scholar-title" : isBlueprint ? "text-cyan-300/60 font-mono" : "text-white/60"
+                      isChalkboard ? "text-amber-200/60 font-scholar-title" : isBlueprint ? "text-cyan-300/60 font-mono" : isLight ? "text-slate-700 font-sans" : "text-white/60"
                     }`}>
-                      Alternative Studio Palettes ({Object.keys(THEME_CLASSES).length - 3})
+                      Alternative Studio Palettes ({Object.keys(THEME_CLASSES).length - 6})
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5" id="skin-themes-deck">
                     {(Object.keys(THEME_CLASSES) as ThemeType[])
-                      .filter((k) => k !== "blueprint" && k !== "chalkboard" && k !== "cosmos")
+                      .filter((k) => k !== "blueprint" && k !== "chalkboard" && k !== "cosmos" && k !== "lightAcademic" && k !== "darkAI" && k !== "notebook")
                       .map((tKey) => {
                         const tInfo = THEME_CLASSES[tKey];
                         const isSelected = theme === tKey;
@@ -1526,6 +1648,8 @@ export default function App() {
                                 ? "border-amber-900/30 text-amber-200/60 hover:bg-[#12241b]"
                                 : isBlueprint
                                 ? "border-cyan-500/20 text-cyan-200/60 hover:bg-[#051c38]"
+                                : isLight
+                                ? "border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
                                 : "border-white/10 text-white/70 hover:bg-white/5 hover:border-white/30"
                             }`}
                           >
@@ -1540,58 +1664,142 @@ export default function App() {
                 {/* Synthesized voice setting */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className={`text-[10px] uppercase font-bold block tracking-wider ${isChalkboard ? "text-amber-200/70 font-scholar-title" : "text-white/60"}`}>
+                    <label className={`text-[10px] uppercase font-bold block tracking-wider ${
+                      isChalkboard ? "text-amber-200/70 font-scholar-title" :
+                      isLightAcademic ? "text-slate-700 font-sans" :
+                      isNotebook ? "text-stone-800 font-academic" :
+                      isDarkAI ? "text-slate-300 font-mono" :
+                      "text-white/60"
+                    }`}>
                       {isChalkboard ? "Lecturer Persona" : "Auto Audio Narrator"}
                     </label>
-                    <button
-                      onClick={() => setIsMuted(!isMuted)}
-                      className="text-white/60 hover:text-white"
-                      title={isMuted ? "Unmute Voice" : "Mute Voice"}
-                    >
-                      {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className={`w-4 h-4 ${isChalkboard ? "text-amber-400" : "text-emerald-400"}`} />}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          const testText = isChalkboard
+                            ? "Step one: we apply the fundamental theorem of calculus to evaluate the definite integral."
+                            : narrator === "assistant"
+                            ? "Step one: let us analyze the discriminant to determine the nature of the roots."
+                            : narrator === "cyborg"
+                            ? "Step one: plotting the quadratic curve and identifying the vertex coordinates."
+                            : "Step one: let us factor the quadratic polynomial into linear binomial factors.";
+                          triggerAudioNarration(testText);
+                        }}
+                        className={`text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1 font-mono transition-colors cursor-pointer ${
+                          isChalkboard ? "bg-amber-900/40 text-amber-300 hover:bg-amber-800/60" :
+                          isLightAcademic ? "bg-blue-100 text-blue-700 hover:bg-blue-200" :
+                          isNotebook ? "bg-stone-200 text-stone-800 hover:bg-stone-300" :
+                          isDarkAI ? "bg-indigo-950/80 text-cyan-300 border border-indigo-800/40 hover:bg-indigo-900" :
+                          "bg-white/10 text-white/80 hover:bg-white/20"
+                        }`}
+                        title="Preview Narrator Voice"
+                      >
+                        <Volume2 className="w-3 h-3" />
+                        <span>Preview Voice</span>
+                      </button>
+                      <button
+                        onClick={() => setIsMuted(!isMuted)}
+                        className={`p-1 rounded transition-colors cursor-pointer ${
+                          isLightAcademic ? "text-slate-500 hover:text-slate-800" :
+                          isNotebook ? "text-stone-600 hover:text-stone-900" :
+                          "text-white/60 hover:text-white"
+                        }`}
+                        title={isMuted ? "Unmute Voice" : "Mute Voice"}
+                      >
+                        {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className={`w-4 h-4 ${isChalkboard ? "text-amber-400" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : "text-emerald-400"}`} />}
+                      </button>
+                    </div>
                   </div>
+
                   <div className="grid grid-cols-2 gap-2" id="narrator-type-deck">
                     <button
                       onClick={() => { setNarrator("natural"); setIsMuted(false); }}
                       className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
                         narrator === "natural" && !isMuted 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" 
+                            : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                            : isDarkAI ? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+                            : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
+                            : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" 
+                            : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
+                            : isDarkAI ? "border-[#273449] text-slate-300 bg-[#111827] hover:bg-[#1a2336]"
+                            : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
+                            : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
-                      {isChalkboard ? "Prof. Emeritus" : "Professor AI"}
+                      {isChalkboard ? "Prof. Emeritus (Male)" : "Professor AI (Male)"}
                     </button>
                     <button
                       onClick={() => { setNarrator("assistant"); setIsMuted(false); }}
                       className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
                         narrator === "assistant" && !isMuted 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" 
+                            : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                            : isDarkAI ? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+                            : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
+                            : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" 
+                            : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
+                            : isDarkAI ? "border-[#273449] text-slate-300 bg-[#111827] hover:bg-[#1a2336]"
+                            : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
+                            : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
-                      {isChalkboard ? "Oxford Fellow" : "Assistant Calm"}
+                      {isChalkboard ? "Oxford Fellow (Female)" : "Scholar AI (Female)"}
                     </button>
                     <button
                       onClick={() => { setNarrator("cyborg"); setIsMuted(false); }}
                       className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
                         narrator === "cyborg" && !isMuted 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
+                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" 
+                            : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                            : isDarkAI ? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
+                            : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
+                            : "bg-blue-600 text-white border-blue-500" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" 
+                            : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
+                            : isDarkAI ? "border-[#273449] text-slate-300 bg-[#111827] hover:bg-[#1a2336]"
+                            : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
+                            : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
-                      {isChalkboard ? "Cambridge Fellow" : "Cosmic Synth"}
+                      {isChalkboard ? "Cambridge Fellow" : "Conversational"}
                     </button>
                     <button
                       onClick={() => { setNarrator("mute"); }}
                       className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
                         narrator === "mute" || isMuted 
-                          ? isChalkboard ? "bg-[#14231b] text-amber-200/70 border-amber-900/50" : "bg-zinc-800 text-white border-zinc-700" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
+                          ? isChalkboard ? "bg-[#14231b] text-amber-200/70 border-amber-900/50" 
+                            : isLightAcademic ? "bg-slate-200 text-slate-800 border-slate-300"
+                            : isDarkAI ? "bg-zinc-800 text-white border-zinc-700"
+                            : isNotebook ? "bg-stone-300 text-stone-800 border-stone-400"
+                            : "bg-zinc-800 text-white border-zinc-700" 
+                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" 
+                            : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
+                            : isDarkAI ? "border-[#273449] text-slate-300 bg-[#111827] hover:bg-[#1a2336]"
+                            : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
+                            : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       Muted
                     </button>
+                  </div>
+
+                  {/* Active Voice Indicator Badge */}
+                  <div className={`mt-2 px-2 py-1 rounded text-[9px] flex items-center justify-between font-mono ${
+                    isChalkboard ? "bg-[#111f18] text-amber-300/80 border border-amber-900/30" :
+                    isLightAcademic ? "bg-slate-100 text-slate-600 border border-slate-200" :
+                    isNotebook ? "bg-[#F5EFE0] text-stone-600 border border-[#E2DAC7]" :
+                    isDarkAI ? "bg-[#111827] text-slate-400 border border-[#273449]" :
+                    "bg-white/5 text-white/50 border border-white/5"
+                  }`}>
+                    <span className="truncate">
+                      Voice: {getVoiceDisplayName(getBestHumanVoice({ persona: narrator === "assistant" ? "scholar" : narrator === "cyborg" ? "friendly" : "natural" }))}
+                    </span>
+                    <span className="shrink-0 text-emerald-400 font-sans font-medium text-[8px] uppercase tracking-wider ml-1">
+                      Human Audio
+                    </span>
                   </div>
                 </div>
 
@@ -1894,13 +2102,14 @@ export default function App() {
       />
 
       {/* AI Chat assistant */}
-      <AIChat solution={solution} currentSence={currentScene} />
+      <AIChat solution={solution} currentSence={currentScene} theme={theme} />
 
       {/* Floating AI Math Voice Assistant */}
       <VoiceAssistant
         solution={solution}
         activeScene={currentScene}
         currentView={currentView}
+        theme={theme}
         onSolveEquation={(eq) => {
           setEquationInput(eq);
           setCurrentView("dashboard");
