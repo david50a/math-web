@@ -289,18 +289,62 @@ function parseMatrixFromTesseract(rawText: string): string | null {
 
   // If at least 2 lines of numbers were detected
   if (rowCandidates.length >= 2) {
-    // Determine the most frequent row column count (e.g. 3 or 4 cols)
+    // Determine optimal column count
     const lengths = rowCandidates.map(r => r.length);
     const countMap: Record<number, number> = {};
     lengths.forEach(l => { countMap[l] = (countMap[l] || 0) + 1; });
-    const targetCols = parseInt(Object.keys(countMap).reduce((a, b) => countMap[parseInt(a)] >= countMap[parseInt(b)] ? a : b));
 
-    // Format consistent rows, padding with 0 if an OCR artifact dropped a number
+    const numRows = rowCandidates.length;
+    const maxCols = Math.max(...lengths);
+
+    // If row count matches maxCols (e.g. 4 rows with max 4 cols), it is a square matrix (e.g. 4x4)
+    let targetCols: number;
+    if (numRows === maxCols && maxCols >= 2) {
+      targetCols = maxCols;
+    } else {
+      // Find most frequent length, but break ties in favor of the larger column count to avoid truncating valid numbers
+      const sortedCols = Object.keys(countMap)
+        .map(Number)
+        .sort((a, b) => {
+          const diff = countMap[b] - countMap[a];
+          return diff !== 0 ? diff : b - a; // tie-breaker: larger column count wins
+        });
+      targetCols = sortedCols[0];
+    }
+
+    // Format consistent rows, intelligently splitting merged numbers or padding with 0 if an OCR artifact dropped a number
     const formattedRows = rowCandidates.map(r => {
-      if (r.length < targetCols) {
-        return `[${[...r, ...Array(targetCols - r.length).fill("0")].join(', ')}]`;
+      let tokens = [...r];
+
+      // If missing exactly 1 column, check if a multi-digit number was merged by Tesseract (e.g., "41" -> "4", "1")
+      if (tokens.length === targetCols - 1) {
+        let splitDone = false;
+        // First try 2-digit tokens (e.g., "41" -> "4", "1")
+        for (let i = 0; i < tokens.length; i++) {
+          if (/^\d{2}$/.test(tokens[i])) {
+            const t = tokens[i];
+            tokens.splice(i, 1, t[0], t[1]);
+            splitDone = true;
+            break;
+          }
+        }
+        // If not split yet, try 3-digit tokens (e.g., "111" -> "11", "1")
+        if (!splitDone) {
+          for (let i = 0; i < tokens.length; i++) {
+            if (/^\d{3}$/.test(tokens[i])) {
+              const t = tokens[i];
+              tokens.splice(i, 1, t.slice(0, 2), t.slice(2));
+              splitDone = true;
+              break;
+            }
+          }
+        }
       }
-      return `[${r.slice(0, targetCols).join(', ')}]`;
+
+      if (tokens.length < targetCols) {
+        return `[${[...tokens, ...Array(targetCols - tokens.length).fill("0")].join(', ')}]`;
+      }
+      return `[${tokens.slice(0, targetCols).join(', ')}]`;
     });
 
     const mat = `[${formattedRows.join(', ')}]`;

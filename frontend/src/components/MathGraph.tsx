@@ -382,27 +382,33 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
         const [ax, ay] = coordinates;
         const sx = toScreenX(ax);
         const sy = toScreenY(ay);
-        if (sx >= 0 && sx <= width && sy >= 0 && sy <= height) {
+        const rVal = coordinates.length >= 3 ? coordinates[2] : 1.5;
+        const screenR = Math.abs(toScreenX(ax + rVal) - sx);
+        if (sx >= -screenR && sx <= width + screenR && sy >= -screenR && sy <= height + screenR) {
           ctx.beginPath();
-          ctx.slice ? ctx.arc(sx, sy, 12, 0, 2 * Math.PI) : ctx.arc(sx, sy, 12, 0, 2 * Math.PI);
-          ctx.setLineDash([3, 3]);
+          ctx.arc(sx, sy, Math.max(4, screenR), 0, 2 * Math.PI);
+          ctx.fillStyle = label === "GRAY" ? "rgba(148, 163, 184, 0.15)" : "rgba(59, 130, 246, 0.2)";
+          ctx.fill();
+          ctx.strokeStyle = label === "GRAY" ? "#94a3b8" : (label === "GREEN" ? "#10b981" : colors.curve);
+          ctx.lineWidth = 2;
           ctx.stroke();
-          ctx.setLineDash([]);
 
-          // Pointer Dot
+          // Center Pointer Dot
           ctx.beginPath();
           ctx.arc(sx, sy, 3, 0, 2 * Math.PI);
+          ctx.fillStyle = colors.point;
           ctx.fill();
 
           // Text descriptor
           ctx.fillStyle = colors.text;
           ctx.font = "10px sans-serif";
-          ctx.fillText(label, sx + 16, sy + 3);
+          ctx.fillText(`(${ax}, ${ay}) r=${rVal}`, sx + 8, sy - 8);
         }
       } else if (type === "polygon" && coordinates.length >= 6) {
         ctx.beginPath();
-        ctx.fillStyle = label === "GREEN" ? "rgba(16, 185, 129, 0.3)" : "rgba(59, 130, 246, 0.3)";
-        ctx.strokeStyle = label === "GREEN" ? "#10b981" : "#3b82f6";
+        ctx.fillStyle = label === "GRAY" ? "rgba(148, 163, 184, 0.18)" : (label === "GREEN" ? "rgba(16, 185, 129, 0.25)" : "rgba(59, 130, 246, 0.25)");
+        ctx.strokeStyle = label === "GRAY" ? "#94a3b8" : (label === "GREEN" ? "#10b981" : colors.curve);
+        ctx.lineWidth = 2;
         
         for (let i = 0; i < coordinates.length; i += 2) {
           const sx = toScreenX(coordinates[i]);
@@ -413,6 +419,16 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
+
+        // Draw vertex points
+        for (let i = 0; i < coordinates.length; i += 2) {
+          const sx = toScreenX(coordinates[i]);
+          const sy = toScreenY(coordinates[i+1]);
+          ctx.beginPath();
+          ctx.arc(sx, sy, 3, 0, 2 * Math.PI);
+          ctx.fillStyle = colors.point;
+          ctx.fill();
+        }
       } else if (type === "line" && coordinates.length >= 4) {
         const [x1, y1, x2, y2] = coordinates;
         const sx1 = toScreenX(x1);
@@ -421,18 +437,27 @@ export default function MathGraph({ graphData, annotations = [], theme }: MathGr
         const sy2 = toScreenY(y2);
 
         ctx.beginPath();
-        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = colors.secondaryCurve;
+        ctx.lineWidth = 2;
         ctx.moveTo(sx1, sy1);
         ctx.lineTo(sx2, sy2);
         ctx.stroke();
-        ctx.setLineDash([]);
+
+        // Draw endpoints
+        ctx.beginPath();
+        ctx.arc(sx1, sy1, 3, 0, 2 * Math.PI);
+        ctx.arc(sx2, sy2, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = colors.point;
+        ctx.fill();
 
         // Label line mid
-        const mx = (sx1 + sx2) / 2;
-        const my = (sy1 + sy2) / 2;
-        ctx.fillStyle = colors.text;
-        ctx.font = "9px sans-serif";
-        ctx.fillText(label, mx + 8, my - 6);
+        if (label) {
+          const mx = (sx1 + sx2) / 2;
+          const my = (sy1 + sy2) / 2;
+          ctx.fillStyle = colors.text;
+          ctx.font = "10px sans-serif";
+          ctx.fillText(label, mx + 8, my - 6);
+        }
       }
     });
 

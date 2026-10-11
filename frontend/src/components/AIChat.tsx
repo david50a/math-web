@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Send, X, RefreshCw } from "lucide-react";
+import { MessageSquare, Send, X, RefreshCw, Sparkles } from "lucide-react";
 import { KatexMath } from "./Whiteboard";
 import { ThemeType } from "../types";
+import MorphOrb from "@/components/ui/ai-thiking-orb-and-input";
 
 interface Message {
   role: "user" | "assistant";
@@ -36,10 +37,21 @@ interface AIChatProps {
   solution?: any;
   currentSence?: any;
   theme?: ThemeType;
+  onSolveEquation?: (equation: string) => void;
+  standalone?: boolean;
+  onClose?: () => void;
 }
 
-export default function AIChat({ solution, currentSence, theme = "chalkboard" }: AIChatProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function AIChat({
+  solution,
+  currentSence,
+  theme = "chalkboard",
+  onSolveEquation,
+  standalone = false,
+  onClose,
+}: AIChatProps) {
+  const [isOpen, setIsOpen] = useState(standalone);
+  const [mode, setMode] = useState<"chat" | "orb">("orb");
   const [message, setMessage] = useState("");
   const [history, setHistory] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -97,6 +109,49 @@ export default function AIChat({ solution, currentSence, theme = "chalkboard" }:
       setHistory((prev) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOrbSolve = async (text: string): Promise<string> => {
+    try {
+      const token = localStorage.getItem("math_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch("/api/solve", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ equation: text }),
+      });
+
+      if (res.status === 403) {
+        const err = await res.json().catch(() => ({}));
+        return err.detail || "Pro subscription required for advanced equation types.";
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return err.detail || `Unable to solve "${text}". Check syntax (e.g. x^2 - 5x + 6, det([[1,2],[3,4]])).`;
+      }
+
+      const data = await res.json();
+      if (onSolveEquation) {
+        onSolveEquation(text);
+      }
+
+      const ans = data.finalAnswer ? `Ans: ${data.finalAnswer}` : "Solved";
+      const summary = data.summary ? ` • ${data.summary}` : "";
+      const resultString = `${ans}${summary}`;
+
+      setHistory((prev) => [
+        ...prev,
+        { role: "user", content: text },
+        { role: "assistant", content: `Thinking Orb Solver:\n${resultString}` },
+      ]);
+
+      return resultString;
+    } catch (e: any) {
+      return `Solver error: ${e.message || "Failed to reach solver"}`;
     }
   };
 
@@ -186,22 +241,27 @@ export default function AIChat({ solution, currentSence, theme = "chalkboard" }:
 
   return (
     <>
-      {/* Floating Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-20 right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer ${getButtonStyles()}`}
-        title={isLightAcademic ? "Consult Academic AI Tutor" : isDarkAI ? "Consult Neural AI Tutor" : isNotebook ? "Consult Notebook Tutor" : "Consult Scholar AI Tutor"}
-      >
-        {isOpen ? (
-          <X className={`w-5 h-5 ${isLightAcademic ? "text-[#2563EB]" : isDarkAI ? "text-cyan-300" : isNotebook ? "text-[#1E40AF]" : isBlueprint ? "text-cyan-300" : isCosmos ? "text-purple-300" : "text-amber-200"}`} />
-        ) : (
-          <MessageSquare className={`w-5 h-5 ${isLightAcademic ? "text-[#2563EB]" : isDarkAI ? "text-cyan-300" : isNotebook ? "text-[#1E40AF]" : isBlueprint ? "text-cyan-300" : isCosmos ? "text-purple-300" : "text-amber-300"}`} />
-        )}
-      </button>
+      {/* Floating Toggle Button (only when not standalone) */}
+      {!standalone && (
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`fixed bottom-20 right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer ${getButtonStyles()}`}
+          title={isLightAcademic ? "Consult Academic AI Tutor" : isDarkAI ? "Consult Neural AI Tutor" : isNotebook ? "Consult Notebook Tutor" : "Consult Scholar AI Tutor"}
+        >
+          {isOpen ? (
+            <X className={`w-5 h-5 ${isLightAcademic ? "text-[#2563EB]" : isDarkAI ? "text-cyan-300" : isNotebook ? "text-[#1E40AF]" : isBlueprint ? "text-cyan-300" : isCosmos ? "text-purple-300" : "text-amber-200"}`} />
+          ) : (
+            <MessageSquare className={`w-5 h-5 ${isLightAcademic ? "text-[#2563EB]" : isDarkAI ? "text-cyan-300" : isNotebook ? "text-[#1E40AF]" : isBlueprint ? "text-cyan-300" : isCosmos ? "text-purple-300" : "text-amber-300"}`} />
+          )}
+        </button>
+      )}
 
-      {/* Slide-out / Pop-up Chat Window */}
-      {isOpen && (
-        <div className={`fixed bottom-36 right-6 z-50 w-[360px] h-[480px] rounded-2xl flex flex-col backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200 ${getWindowStyles()}`}>
+      {/* Slide-out / Pop-up Chat Window OR Full Standalone Workspace */}
+      {(isOpen || standalone) && (
+        <div className={standalone 
+          ? `w-full max-w-5xl mx-auto h-[calc(100vh-140px)] min-h-[640px] rounded-2xl flex flex-col backdrop-blur-xl overflow-hidden border shadow-2xl transition-all relative ${getWindowStyles()}`
+          : `fixed bottom-36 right-6 z-50 w-[360px] sm:w-[460px] h-[520px] sm:h-[560px] rounded-2xl flex flex-col backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200 shadow-2xl ${getWindowStyles()}`
+        }>
           {/* Header */}
           <div className={`flex items-center justify-between p-4 ${getHeaderStyles()}`}>
             <div className="flex items-center gap-2">
@@ -234,20 +294,75 @@ export default function AIChat({ solution, currentSence, theme = "chalkboard" }:
                 {isLightAcademic ? "Faculty Pro" : isDarkAI ? "Deep Tensor" : isNotebook ? "Handwritten" : "Academic Fellow"}
               </span>
             </div>
+            {(onClose || !standalone) && (
+              <button
+                onClick={() => {
+                  if (standalone && onClose) onClose();
+                  else setIsOpen(false);
+                }}
+                className={`transition-colors cursor-pointer ${
+                  isLightAcademic ? "text-slate-400 hover:text-slate-800" :
+                  isDarkAI ? "text-slate-400 hover:text-white" :
+                  isNotebook ? "text-stone-400 hover:text-stone-900" :
+                  isBlueprint ? "text-cyan-400/60 hover:text-cyan-200" :
+                  isCosmos ? "text-purple-400/60 hover:text-purple-200" :
+                  "text-amber-200/50 hover:text-amber-200"
+                }`}
+                title="Close chat"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Mode Switcher Tabs */}
+          <div className={`flex items-center justify-around px-3 py-1.5 border-b text-[11px] font-bold uppercase tracking-wider gap-1.5 ${getHeaderStyles()}`}>
             <button
-              onClick={() => setIsOpen(false)}
-              className={`transition-colors cursor-pointer ${
-                isLightAcademic ? "text-slate-400 hover:text-slate-800" :
-                isDarkAI ? "text-slate-400 hover:text-white" :
-                isNotebook ? "text-stone-400 hover:text-stone-900" :
-                isBlueprint ? "text-cyan-400/60 hover:text-cyan-200" :
-                isCosmos ? "text-purple-400/60 hover:text-purple-200" :
-                "text-amber-200/50 hover:text-amber-200"
+              onClick={() => setMode("orb")}
+              className={`flex-1 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                mode === "orb"
+                  ? (isLightAcademic ? "bg-blue-600 text-white shadow-xs" : isDarkAI ? "bg-indigo-600 text-white" : isNotebook ? "bg-blue-900 text-amber-50" : "bg-amber-400/20 text-amber-200 border border-amber-400/30")
+                  : "text-neutral-400 hover:text-white"
               }`}
             >
-              <X className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5" />
+              Thinking Orb
+            </button>
+            <button
+              onClick={() => setMode("chat")}
+              className={`flex-1 py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                mode === "chat"
+                  ? (isLightAcademic ? "bg-blue-600 text-white shadow-xs" : isDarkAI ? "bg-indigo-600 text-white" : isNotebook ? "bg-blue-900 text-amber-50" : "bg-amber-400/20 text-amber-200 border border-amber-400/30")
+                  : "text-neutral-400 hover:text-white"
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Chat Tutor
             </button>
           </div>
+
+          {mode === "orb" ? (
+            <div className={`flex-1 relative flex flex-col items-center justify-center overflow-hidden ${getBodyBg()}`}>
+              <div className="absolute top-2 left-0 right-0 text-center z-20 pointer-events-none px-4">
+                <span className={`text-[9px] font-mono uppercase tracking-widest px-2.5 py-1 rounded-full border backdrop-blur-md ${
+                  isLightAcademic ? "bg-white/90 border-slate-200 text-blue-700 shadow-xs" :
+                  isDarkAI ? "bg-indigo-950/90 border-[#273449] text-cyan-300" :
+                  isNotebook ? "bg-[#FFFDF8]/90 border-[#E2DAC7] text-stone-800" :
+                  "bg-black/70 border-amber-500/30 text-amber-300/90"
+                }`}>
+                  ✨ Type math proposition to trigger /api/solve
+                </span>
+              </div>
+              <div className="w-full h-full relative">
+                <MorphOrb
+                  onSubmit={handleOrbSolve}
+                  minThinkMs={2200}
+                  className="w-full h-full"
+                />
+              </div>
+            </div>
+          ) : (
+            <>
 
           {/* Messages Body */}
           <div className={`flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin ${getBodyBg()}`}>
@@ -404,8 +519,10 @@ export default function AIChat({ solution, currentSence, theme = "chalkboard" }:
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>
-        </div>
+        </>
       )}
+    </div>
+  )}
     </>
   );
 }

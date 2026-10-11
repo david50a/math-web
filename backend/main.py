@@ -30,6 +30,8 @@ try:
     import linear_algebra_solver as solvers
     import stats_engine as statistics
     import geometry
+    import trigonometry
+    import trigoemetry
     import eigenvalues_and_eigenvector as eigen
     from math_models import Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_string, to_latex, simplify, Node, MathStep, parse_expr
 except ImportError as e:
@@ -295,6 +297,22 @@ class SolveRequest(BaseModel):
 class OCRRequest(BaseModel):
     imageBase64: str
 
+class ShapeOCRRequest(BaseModel):
+    imageBase64: str
+
+class ShapeSolveRequest(BaseModel):
+    shapeType: Optional[str] = "triangle"
+    a: Optional[float] = None
+    b: Optional[float] = None
+    c: Optional[float] = None
+    A: Optional[float] = None
+    B: Optional[float] = None
+    C: Optional[float] = None
+    isRight: Optional[bool] = False
+    radius: Optional[float] = None
+    width: Optional[float] = None
+    height: Optional[float] = None
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -485,7 +503,103 @@ async def ocr_api(request: OCRRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-            
+
+@app.post("/api/shape-ocr")
+async def shape_ocr_api(request: ShapeOCRRequest):
+    if not request.imageBase64:
+        raise HTTPException(status_code=400, detail="No image provided")
+    try:
+        base64_str = re.sub(r'^data:image/\w+;base64,', '', request.imageBase64)
+        img_data = base64.b64decode(base64_str)
+        result = geometry.detect_shape_from_image(img_data)
+        
+        # Format MathStep objects into serializable dicts
+        if "steps" in result and isinstance(result["steps"], list):
+            formatted_steps = []
+            for s in result["steps"]:
+                if hasattr(s, "description"):
+                    formatted_steps.append({
+                        "description": s.description,
+                        "latex": s.latex,
+                        "type": getattr(s, "type", "geometry"),
+                        "data": getattr(s, "data", {})
+                    })
+                elif isinstance(s, dict):
+                    formatted_steps.append(s)
+            result["steps"] = formatted_steps
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/solve-shape")
+async def solve_shape_api(request: ShapeSolveRequest):
+    try:
+        st = (request.shapeType or "triangle").lower()
+        if st == "triangle":
+            res = geometry.solve_triangle_properties(
+                a=request.a,
+                b=request.b,
+                c=request.c,
+                A=request.A,
+                B=request.B,
+                C=request.C,
+                is_right=bool(request.isRight)
+            )
+        elif st == "circle":
+            r = request.radius if request.radius is not None else 5.0
+            data, steps = geometry.circle_solve(r)
+            res = {
+                "type": "circle",
+                "subtype": "Circle",
+                "radius": r,
+                "diameter": data["diameter"],
+                "area": data["area"],
+                "circumference": data["circumference"],
+                "steps": steps
+            }
+        elif st in ["rectangle", "square"]:
+            w = request.width if request.width is not None else 6.0
+            h = request.height if request.height is not None else 4.0
+            data, steps = geometry.rectangle_solve(w, h)
+            res = {
+                "type": "rectangle",
+                "subtype": "Square" if abs(w - h) < 0.001 else "Rectangle",
+                "width": w,
+                "height": h,
+                "area": data["area"],
+                "perimeter": data["perimeter"],
+                "diagonal": data["diagonal"],
+                "steps": steps
+            }
+        else:
+            raise ValueError(f"Unsupported shape type: {st}")
+
+        # Format MathStep objects
+        if "steps" in res and isinstance(res["steps"], list):
+            formatted_steps = []
+            for s in res["steps"]:
+                if hasattr(s, "description"):
+                    formatted_steps.append({
+                        "description": s.description,
+                        "latex": s.latex,
+                        "type": getattr(s, "type", "geometry"),
+                        "data": getattr(s, "data", {})
+                    })
+                elif isinstance(s, dict):
+                    formatted_steps.append(s)
+            res["steps"] = formatted_steps
+
+        return res
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
         
 class GraphData(BaseModel):
     showGraph: bool = False
@@ -556,10 +670,120 @@ def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bo
         return res
 
     # 1. ALGEBRA & POLYNOMIALS
-    if equation_type == "Algebra" or ('=' in input_str and not input_str.lower().startswith(('integrate', 'derive', 'mean', 'median', 'rotate', 'translate', 'scale')) and '[' not in input_str):
+    if equation_type == "Algebra" and not any(t in input_str.lower() for t in ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan']):
         try:
+            import sympy as sp
+            clean_str = re.sub(r'^(y|f\(x\))\s*=\s*', '', input_str.strip(), flags=re.IGNORECASE)
+            l_str, r_str = clean_str.split('=', 1) if '=' in clean_str else (clean_str, '0')
+            l_sym = safe_sympify(l_str, sp)
+            r_sym = safe_sympify(r_str, sp)
+            eq_sym = sp.simplify(l_sym - r_sym)
+            syms = list(eq_sym.free_symbols)
+            var_x = syms[0] if syms else sp.Symbol('x')
+            poly_sym = sp.Poly(eq_sym, var_x)
+            deg_val = poly_sym.degree()
+            monoms_list = poly_sym.monoms()
+            powers_list = [p[0] for p in monoms_list]
+            is_biquad = (deg_val == 4 and all(p % 2 == 0 for p in powers_list))
             a, b, c, d = algebra.parse_polynomial(input_str)
-            if a != 0:  # Cubic
+
+            if deg_val is not None and deg_val >= 4:
+                # Method 1: Factoring & Zero Product Property
+                factored_sym = sp.factor(eq_sym)
+                f_steps = []
+                min_p = min(powers_list) if powers_list else 0
+                if min_p > 0:
+                    gcf = var_x**min_p if min_p > 1 else var_x
+                    rem = sp.simplify(eq_sym / gcf)
+                    f_steps.append(MathStep(
+                        f"Factor out common factor {sp.latex(gcf)}",
+                        rf"{sp.latex(gcf)}\left({sp.latex(rem)}\right) = 0",
+                        "equation"
+                    ))
+                f_steps.append(MathStep(
+                    "Factor completely into algebraic factors",
+                    rf"{sp.latex(factored_sym)} = 0",
+                    "equation"
+                ))
+                f_steps.append(MathStep(
+                    "Apply the Zero Product Property",
+                    r"A \cdot B = 0 \implies A = 0 \text{ or } B = 0",
+                    "equation"
+                ))
+                coeff, f_list = sp.factor_list(eq_sym)
+                for f_term, mult in f_list:
+                    if f_term.has(var_x):
+                        f_s = sp.solve(f_term, var_x)
+                        if not allow_complex:
+                            f_s = [s for s in f_s if getattr(s, 'is_real', True) is not False and not s.has(sp.I)]
+                        if f_s:
+                            s_str = ", ".join([f"{var_x} = {sp.latex(s)}" for s in f_s])
+                            mult_txt = f" (multiplicity {mult})" if mult > 1 else ""
+                            f_steps.append(MathStep(
+                                f"Solve factor {sp.latex(f_term)} = 0{mult_txt}",
+                                rf"{sp.latex(f_term)} = 0 \implies {s_str}",
+                                "equation"
+                            ))
+                methods.append(MethodSolutionModel(
+                    methodId="poly-factor",
+                    methodName="Method 1: Factorization & Zero Product Property",
+                    badgeTag="Polynomial Factoring",
+                    techniqueSummary="Factors the higher-degree polynomial into simpler irreducible factors and sets each factor to zero.",
+                    formulaLatex=r"P(x) = A(x) \cdot B(x) = 0 \implies A(x) = 0 \text{ or } B(x) = 0",
+                    steps=to_step_models(f_steps),
+                    finalResultLatex=final_solution or "Roots computed",
+                    prosAndCons=MethodProsCons(
+                        pros="Direct and algebraically intuitive without requiring complex polynomial root formulas.",
+                        cons="Only applies when the polynomial factors nicely over rational numbers."
+                    )
+                ))
+
+                if is_biquad:
+                    # Method 2: Bi-quadratic substitution u = x^2
+                    u = sp.Symbol('u')
+                    coeffs_dict = {p[0]: c for p, c in zip(monoms_list, poly_sym.coeffs())}
+                    a_bi = coeffs_dict.get(4, 0)
+                    b_bi = coeffs_dict.get(2, 0)
+                    c_bi = coeffs_dict.get(0, 0)
+                    quad_u = a_bi * u**2 + b_bi * u + c_bi
+                    bi_steps = [
+                        MathStep(
+                            f"Substitute u = {var_x}^2 to convert into a quadratic equation in u",
+                            rf"u = {var_x}^2 \implies {sp.latex(quad_u)} = 0",
+                            "equation"
+                        )
+                    ]
+                    u_sols = sp.solve(quad_u, u)
+                    bi_steps.append(MathStep(
+                        "Solve quadratic equation for u",
+                        ", ".join([f"u = {sp.latex(sol)}" for sol in u_sols]),
+                        "equation"
+                    ))
+                    for sol_u in u_sols:
+                        x_s = sp.solve(var_x**2 - sol_u, var_x)
+                        if not allow_complex:
+                            x_s = [s for s in x_s if getattr(s, 'is_real', True) is not False and not s.has(sp.I)]
+                        if x_s:
+                            bi_steps.append(MathStep(
+                                f"Back-substitute u = {var_x}^2 for u = {sp.latex(sol_u)}",
+                                rf"{var_x}^2 = {sp.latex(sol_u)} \implies " + ", ".join([f"{var_x} = {sp.latex(r)}" for r in x_s]),
+                                "equation"
+                            ))
+                    methods.append(MethodSolutionModel(
+                        methodId="biquadratic-sub",
+                        methodName="Method 2: Bi-quadratic Substitution (u = x^2)",
+                        badgeTag="Variable Substitution",
+                        techniqueSummary="Substitutes u = x^2 to reduce the degree 4 equation into a standard degree 2 quadratic equation in u.",
+                        formulaLatex=r"u = x^2 \implies Au^2 + Bu + C = 0 \implies x = \pm\sqrt{u}",
+                        steps=to_step_models(bi_steps),
+                        finalResultLatex=final_solution or "Roots computed",
+                        prosAndCons=MethodProsCons(
+                            pros="Directly leverages quadratic formulas for fourth-degree polynomials with even powers.",
+                            cons="Strictly requires all powers of x to be even multiples."
+                        )
+                    ))
+
+            elif deg_val == 3 or (deg_val is None and a != 0):  # Cubic
                 try:
                     r1_roots, r1_steps = algebra.rational_root_theorem_solver(input_str, allow_complex=allow_complex)
                     if r1_steps:
@@ -599,7 +823,7 @@ def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bo
                 except Exception as e:
                     print(f"Error in cardano method: {e}")
 
-            elif b != 0:  # Quadratic
+            elif deg_val == 2 or (deg_val is None and b != 0):  # Quadratic
                 try:
                     q_res = algebra.quadratic_equation_solver(input_str, allow_complex=allow_complex)
                     q_steps = q_res[-1]
@@ -841,7 +1065,7 @@ def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bo
             print(f"Error in stats multi-methods: {e}")
 
     # 5. LINEAR ALGEBRA & MATRICES
-    elif '[' in input_str:
+    elif '[' in input_str and equation_type not in ["Geometry", "Statistics"]:
         try:
             matrices = re.findall(r'\[\[.*?\]\]|\[.*?\]', input_str)
             if matrices:
@@ -927,8 +1151,140 @@ def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bo
                             print(f"Error in rref single method: {e}")
         except Exception as e:
             print(f"Error in matrix multi-methods: {e}")
+
+    # 6. TRIGONOMETRY
+    elif equation_type == "Trigonometry" or (equation_type != "Geometry" and any(re.search(rf'\b{t}\b', input_str.lower()) for t in ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan', 'unit_circle'])):
+        try:
+            # Method 1: Unit Circle & Reference Angle Method
+            if 'unit_circle' in input_str.lower():
+                m = re.search(r'unit_?circle\((.*?)\)', input_str, re.I)
+                arg = m.group(1).strip() if m else "pi/4"
+                _, uc_steps = trigonometry.unit_circle(arg)
+            else:
+                _, uc_steps = trigonometry.solve_trigonometry(input_str)
+                
+            methods.append(MethodSolutionModel(
+                methodId="trig-unit-circle",
+                methodName="Method 1: Unit Circle & Reference Angle Resolution",
+                badgeTag="Geometric Unit Circle",
+                techniqueSummary="Analyzes periodicity on the unit circle x^2 + y^2 = 1, finding acute reference angles and matching quadrant signs.",
+                formulaLatex=r"(x, y) = (\cos\theta, \sin\theta), \quad \theta_{\text{ref}} = |\arcsin(y)|",
+                steps=to_step_models(uc_steps),
+                finalResultLatex=final_solution or "",
+                prosAndCons=MethodProsCons(
+                    pros="Provides intuitive geometric visualization of sine and cosine projections on the coordinate plane.",
+                    cons="Requires quadrant-by-quadrant sign verification (ASTC rule)."
+                )
+            ))
+            
+            # Method 2: Analytical Inversion / Algebraic Substitution Method
+            alt_steps = []
+            if '=' in input_str:
+                alt_steps.append(MathStep(
+                    description="Isolate the trigonometric function to form standard relation f(x) = c",
+                    latex=r"f(kx) = c \implies kx = \arcsin(c) + 2k\pi \quad \text{or} \quad \pi - \arcsin(c) + 2k\pi",
+                    type="equation"
+                ))
+                alt_steps.append(MathStep(
+                    description="Apply inverse trigonometric mapping across principal range",
+                    latex=rf"x \in \text{{Roots}} \implies {final_solution or 'x = \text{solutions}'}",
+                    type="equation"
+                ))
+            else:
+                alt_steps.append(MathStep(
+                    description="Convert trigonometric expression into exact algebraic radicals",
+                    latex=r"\text{Substitute standard values from 30°-60°-90° and 45°-45°-90° special triangles}",
+                    type="equation"
+                ))
+                alt_steps.append(MathStep(
+                    description="Simplify radical fraction",
+                    latex=rf"= {final_solution or ''}",
+                    type="equation"
+                ))
+            methods.append(MethodSolutionModel(
+                methodId="trig-algebraic-inversion",
+                methodName="Method 2: Analytical Inversion & Algebraic Substitution",
+                badgeTag="Algebraic Inversion",
+                techniqueSummary="Uses inverse trigonometric operators and algebraic identities for exact analytical closed-form representation.",
+                formulaLatex=r"\theta = f^{-1}(c) + \text{Periodicity}",
+                steps=to_step_models(alt_steps),
+                finalResultLatex=final_solution or "",
+                prosAndCons=MethodProsCons(
+                    pros="Directly computes exact roots and closed-form values without drawing circles.",
+                    cons="Requires careful handling of multivalued inverse trigonometric branches."
+                )
+            ))
         except Exception as e:
-            print(f"Error in stats multi-methods: {e}")
+            print(f"Error in trig multi-methods: {e}")
+
+    # 7. GEOMETRY
+    elif equation_type == "Geometry" or any(input_str.lower().startswith(g) for g in ['translate', 'rotate', 'scale', 'reflect', 'distance', 'midpoint', 'slope', 'line', 'circle', 'triangle', 'pythagor', 'rectangle', 'square', 'sphere', 'cylinder', 'cone']):
+        try:
+            _, geo_steps = geometry.solve_geometry(input_str)
+            methods.append(MethodSolutionModel(
+                methodId="geom-vector-coordinate",
+                methodName="Method 1: Coordinate & Vector Formulation",
+                badgeTag="Vector Geometry",
+                techniqueSummary="Applies Cartesian coordinate formulas and vector displacement arithmetic.",
+                formulaLatex=r"\vec{P}' = \vec{P} + \vec{T} \quad \text{or} \quad d = \|\vec{P}_2 - \vec{P}_1\|",
+                steps=to_step_models(geo_steps),
+                finalResultLatex=final_solution or "",
+                prosAndCons=MethodProsCons(
+                    pros="Systematic coordinate calculations easily computed in 2D/3D space.",
+                    cons="Relies heavily on accurate coordinate component arithmetic."
+                )
+            ))
+            
+            # Method 2: Classical Euclidean / Transformation Matrix
+            alt_geo_steps = []
+            if 'translate' in input_str.lower() or 'rotate' in input_str.lower() or 'scale' in input_str.lower():
+                alt_geo_steps.append(MathStep(
+                    description="Construct 3x3 Homogeneous Affine Transformation Matrix",
+                    latex=r"\begin{pmatrix} x' \\ y' \\ 1 \end{pmatrix} = \begin{pmatrix} a & b & t_x \\ c & d & t_y \\ 0 & 0 & 1 \end{pmatrix} \begin{pmatrix} x \\ y \\ 1 \end{pmatrix}",
+                    type="equation"
+                ))
+                alt_geo_steps.append(MathStep(
+                    description="Multiply homogeneous vector by transformation matrix",
+                    latex=rf"\text{{Resulting state: }} {final_solution or ''}",
+                    type="equation"
+                ))
+            elif 'dist' in input_str.lower() or 'pythagor' in input_str.lower():
+                alt_geo_steps.append(MathStep(
+                    description="Construct right triangle on Cartesian grid with legs Delta x and Delta y",
+                    latex=r"c^2 = a^2 + b^2 \implies c = \sqrt{a^2 + b^2}",
+                    type="equation"
+                ))
+                alt_geo_steps.append(MathStep(
+                    description="Evaluate hypotenuse length",
+                    latex=rf"c = {final_solution or ''}",
+                    type="equation"
+                ))
+            else:
+                alt_geo_steps.append(MathStep(
+                    description="Apply classical geometric area & volume integration theorems",
+                    latex=r"A = \iint_{\mathcal{D}} dA, \quad V = \iiint_{\mathcal{V}} dV",
+                    type="equation"
+                ))
+                alt_geo_steps.append(MathStep(
+                    description="Final geometric invariant evaluated",
+                    latex=rf"{final_solution or ''}",
+                    type="equation"
+                ))
+            methods.append(MethodSolutionModel(
+                methodId="geom-matrix-affine",
+                methodName="Method 2: Affine Transformation Matrix / Classical Synthetic",
+                badgeTag="Affine & Synthetic",
+                techniqueSummary="Employs linear algebraic transformation matrices and synthetic geometric properties.",
+                formulaLatex=r"M_{\text{transform}} \mathbf{v} = \mathbf{v}'",
+                steps=to_step_models(alt_geo_steps),
+                finalResultLatex=final_solution or "",
+                prosAndCons=MethodProsCons(
+                    pros="Unified approach powering modern computer graphics pipelines and CAD engines.",
+                    cons="Requires matrix multiplications and projective coordinate setup."
+                )
+            ))
+        except Exception as e:
+            print(f"Error in geometry multi-methods: {e}")
 
     if not methods and primary_steps:
         fallback_steps = to_step_models(primary_steps)
@@ -1225,6 +1581,67 @@ def solve_algebra(input_str: str, allow_complex: bool = True):
                     latex=rf"{x} = \frac{{-{sp.latex(b)} \pm \sqrt{{{sp.latex(discriminant)}}}}}{{2 \cdot {sp.latex(a)}}}",
                     type="equation"
                 ))
+        elif degree is not None and degree >= 3:
+            monoms = poly.monoms()
+            powers = [p[0] for p in monoms]
+            min_pow = min(powers) if powers else 0
+            factored = sp.factor(simplified_eq)
+            
+            if min_pow > 0:
+                gcf_term = x**min_pow if min_pow > 1 else x
+                remaining_poly = sp.simplify(simplified_eq / gcf_term)
+                steps.append(MathStep(
+                    description=f"Factor out the greatest common factor {sp.latex(gcf_term)}",
+                    latex=rf"{sp.latex(gcf_term)}\left({sp.latex(remaining_poly)}\right) = 0",
+                    type="equation"
+                ))
+            
+            if factored != simplified_eq:
+                steps.append(MathStep(
+                    description="Factor the polynomial completely into simpler algebraic factors",
+                    latex=rf"{sp.latex(factored)} = 0",
+                    type="equation"
+                ))
+                
+                steps.append(MathStep(
+                    description="Apply the Zero Product Property: set each factor equal to 0",
+                    latex=r"A \cdot B = 0 \implies A = 0 \text{ or } B = 0",
+                    type="equation"
+                ))
+                
+                coeff, factor_list = sp.factor_list(simplified_eq)
+                for f_term, mult in factor_list:
+                    if f_term.has(x):
+                        f_sols = sp.solve(f_term, x)
+                        if not allow_complex:
+                            f_sols = [s for s in f_sols if getattr(s, 'is_real', True) is not False and not s.has(sp.I)]
+                        if f_sols:
+                            sols_str = ", ".join([f"{x} = {sp.latex(s)}" for s in f_sols])
+                            mult_note = f" (multiplicity {mult})" if mult > 1 else ""
+                            steps.append(MathStep(
+                                description=f"Solve the factor {sp.latex(f_term)} = 0{mult_note}",
+                                latex=rf"{sp.latex(f_term)} = 0 \implies {sols_str}",
+                                type="equation"
+                            ))
+            elif degree == 3:
+                try:
+                    c_res = algebra.cubic_equation_solver(input_str, allow_complex=allow_complex)
+                    c_steps = c_res[-1]
+                    for cs in c_steps:
+                        if cs.description not in [s.description for s in steps]:
+                            steps.append(cs)
+                except Exception:
+                    steps.append(MathStep(
+                        description="Solve the cubic equation using Cardano's formula",
+                        latex=rf"{sp.latex(simplified_eq)} = 0",
+                        type="equation"
+                    ))
+            else:
+                steps.append(MathStep(
+                    description=f"Solve the degree {degree} polynomial equation",
+                    latex=rf"{sp.latex(simplified_eq)} = 0",
+                    type="equation"
+                ))
             
         sol_latex = ", ".join([f"{x} = {sp.latex(sol)}" for sol in solutions])
         has_complex = any(sol.has(sp.I) for sol in solutions)
@@ -1281,8 +1698,11 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
     elif input_str.lower().startswith('mean') or input_str.lower().startswith('median'):
         op = "statistics"
         expr = input_str
-    elif input_str.lower().startswith('translate') or input_str.lower().startswith('rotate') or input_str.lower().startswith('scale'):
+    elif any(input_str.lower().startswith(g) for g in ['translate', 'rotate', 'scale', 'reflect', 'distance', 'midpoint', 'slope', 'line', 'circle', 'triangle', 'pythagor', 'rectangle', 'square', 'sphere', 'cylinder', 'cone']) or ('dist(' in input_str.lower()) or ('mid(' in input_str.lower()):
         op = "geometry"
+        expr = input_str
+    elif any(t in input_str.lower() for t in ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan', 'unit_circle', 'unitcircle']):
+        op = "trigonometry"
         expr = input_str
     elif 'eigen' in input_str.lower() or 'char' in input_str.lower() or 'det' in input_str.lower() or '[' in input_str:
         op = "matrix"
@@ -1362,7 +1782,20 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
         allow_complex = request.show_complex if request.show_complex is not None else (request.allow_complex if request.allow_complex is not None else True)
 
         # Determine operation
-        if '=' in input_str and not input_str.lower().startswith('integrate') and not input_str.lower().startswith('derive') and not '[' in input_str:
+        geo_keywords = ['translate', 'rotate', 'scale', 'reflect', 'distance', 'midpoint', 'slope', 'line', 'circle', 'triangle', 'pythagor', 'rectangle', 'square', 'sphere', 'cylinder', 'cone']
+        trig_keywords = ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan', 'unit_circle', 'unitcircle']
+        
+        # 1. Geometry Engine
+        if any(input_str.lower().startswith(g) for g in geo_keywords) or ('dist(' in input_str.lower()) or ('mid(' in input_str.lower()):
+            equation_type = "Geometry"
+            solution, steps = geometry.solve_geometry(input_str)
+            
+        # 2. Trigonometry Engine
+        elif any(t in input_str.lower() for t in trig_keywords) and not input_str.lower().startswith('derive') and not input_str.lower().startswith('integrate'):
+            equation_type = "Trigonometry"
+            solution, steps = trigonometry.solve_trigonometry(input_str)
+
+        elif '=' in input_str and not input_str.lower().startswith('integrate') and not input_str.lower().startswith('derive') and not '[' in input_str:
             equation_type = "Algebra"
             solution, steps = solve_algebra(input_str, allow_complex=allow_complex)
         elif input_str.lower().startswith('integrate'):
@@ -1419,33 +1852,6 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
             steps = statistics.median(data_str)
             solution = steps[-1].latex if steps else "N/A"
             
-        elif input_str.lower().startswith('translate'):
-            equation_type = "Geometry"
-            match = re.search(r'translate\((.*),\s*(.*),\s*(.*)\)', input_str, re.I)
-            if match:
-                shape, dx, dy = match.groups()
-                steps = geometry.translate(shape, float(dx), float(dy))
-                solution = f"Translated {shape}"
-            else: raise ValueError("Usage: translate(shape, dx, dy)")
-
-        elif input_str.lower().startswith('rotate'):
-            equation_type = "Geometry"
-            match = re.search(r'rotate\((.*),\s*(.*)\)', input_str, re.I)
-            if match:
-                shape, angle = match.groups()
-                steps = geometry.rotate(shape, float(angle))
-                solution = f"Rotated {shape}"
-            else: raise ValueError("Usage: rotate(shape, angle)")
-
-        elif input_str.lower().startswith('scale'):
-            equation_type = "Geometry"
-            match = re.search(r'scale\((.*),\s*(.*)\)', input_str, re.I)
-            if match:
-                shape, factor = match.groups()
-                steps = geometry.scale(shape, float(factor))
-                solution = f"Scaled {shape}"
-            else: raise ValueError("Usage: scale(shape, factor)")
-
         elif 'eigen' in input_str.lower() or 'char' in input_str.lower():
             equation_type = "Linear Algebra"
             matrix_match = re.search(r'\[.*\]', input_str)
@@ -1538,13 +1944,13 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
                 )
             
             if equation_type == "Geometry" and hasattr(s, 'data') and isinstance(s.data, dict) and 'shapes' in s.data:
-                graph_data = GraphData(showGraph=False, viewPort={"minX": -5, "maxX": 5, "minY": -5, "maxY": 5})
+                graph_data = GraphData(showGraph=False, viewPort={"minX": -6, "maxX": 6, "minY": -6, "maxY": 6})
                 for shape in s.data['shapes']:
                     if shape['type'] == 'circle':
                         annotations.append(SceneAnnotation(
                             type='circle',
                             label=shape.get('color', 'BLUE'),
-                            coordinates=[shape['center'][0], shape['center'][1]]
+                            coordinates=[shape['center'][0], shape['center'][1], shape.get('radius', 1.5)]
                         ))
                     elif shape['type'] == 'polygon':
                         # Flatten points for coordinates
@@ -1556,6 +1962,45 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
                             label=shape.get('color', 'BLUE'),
                             coordinates=coords
                         ))
+                    elif shape['type'] == 'line':
+                        p1 = shape.get('p1', [0, 0])
+                        p2 = shape.get('p2', [0, 0])
+                        annotations.append(SceneAnnotation(
+                            type='line',
+                            label=shape.get('label', 'Segment'),
+                            coordinates=[p1[0], p1[1], p2[0], p2[1]]
+                        ))
+
+            elif equation_type == "Trigonometry":
+                if hasattr(s, 'data') and isinstance(s.data, dict) and 'shapes' in s.data:
+                    graph_data = GraphData(showGraph=False, viewPort={"minX": -2.2, "maxX": 2.2, "minY": -2.2, "maxY": 2.2})
+                    for shape in s.data['shapes']:
+                        if shape['type'] == 'circle':
+                            annotations.append(SceneAnnotation(
+                                type='circle',
+                                label=shape.get('color', 'BLUE'),
+                                coordinates=[shape['center'][0], shape['center'][1], shape.get('radius', 1.0)]
+                            ))
+                        elif shape['type'] == 'line':
+                            p1 = shape.get('p1', [0, 0])
+                            p2 = shape.get('p2', [0, 0])
+                            annotations.append(SceneAnnotation(
+                                type='line',
+                                label=shape.get('label', ''),
+                                coordinates=[p1[0], p1[1], p2[0], p2[1]]
+                            ))
+                else:
+                    plot_fn = "sin(x)"
+                    if 'cos' in input_str.lower():
+                        plot_fn = "cos(x)"
+                    elif 'tan' in input_str.lower():
+                        plot_fn = "tan(x)"
+                    graph_data = GraphData(
+                        showGraph=True,
+                        functionExpr=plot_fn,
+                        functionLabel=f"f(x) = {plot_fn}",
+                        viewPort={"minX": -7, "maxX": 7, "minY": -2.5, "maxY": 2.5}
+                    )
 
             response_scenes.append(VideoScene(
                 sceneNumber=idx + 1,

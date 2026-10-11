@@ -29,7 +29,12 @@ import {
   Mic,
   MicOff,
   GraduationCap,
-  Scroll
+  Scroll,
+  Shapes,
+  MessageSquare,
+  Palette,
+  ChevronDown,
+  Grid
 } from "lucide-react";
 import MathGraph from "./components/MathGraph";
 import Whiteboard, { KatexMath } from "./components/Whiteboard";
@@ -39,6 +44,8 @@ import PaymentModal from "./components/PaymentModal";
 import AIChat from "./components/AIChat";
 import Explanation from "./components/Explanation";
 import VoiceAssistant from "./components/VoiceAssistant";
+import ShapeInspectorModal from "./components/ShapeInspectorModal";
+import KineticMatrix, { parseMatrixFromText } from "@/components/ui/kinetic-matrix";
 import {
   createSpeechRecognition,
   parseSpokenMath,
@@ -51,12 +58,21 @@ import {
 
 // Static reference presets for instant exploration
 const PRESET_EQUATIONS = [
+  { name: "Trig Equation", expr: "sin(x) = 0.5" },
+  { name: "Unit Circle", expr: "unit_circle(pi/3)" },
+  { name: "Distance Formula", expr: "distance([1, 2], [4, 6])" },
+  { name: "Midpoint Formula", expr: "midpoint([2, -4], [6, 8])" },
+  { name: "Pythagorean", expr: "pythagorean(3, 4)" },
+  { name: "Circle Area", expr: "circle(5)" },
+  { name: "Translate Circle", expr: "translate(circle, 2, -1)" },
+  { name: "Rotate Square", expr: "rotate(square, 45)" },
   { name: "Derive Quadratic", expr: "x^2 - 5x + 6" },
   { name: "Integrate Quadratic", expr: "integrate(x^2 - 5x + 6)" },
-  { name: "Matrix Determinant", expr: "det([[1, 2], [3, 4]])" },
+  { name: "2×2 Determinant", expr: "det([[1, 2], [3, 4]])" },
+  { name: "3×3 3D Matrix", expr: "[[2, 0, 1], [0, 1, 0], [1, 0, 2]]" },
+  { name: "4×4 4D Tesseract", expr: "[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]" },
   { name: "Matrix Eigenvalue", expr: "eigen([[1, 2], [2, 1]])" },
-  { name: "Statistics Mean", expr: "mean([10, 20, 30, 40, 50])" },
-  { name: "Translate Circle", expr: "translate(circle, 2, -1)" }
+  { name: "Statistics Mean", expr: "mean([10, 20, 30, 40, 50])" }
 ];
 
 interface ThemeInfo {
@@ -214,6 +230,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
 
 export default function App() {
   const [equationInput, setEquationInput] = useState<string>("x^2 - 5x + 6");
+  const extractedMatrix = React.useMemo(() => parseMatrixFromText(equationInput), [equationInput]);
   const [loading, setLoading] = useState<boolean>(false);
   const [solution, setSolution] = useState<EquationSolution | null>(null);
   const [activeSceneIndex, setActiveSceneIndex] = useState<number>(0);
@@ -227,7 +244,8 @@ export default function App() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [renderingVideo, setRenderingVideo] = useState<boolean>(false);
   const [videoQuality, setVideoQuality] = useState<string>("medium");
-  const [currentView, setCurrentView] = useState<"dashboard" | "methods">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "methods" | "matrix" | "aichat">("dashboard");
+  const [showMatrixBackground, setShowMatrixBackground] = useState<boolean>(true);
 
   // Auth & Session States
   const [userToken, setUserToken] = useState<string | null>(localStorage.getItem("math_token"));
@@ -238,6 +256,7 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<"signin" | "signup">("signin");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const handleTheme = (newTheme: ThemeType) => {
     setTheme(newTheme);
     localStorage.setItem('math_theme', newTheme);
@@ -298,6 +317,7 @@ export default function App() {
 
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+  const [isShapeModalOpen, setIsShapeModalOpen] = useState(false);
   const [ocrPreviewImage, setOcrPreviewImage] = useState<string | null>(null);
   const [ocrExtractedMath, setOcrExtractedMath] = useState("");
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -925,228 +945,248 @@ export default function App() {
         </div>
       )}
 
-      {/* Top Navigation Bar adhering strictly to the theme */}
-      <header className={`flex flex-col sm:flex-row justify-between items-center px-6 sm:px-8 py-4 sm:h-20 border-b gap-4 transition-colors ${
-        isChalkboard 
-          ? "border-amber-900/40 bg-[#09130f]/95 backdrop-blur-md" 
-          : isBlueprint
-          ? "border-cyan-500/30 bg-[#041224]/95 backdrop-blur-md font-mono"
-          : isCosmos
-          ? "border-purple-500/30 bg-[#060412]/95 backdrop-blur-md"
-          : isLightAcademic
-          ? "border-[#E2E8F0] bg-white/95 backdrop-blur-md"
-          : isDarkAI
-          ? "border-[#273449] bg-[#0B1020]/95 backdrop-blur-md font-mono"
-          : isNotebook
-          ? "border-[#E2DAC7] bg-[#FAF8F3]/95 backdrop-blur-md font-academic"
-          : "border-white/10"
-      }`}>
-        <label htmlFor="equation-bar-input" className="flex items-center gap-2.5 cursor-pointer select-none">
-          <div className={`w-8 h-8 rounded-sm flex items-center justify-center font-bold text-xl shadow-md ${
-            isChalkboard 
-              ? "bg-[#182c21] border border-amber-500/50 text-amber-300 font-scholar-title" 
-              : isBlueprint
-              ? "bg-[#051e3c] border border-cyan-500/50 text-cyan-300 font-mono"
-              : isCosmos
-              ? "bg-[#150a30] border border-purple-500/50 text-purple-300"
-              : isLightAcademic
-              ? "bg-[#2563EB] text-white shadow-sm"
-              : isDarkAI
-              ? "bg-[#1e1b4b] border border-indigo-500/50 text-cyan-300 font-mono"
-              : isNotebook
-              ? "bg-[#FFFDF8] border border-[#E2DAC7] text-blue-900 font-academic shadow-xs"
-              : "bg-blue-600 text-white"
-          }`}>
-            {isChalkboard ? "Σ" : isBlueprint ? "⌖" : isCosmos ? "✦" : isDarkAI ? "◈" : isNotebook ? "✎" : "Σ"}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`text-xl tracking-tight uppercase ${
-              isChalkboard 
-                ? "font-scholar-title font-bold text-amber-100" 
-                : isBlueprint
-                ? "font-mono font-bold text-cyan-100 tracking-wider"
-                : isCosmos
-                ? "font-sans font-bold text-purple-100"
-                : isLightAcademic
-                ? "font-sans font-black text-slate-900"
-                : isDarkAI
-                ? "font-mono font-black text-[#F8FAFC] tracking-wider"
-                : isNotebook
-                ? "font-academic font-bold text-stone-900"
-                : "font-black tracking-tighter"
-            }`}>MathMotion</span>
-            {(isChalkboard || isBlueprint || isCosmos || isLightAcademic || isDarkAI || isNotebook) && (
-              <span className={`hidden md:inline-block text-[9px] border px-2 py-0.5 rounded uppercase tracking-widest ${
-                isChalkboard
-                  ? "bg-amber-500/15 border-amber-500/30 text-amber-300 font-scholar-title"
-                  : isBlueprint
-                  ? "bg-cyan-500/15 border-cyan-500/40 text-cyan-300 font-mono"
-                  : isCosmos
-                  ? "bg-purple-500/15 border-purple-500/40 text-purple-300 font-sans"
-                  : isLightAcademic
-                  ? "bg-blue-50 border-blue-200 text-blue-700 font-sans font-semibold"
-                  : isDarkAI
-                  ? "bg-indigo-950/60 border-indigo-500/40 text-cyan-300 font-mono"
-                  : isNotebook
-                  ? "bg-[#F4ECE1] border-[#E2DAC7] text-stone-700 font-academic font-semibold"
-                  : "bg-white/10 border-white/20 text-white/70"
-              }`}>
-                {THEME_CLASSES[theme].label}
-              </span>
-            )}
-          </div>
-        </label>
+      {/* Shape Vision & Geometric Solver Modal */}
+      <ShapeInspectorModal
+        isOpen={isShapeModalOpen}
+        onClose={() => setIsShapeModalOpen(false)}
+        theme={theme}
+        onApplyToWhiteboard={(eqCmd) => {
+          setEquationInput(eqCmd);
+          handleSolve(eqCmd);
+        }}
+      />
 
-        <nav className={`flex items-center gap-4 sm:gap-8 text-[11px] font-bold uppercase tracking-widest ${
-          isChalkboard 
-            ? "text-amber-200/60 font-scholar-title" 
-            : isBlueprint
-            ? "text-cyan-300/60 font-mono"
-            : isCosmos
-            ? "text-purple-300/60 font-sans"
-            : isLightAcademic
-            ? "text-slate-500 font-sans"
-            : isDarkAI
-            ? "text-slate-400 font-mono"
-            : isNotebook
-            ? "text-stone-600 font-academic"
-            : "text-white/50"
+      {/* Executive Top Navigation Bar */}
+      <header className={`flex flex-col md:flex-row justify-between items-center px-5 sm:px-7 py-3 border-b gap-3 transition-colors ${
+        isChalkboard 
+          ? "border-amber-900/40 bg-[#09130f]/95 backdrop-blur-xl" 
+          : isBlueprint
+          ? "border-cyan-500/30 bg-[#041224]/95 backdrop-blur-xl"
+          : isCosmos
+          ? "border-purple-500/30 bg-[#060412]/95 backdrop-blur-xl"
+          : isLightAcademic
+          ? "border-slate-200 bg-white/95 backdrop-blur-xl shadow-xs"
+          : isDarkAI
+          ? "border-slate-800/80 bg-[#080d1a]/95 backdrop-blur-xl"
+          : isNotebook
+          ? "border-[#E2DAC7] bg-[#FAF8F3]/95 backdrop-blur-xl"
+          : "border-white/10 bg-black/40 backdrop-blur-xl"
+      }`}>
+        {/* Brand Lockup */}
+        <div className="flex items-center gap-3">
+          <label htmlFor="equation-bar-input" className="flex items-center gap-2.5 cursor-pointer select-none group">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-base shadow-md transition-all group-hover:scale-105 ${
+              isChalkboard 
+                ? "bg-[#182c21] border border-amber-500/50 text-amber-300 font-scholar-title shadow-amber-900/30" 
+                : isBlueprint
+                ? "bg-[#051e3c] border border-cyan-500/50 text-cyan-300 font-mono shadow-cyan-950/40"
+                : isCosmos
+                ? "bg-[#150a30] border border-purple-500/50 text-purple-300 shadow-purple-950/40"
+                : isLightAcademic
+                ? "bg-blue-600 text-white shadow-blue-500/20"
+                : "bg-gradient-to-br from-indigo-500 to-cyan-500 text-white shadow-indigo-500/25"
+            }`}>
+              {isChalkboard ? "Σ" : isBlueprint ? "⌖" : isCosmos ? "✦" : "Σ"}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-lg font-bold tracking-tight ${
+                isLightAcademic ? "text-slate-900" : isNotebook ? "text-stone-900 font-academic" : "text-white"
+              }`}>
+                MathMotion
+              </span>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border uppercase tracking-wider font-semibold ${
+                isChalkboard
+                  ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                  : isLightAcademic
+                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                  : "bg-white/10 text-white/80 border-white/15"
+              }`}>
+                Studio
+              </span>
+            </div>
+          </label>
+        </div>
+
+        {/* Center: Segmented Navigation Pill Bar */}
+        <nav className={`flex items-center p-1 rounded-xl border text-xs font-medium backdrop-blur-md transition-all ${
+          isLightAcademic
+            ? "bg-slate-100/80 border-slate-200 text-slate-600"
+            : "bg-black/40 border-white/10 text-white/70"
         }`}>
           <button
             onClick={() => setCurrentView("dashboard")}
-            className={`transition-colors cursor-pointer ${
-              currentView === "dashboard" 
-                ? (isChalkboard 
-                    ? "text-amber-300 border-b-2 border-amber-400 pb-1" 
-                    : isBlueprint
-                    ? "text-cyan-300 border-b-2 border-cyan-400 pb-1"
-                    : isCosmos
-                    ? "text-purple-300 border-b-2 border-purple-400 pb-1"
-                    : isLightAcademic
-                    ? "text-blue-600 border-b-2 border-blue-600 pb-1 font-bold"
-                    : isDarkAI
-                    ? "text-cyan-300 border-b-2 border-indigo-400 pb-1"
-                    : isNotebook
-                    ? "text-blue-900 border-b-2 border-blue-800 pb-1 font-bold"
-                    : "text-white border-b-2 border-blue-600 pb-1") 
-                : (isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : isLight ? "hover:text-slate-900" : "hover:text-white")
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === "dashboard"
+                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+                : "hover:text-white hover:bg-white/5"
             }`}
           >
-            {isChalkboard ? "Scholar Dashboard" : isBlueprint ? "Drafting Deck" : isCosmos ? "Cosmic Visualizer" : isLightAcademic ? "Academic Workspace" : isDarkAI ? "Neural Deck" : isNotebook ? "Notebook Workspace" : "Dashboard"}
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            Studio
           </button>
           <button
             onClick={() => setCurrentView("methods")}
-            className={`transition-colors cursor-pointer flex items-center gap-1.5 ${
-              currentView === "methods" 
-                ? (isChalkboard 
-                    ? "text-amber-300 border-b-2 border-amber-400 pb-1" 
-                    : isBlueprint
-                    ? "text-cyan-300 border-b-2 border-cyan-400 pb-1"
-                    : isCosmos
-                    ? "text-purple-300 border-b-2 border-purple-400 pb-1"
-                    : isLightAcademic
-                    ? "text-blue-600 border-b-2 border-blue-600 pb-1 font-bold"
-                    : isDarkAI
-                    ? "text-cyan-300 border-b-2 border-indigo-400 pb-1"
-                    : isNotebook
-                    ? "text-blue-900 border-b-2 border-blue-800 pb-1 font-bold"
-                    : "text-white border-b-2 border-blue-600 pb-1") 
-                : (isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : isLight ? "hover:text-slate-900" : "hover:text-white")
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === "methods"
+                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+                : "hover:text-white hover:bg-white/5"
             }`}
           >
-            <BookOpen className={`w-3.5 h-3.5 ${isChalkboard ? "text-amber-400" : isBlueprint ? "text-cyan-400" : isCosmos ? "text-purple-400" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : isNotebook ? "text-stone-700" : "text-blue-400"}`} />
-            {isChalkboard ? "Methods Compendium" : isBlueprint ? "Algorithmic Specs" : isCosmos ? "Harmonic Compendium" : isLightAcademic ? "Proofs & Methods" : isDarkAI ? "Kernel Methods" : isNotebook ? "Solving Log" : "Solving Methods"}
+            <BookOpen className="w-3.5 h-3.5 text-blue-400" />
+            Methods
           </button>
           <button
-            onClick={() => setIsPaymentModalOpen(true)}
-            className={`transition-colors cursor-pointer ${
-              isChalkboard ? "hover:text-amber-200" : isBlueprint ? "hover:text-cyan-200" : isCosmos ? "hover:text-purple-200" : isLight ? "hover:text-slate-900" : "hover:text-white"
+            onClick={() => setCurrentView("matrix")}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === "matrix"
+                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+                : "hover:text-white hover:bg-white/5"
             }`}
           >
-            {isChalkboard ? "Academy Fellowship" : isBlueprint ? "Enterprise CAD" : isCosmos ? "Cosmic Pro" : isLightAcademic ? "Pro Researcher" : isDarkAI ? "Enterprise AI" : isNotebook ? "Fellowship Edition" : "Pricing Plans"}
+            <Layers className="w-3.5 h-3.5 text-emerald-400" />
+            Matrix Lab
+          </button>
+          <button
+            onClick={() => setCurrentView("aichat")}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === "aichat"
+                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+                : "hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
+            AI Chat
           </button>
         </nav>
 
-        <div className="flex items-center gap-3">
-          {/* Quick Randomize */}
+        {/* Right Action Toolbar */}
+        <div className="flex items-center gap-2">
+          {/* Theme Switcher Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
+              className={`px-2.5 py-1.5 rounded-lg border text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
+                isLightAcademic
+                  ? "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-xs"
+                  : "bg-white/5 hover:bg-white/10 text-white/80 border-white/10"
+              }`}
+              title="Switch Studio Palette Theme"
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline text-[11px]">{THEME_CLASSES[theme].label}</span>
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+
+            {isThemeMenuOpen && (
+              <div className={`absolute right-0 top-full mt-2 w-56 rounded-xl border p-1.5 shadow-2xl backdrop-blur-xl z-50 text-xs ${
+                isLightAcademic ? "bg-white/95 border-slate-200 text-slate-800" : "bg-black/95 border-white/15 text-white"
+              }`}>
+                <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider opacity-50 border-b border-current/10 mb-1">
+                  Studio Themes
+                </div>
+                {Object.keys(THEME_CLASSES).slice(0, 6).map((key) => {
+                  const t = THEME_CLASSES[key as ThemeType];
+                  const isSel = theme === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        handleTheme(key as ThemeType);
+                        setIsThemeMenuOpen(false);
+                      }}
+                      className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left transition-all cursor-pointer ${
+                        isSel
+                          ? (isLightAcademic ? "bg-blue-50 text-blue-700 font-bold" : "bg-white/15 text-white font-bold")
+                          : "opacity-80 hover:opacity-100 hover:bg-white/5"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${t.dot}`} />
+                        {t.label}
+                      </span>
+                      {isSel && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Shape Vision & Solver Trigger */}
+          <button
+            onClick={() => setIsShapeModalOpen(true)}
+            className={`px-2.5 sm:px-3 py-1.5 border text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              isLightAcademic
+                ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+                : "bg-indigo-600/15 hover:bg-indigo-600/25 border-indigo-500/30 text-indigo-300"
+            }`}
+            title="Geometric Shape Solver & Diagram OCR"
+          >
+            <Shapes className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Vision</span>
+          </button>
+
+          {/* Quick Random Proposition */}
           <button
             onClick={() => {
               const randomPreset = PRESET_EQUATIONS[Math.floor(Math.random() * PRESET_EQUATIONS.length)];
               setEquationInput(randomPreset.expr);
               handleSolve(randomPreset.expr);
             }}
-            className={`px-4 py-2 border text-xs font-black uppercase tracking-wider transition-all cursor-pointer transform active:scale-95 rounded-sm ${
-              isChalkboard 
-                ? "bg-[#13221a] hover:bg-[#1a3427] border-amber-500/40 text-amber-200 font-scholar-title shadow-sm" 
-                : "border-white/20 text-white hover:bg-white/5"
+            className={`px-2.5 py-1.5 border text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+              isLightAcademic
+                ? "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                : "bg-white/5 hover:bg-white/10 text-white/80 border-white/10"
             }`}
-            id="new_project_btn"
+            title="Randomize Math Problem"
           >
-            {isChalkboard ? "Quick Proposition +" : "Quick Randomize +"}
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">Randomize</span>
           </button>
 
-          {/* Session controls */}
+          {/* Upgrade Modal Trigger */}
+          <button
+            onClick={() => setIsPaymentModalOpen(true)}
+            className={`px-2.5 sm:px-3 py-1.5 border text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              isLightAcademic
+                ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 shadow-xs"
+                : "bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300"
+            }`}
+          >
+            <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
+            <span>Pro</span>
+          </button>
+
+          {/* User Session */}
           {userToken ? (
-            <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg border ${
+            <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs ${
               isChalkboard ? "bg-[#101d16] border-amber-900/40" : "bg-white/5 border-white/10"
             }`}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black uppercase select-none ${
-                isChalkboard ? "bg-[#1b3829] text-amber-300 border border-amber-500/30 font-scholar-title" : "bg-blue-600 text-white"
-              }`}>
+              <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[11px]">
                 {userEmail?.slice(0, 1) || "U"}
               </div>
-              <div className="flex flex-col text-left">
-                <span className={`text-[9px] font-bold max-w-[100px] truncate ${isChalkboard ? "text-amber-200/50" : "text-white/40"}`}>{userEmail}</span>
-                <span className={`text-[8px] font-black uppercase tracking-wider ${
-                  isPremium ? "text-amber-300 font-scholar-title" : (isChalkboard ? "text-amber-200/70" : "text-blue-400")
-                }`}>
-                  {isPremium ? (isChalkboard ? "Academy Fellow" : "Pro Tier") : (isChalkboard ? "Junior Scholar" : "Free Tier")}
-                </span>
-              </div>
-              {!isPremium && (
-                <button
-                  onClick={() => setIsPaymentModalOpen(true)}
-                  className={`text-[8px] font-bold px-2 py-1 rounded transition-colors uppercase tracking-widest cursor-pointer ml-1.5 ${
-                    isChalkboard ? "bg-[#1e3c2c] hover:bg-[#284f3a] text-amber-200 border border-amber-500/30" : "bg-emerald-600 hover:bg-emerald-500 text-white"
-                  }`}
-                >
-                  {isChalkboard ? "Ascend" : "Go Pro"}
-                </button>
-              )}
               <button
                 onClick={handleSignOut}
-                className="text-white/40 hover:text-red-400 p-1 transition-colors cursor-pointer ml-1"
+                className="opacity-50 hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
                 title="Sign Out"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => { setAuthModalMode("signin"); setIsAuthModalOpen(true); }}
-                className={`px-3.5 py-2 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                  isChalkboard ? "text-amber-200/80 hover:text-amber-100 font-scholar-title" : "text-white/80 hover:text-white"
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => { setAuthModalMode("signup"); setIsAuthModalOpen(true); }}
-                className={`px-4 py-2 text-xs font-black uppercase tracking-wider transition-all cursor-pointer rounded-sm transform active:scale-95 ${
-                  isChalkboard 
-                    ? "bg-[#183626] hover:bg-[#234d37] border border-amber-500/40 text-amber-200 font-scholar-title shadow-sm" 
-                    : "bg-blue-600 hover:bg-blue-500 text-white"
-                }`}
-              >
-                Sign Up
-              </button>
-            </div>
+            <button
+              onClick={() => { setAuthModalMode("signin"); setIsAuthModalOpen(true); }}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                isLightAcademic ? "bg-blue-600 text-white hover:bg-blue-500 border-blue-600" : "bg-white/10 hover:bg-white/20 text-white border-white/15"
+              }`}
+            >
+              Sign In
+            </button>
           )}
         </div>
       </header>
 
-      {/* View Switcher: Methods Guide or Dashboard */}
+      {/* View Switcher: Methods Guide or Matrix Lab or Dashboard */}
       {currentView === "methods" ? (
         <Explanation
           theme={theme}
@@ -1159,6 +1199,37 @@ export default function App() {
           }}
           onClose={() => setCurrentView("dashboard")}
         />
+      ) : currentView === "matrix" ? (
+        <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">
+          <KineticMatrix
+            theme={theme}
+            title={isChalkboard ? "SCHOLAR LINEAR ALGEBRA & MATRIX LAB" : "LINEAR ALGEBRA & MATRIX LAB"}
+            standalone={true}
+            initialMatrix={extractedMatrix?.matrix}
+            matrixExpr={equationInput}
+            onMatrixExprChange={(expr) => setEquationInput(expr)}
+            onSolve={(expr) => {
+              setEquationInput(expr);
+              setCurrentView("dashboard");
+              handleSolve(expr);
+            }}
+          />
+        </div>
+      ) : currentView === "aichat" ? (
+        <div className="flex-1 p-4 sm:p-8 max-w-5xl mx-auto w-full flex flex-col">
+          <AIChat
+            solution={solution}
+            currentSence={currentScene}
+            theme={theme}
+            standalone={true}
+            onClose={() => setCurrentView("dashboard")}
+            onSolveEquation={(eq) => {
+              setEquationInput(eq);
+              setCurrentView("dashboard");
+              handleSolve(eq);
+            }}
+          />
+        </div>
       ) : (
         /* Main interactive grid dashboard layouts */
         <main className="flex-1 flex flex-col lg:flex-row h-full">
@@ -1168,32 +1239,54 @@ export default function App() {
             isChalkboard ? "border-amber-900/30" : "border-white/10"
           }`} id="left-editor-section">
 
-            {/* Main Huge Typography Header matching Academic Blackboard Theme */}
-            <div className="flex-1 space-y-8">
-              <div className="relative group">
-                <span className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 block flex items-center gap-1.5 ${
-                  isChalkboard ? "text-amber-300 font-scholar-title" : "text-blue-500"
-                }`}>
-                  {isChalkboard ? <><Scroll className="w-3.5 h-3.5 text-amber-400" /> Current Mathematical Proposition</> : "Current Expression"}
-                </span>
-                <h1 className={`text-5xl sm:text-7xl lg:text-8xl leading-[0.85] tracking-tight break-words uppercase ${
-                  isChalkboard 
-                    ? "font-academic text-[#faf8f2] [text-shadow:0_0_1px_rgba(255,255,255,0.7),0_0_12px_rgba(253,224,71,0.25)] font-semibold" 
-                    : "font-black tracking-tighter"
-                }`}>
-                  {solution?.equation || "∫(sin x + cos x) dx"}
-                </h1>
+            {/* Elegant Mathematical Proposition Card */}
+            <div className="flex-1 space-y-6">
+              <div className={`p-5 sm:p-6 rounded-2xl border transition-all ${
+                isChalkboard 
+                  ? "bg-[#0b1712] border-amber-900/40 text-amber-100" 
+                  : isLightAcademic
+                  ? "bg-white border-slate-200 text-slate-900 shadow-sm"
+                  : "bg-white/[0.03] border-white/10 text-white backdrop-blur-md"
+              }`}>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
+                      isChalkboard ? "bg-amber-500/10 text-amber-300 border-amber-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                    }`}>
+                      {solution?.equationType || "Mathematical Equation"}
+                    </span>
+                    {currentScene && (
+                      <span className="text-[11px] font-mono opacity-50">
+                        Step {activeSceneIndex + 1} of {solution?.scenes?.length || 1}
+                      </span>
+                    )}
+                  </div>
 
-                <div
-                  className={`absolute -top-3 right-0 px-3 py-1 text-[9px] font-bold tracking-widest uppercase select-none rounded-[2px] shadow-sm ${
-                    isChalkboard 
-                      ? "bg-[#183626] border border-amber-500/40 text-amber-300 font-scholar-title" 
-                      : "bg-blue-600 text-white"
-                  }`}
-                  id="solving-indicator"
-                >
-                  {loading ? (isChalkboard ? "DERIVING..." : "PARSING...") : (isChalkboard ? "AXIOM RIGOR" : "READY")}
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                      loading 
+                        ? "bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse" 
+                        : isChalkboard
+                        ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                        : "bg-blue-500/15 border-blue-500/30 text-blue-300"
+                    }`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-ping" />
+                      {loading ? "Deriving Solution..." : "Axiom Rigor: Verified"}
+                    </span>
+                  </div>
                 </div>
+
+                <div className="py-2 overflow-x-auto">
+                  <div className="text-2xl sm:text-3xl font-mono tracking-tight font-bold">
+                    <KatexMath math={solution?.equation || equationInput} block={false} />
+                  </div>
+                </div>
+
+                {solution?.summary && (
+                  <p className="text-xs opacity-70 mt-1 font-sans leading-relaxed max-w-3xl">
+                    {solution.summary}
+                  </p>
+                )}
               </div>
 
               {/* Error or Notice status panel */}
@@ -1246,27 +1339,64 @@ export default function App() {
                     <span className={`text-[10px] font-bold uppercase tracking-wider ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/50"}`}>
                       Geometry &amp; Plots Visualizer
                     </span>
-                    {currentScene?.graphData.showGraph && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded border font-mono ${
-                        isChalkboard ? "bg-[#183626] text-amber-300 border-amber-500/30" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                      }`}>
-                        Expr: {currentScene.graphData.functionExpr}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      {(solution?.equationType?.toLowerCase().includes("matrix") || solution?.equation?.includes("[[") || equationInput.includes("[[") || equationInput.toLowerCase().includes("det(") || equationInput.toLowerCase().includes("eigen(")) && (
+                        <button
+                          onClick={() => setShowMatrixBackground(!showMatrixBackground)}
+                          className={`text-[9px] px-2 py-0.5 rounded border font-mono transition-all cursor-pointer flex items-center gap-1 ${
+                            showMatrixBackground
+                              ? (isChalkboard ? "bg-[#183626] text-amber-300 border-amber-500/40" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30")
+                              : "bg-white/5 text-white/50 hover:text-white border-white/10"
+                          }`}
+                          title="Toggle interactive matrix inspector vs plot graph"
+                        >
+                          <Layers className="w-2.5 h-2.5" />
+                          Matrix Inspector: {showMatrixBackground ? "ACTIVE" : "OFF"}
+                        </button>
+                      )}
+                      {currentScene?.graphData.showGraph && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded border font-mono ${
+                          isChalkboard ? "bg-[#183626] text-amber-300 border-amber-500/30" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                        }`}>
+                          Expr: {currentScene.graphData.functionExpr}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="relative overflow-hidden rounded-xl">
+                    {(solution?.equationType?.toLowerCase().includes("matrix") || solution?.equation?.includes("[[") || equationInput.includes("[[") || equationInput.toLowerCase().includes("det(") || equationInput.toLowerCase().includes("eigen(")) && showMatrixBackground ? (
+                      <div className="relative z-10 w-full">
+                        <KineticMatrix
+                          title="Interactive Matrix Inspector"
+                          theme={theme}
+                          className="w-full"
+                          initialMatrix={extractedMatrix?.matrix}
+                          matrixExpr={equationInput}
+                          onMatrixExprChange={(expr) => setEquationInput(expr)}
+                          onSolve={(expr) => {
+                            setEquationInput(expr);
+                            handleSolve(expr);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative z-10">
+                        {currentScene && currentScene.graphData ? (
+                          <MathGraph
+                            graphData={currentScene.graphData}
+                            annotations={currentScene.annotations}
+                            theme={theme}
+                          />
+                        ) : (
+                          <div className={`h-[320px] rounded-xl flex items-center justify-center text-xs ${
+                            isChalkboard ? "bg-[#0c1813] border border-amber-900/30 text-amber-200/40" : "bg-[#0A0A0A] border border-white/5 text-white/30"
+                          }`}>
+                            No coordinate metrics mapped for current step.
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                  {currentScene && currentScene.graphData ? (
-                    <MathGraph
-                      graphData={currentScene.graphData}
-                      annotations={currentScene.annotations}
-                      theme={theme}
-                    />
-                  ) : (
-                    <div className={`h-[320px] rounded-xl flex items-center justify-center text-xs ${
-                      isChalkboard ? "bg-[#0c1813] border border-amber-900/30 text-amber-200/40" : "bg-[#0A0A0A] border border-white/5 text-white/30"
-                    }`}>
-                      No coordinate metrics mapped for current step.
-                    </div>
-                  )}
 
                   {/* Visual coordinate context info cards beneath Graph */}
                   <div className="grid grid-cols-2 gap-3 mt-1.5">
@@ -1353,17 +1483,17 @@ export default function App() {
                     type="text"
                     id="equation-bar-input"
                     name="equation-bar-input"
-                    placeholder="ENTER NEW EQUATION (e.g., y = x^2 - 4x + 4)..."
-                    className={`w-full border-2 px-4 py-3.5 font-mono text-base focus:outline-none transition-colors uppercase tracking-wide rounded-sm ${
+                    placeholder="Enter mathematical equation (e.g. x^2 - 5x + 6, det([[1, 2], [3, 4]]), sin(x) = 0.5)..."
+                    className={`w-full border px-4 py-3.5 font-mono text-sm sm:text-base focus:outline-none transition-all rounded-xl ${
                       isChalkboard 
-                        ? "bg-[#0c1813] border-amber-900/40 focus:border-amber-400 text-[#faf8f2] placeholder:text-amber-200/30 shadow-inner" 
+                        ? "bg-[#0a1510] border-amber-900/50 focus:border-amber-400 text-[#faf8f2] placeholder:text-amber-200/30" 
                         : isLightAcademic
-                        ? "bg-white border-[#E2E8F0] focus:border-[#2563EB] text-[#0F172A] placeholder:text-slate-400 shadow-xs"
+                        ? "bg-white border-slate-200 focus:border-blue-600 text-slate-900 placeholder:text-slate-400 shadow-xs"
                         : isDarkAI
-                        ? "bg-[#111827] border-[#273449] focus:border-[#6366F1] text-[#F8FAFC] placeholder:text-slate-500 shadow-inner"
+                        ? "bg-[#0b1020] border-slate-800 focus:border-indigo-500 text-white placeholder:text-slate-500"
                         : isNotebook
                         ? "bg-[#FFFDF8] border-[#E2DAC7] focus:border-[#1E40AF] text-[#242018] placeholder:text-stone-400 shadow-xs"
-                        : "bg-white/5 border-white/20 focus:border-blue-600 placeholder:text-white/30"
+                        : "bg-white/5 border-white/15 focus:border-blue-500 placeholder:text-white/30"
                     }`}
                     value={equationInput}
                     onChange={(e) => setEquationInput(e.target.value)}
@@ -1375,14 +1505,14 @@ export default function App() {
                   />
                   <button
                     onClick={() => setEquationInput("")}
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded cursor-pointer ${
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
                       isChalkboard 
-                        ? "text-amber-200/50 hover:text-amber-200 bg-[#16291e]" 
+                        ? "text-amber-200/60 hover:text-amber-100 bg-[#16291e]" 
                         : isLightAcademic
                         ? "text-slate-400 hover:text-slate-700 bg-slate-100"
                         : isNotebook
                         ? "text-stone-400 hover:text-stone-700 bg-stone-100"
-                        : "text-white/40 hover:text-white bg-white/10"
+                        : "text-white/50 hover:text-white bg-white/10"
                     }`}
                   >
                     Clear
@@ -1400,7 +1530,7 @@ export default function App() {
                 <button
                   onClick={toggleMainVoice}
                   title={isRecordingMainInput ? "Stop Dictation" : "Dictate Equation (Voice Input)"}
-                  className={`p-3.5 transition-all cursor-pointer rounded-sm flex items-center justify-center border-2 ${isRecordingMainInput
+                  className={`p-3.5 transition-all cursor-pointer rounded-xl flex items-center justify-center border ${isRecordingMainInput
                     ? "bg-red-500/30 border-red-500 text-red-400 animate-pulse"
                     : (isChalkboard ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40" : isLightAcademic ? "bg-white hover:bg-slate-50 text-blue-600 border-slate-200 shadow-xs" : isNotebook ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] text-blue-900 border-[#E2DAC7] shadow-xs" : isDarkAI ? "bg-[#111827] hover:bg-[#1a2336] text-cyan-300 border-[#273449]" : "bg-white/10 hover:bg-white/20 text-blue-400 border-white/20")
                     }`}
@@ -1416,7 +1546,7 @@ export default function App() {
                   onClick={() => setIsOcrModalOpen(true)}
                   disabled={isOcrLoading}
                   title="Math Image OCR Scanner"
-                  className={`p-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center border-2 disabled:opacity-40 ${
+                  className={`p-3.5 transition-colors cursor-pointer rounded-xl flex items-center justify-center border disabled:opacity-40 ${
                     isChalkboard 
                       ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40" 
                       : isLightAcademic
@@ -1435,28 +1565,52 @@ export default function App() {
                   )}
                 </button>
 
+                {/* Shape Vision & Geometric Solver Button */}
+                <button
+                  onClick={() => setIsShapeModalOpen(true)}
+                  title="Shape Vision & Geometric Solver (Find Angles, Sides, Area)"
+                  className={`p-3.5 transition-colors cursor-pointer rounded-xl flex items-center justify-center border ${
+                    isChalkboard 
+                      ? "bg-[#183626] hover:bg-[#234d37] text-amber-200 border-amber-500/40 shadow-sm" 
+                      : isLightAcademic
+                      ? "bg-white hover:bg-slate-50 text-indigo-600 border-indigo-200 shadow-xs"
+                      : isNotebook
+                      ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] text-blue-900 border-[#E2DAC7] shadow-xs"
+                      : isDarkAI
+                      ? "bg-[#111827] hover:bg-[#1a2336] text-indigo-400 border-[#273449]"
+                      : "bg-white/10 hover:bg-white/20 text-indigo-400 border-white/20"
+                  }`}
+                >
+                  <Shapes className={`w-5 h-5 ${isChalkboard ? "text-amber-300" : isLightAcademic ? "text-indigo-600" : isDarkAI ? "text-indigo-400" : isNotebook ? "text-blue-900" : "text-indigo-400"}`} />
+                </button>
+
                 <button
                   onClick={() => handleSolve(equationInput)}
                   disabled={loading}
-                  className={`font-black uppercase tracking-wider px-8 py-3.5 transition-colors cursor-pointer rounded-sm flex items-center justify-center gap-2 text-sm shadow-lg ${
+                  className={`font-bold px-7 py-3.5 transition-all cursor-pointer rounded-xl flex items-center justify-center gap-2 text-sm shadow-md active:scale-95 ${
                     isChalkboard 
                       ? "bg-[#1a3829] hover:bg-[#254f3a] disabled:opacity-50 text-amber-200 border border-amber-500/40 font-scholar-title shadow-black/50" 
                       : isLightAcademic
-                      ? "bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-sans shadow-blue-500/25"
+                      ? "bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-sans shadow-blue-500/20"
                       : isDarkAI
-                      ? "bg-[#6366F1] hover:bg-indigo-600 disabled:opacity-50 text-white font-mono shadow-indigo-950/60"
+                      ? "bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 disabled:opacity-50 text-white font-mono shadow-indigo-500/25"
                       : isNotebook
                       ? "bg-[#1E40AF] hover:bg-blue-900 disabled:opacity-50 text-[#FAF8F3] font-academic shadow-stone-400/40"
-                      : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white tracking-tighter"
+                      : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white"
                   }`}
                   id="parse_equation_btn"
                 >
                   {loading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      {isChalkboard ? "Deriving Rigor..." : isLightAcademic ? "Solving Step-by-Step..." : isNotebook ? "Recording in Notebook..." : "Parsing..."}
+                      <span>Deriving Rigor...</span>
                     </>
-                  ) : (isChalkboard ? "Derive & Synthesize" : isLightAcademic ? "Solve & Prove" : isNotebook ? "Record Solution" : "Parse & Synthesize")}
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Solve & Prove ↵</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -1478,21 +1632,73 @@ export default function App() {
                   }`}>
                     Live LaTeX Preview:
                   </span>
-                  <div className={`text-sm font-medium px-2 py-0.5 rounded border ${
-                    isChalkboard 
-                      ? "bg-black/50 text-amber-200 border-amber-500/20" 
-                      : isLightAcademic
-                      ? "bg-white text-blue-700 border-blue-200 shadow-xs"
-                      : isDarkAI
-                      ? "bg-[#0B1020] text-cyan-300 border-[#273449]"
-                      : isNotebook
-                      ? "bg-[#FFFDF8] text-stone-900 border-[#E2DAC7] shadow-xs"
-                      : "bg-black/40 text-white border-white/5"
-                  }`}>
-                    <KatexMath math={equationInput} block={false} />
+                  <div className="flex items-center gap-2">
+                    {extractedMatrix && (
+                      <button
+                        onClick={() => setCurrentView("matrix")}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold transition-all cursor-pointer border shadow-xs ${
+                          isChalkboard
+                            ? "bg-[#183626] hover:bg-[#234e37] text-amber-200 border-amber-500/40"
+                            : "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30"
+                        }`}
+                        title="Explore and visualize this matrix in the interactive 2D/3D Matrix Lab"
+                      >
+                        <Grid className="w-3.5 h-3.5 text-emerald-400" />
+                        Open in Matrix Lab ({extractedMatrix.dim}×{extractedMatrix.dim})
+                      </button>
+                    )}
+                    <div className={`text-sm font-medium px-2 py-0.5 rounded border ${
+                      isChalkboard 
+                        ? "bg-black/50 text-amber-200 border-amber-500/20" 
+                        : isLightAcademic
+                        ? "bg-white text-blue-700 border-blue-200 shadow-xs"
+                        : isDarkAI
+                        ? "bg-[#0B1020] text-cyan-300 border-[#273449]"
+                        : isNotebook
+                        ? "bg-[#FFFDF8] text-stone-900 border-[#E2DAC7] shadow-xs"
+                        : "bg-black/40 text-white border-white/5"
+                    }`}>
+                      <KatexMath math={equationInput} block={false} />
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* Quick Math Tool Palette: Trigonometry & Geometry */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-2 border-t border-white/5">
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                  isChalkboard ? "text-amber-300/70 font-scholar-title" : "text-white/40 font-mono"
+                }`}>
+                  Trig &amp; Geo Tools:
+                </span>
+                {[
+                  { label: "sin(x)=0.5", val: "sin(x) = 0.5" },
+                  { label: "cos(x)=0", val: "cos(x) = 0" },
+                  { label: "tan(x)=1", val: "tan(x) = 1" },
+                  { label: "unit_circle(π/3)", val: "unit_circle(pi/3)" },
+                  { label: "distance([1,2],[4,6])", val: "distance([1, 2], [4, 6])" },
+                  { label: "midpoint([2,-4],[6,8])", val: "midpoint([2, -4], [6, 8])" },
+                  { label: "pythagorean(3, 4)", val: "pythagorean(3, 4)" },
+                  { label: "circle(5)", val: "circle(5)" },
+                  { label: "rotate(square, 45)", val: "rotate(square, 45)" },
+                  { label: "translate(circle, 2, -1)", val: "translate(circle, 2, -1)" }
+                ].map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setEquationInput(item.val);
+                      handleSolve(item.val);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
+                      isChalkboard
+                        ? "bg-[#14261d] hover:bg-[#1d392b] text-emerald-200 border-emerald-900/40 hover:text-white"
+                        : "bg-blue-900/20 hover:bg-blue-900/40 text-cyan-200 border-cyan-500/20 hover:text-white"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
 
               {/* Quick-select equations suggestions deck */}
               <div className={`flex flex-wrap items-center gap-2 mt-3 text-xs ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/50"}`}>
@@ -2102,7 +2308,9 @@ export default function App() {
       />
 
       {/* AI Chat assistant */}
-      <AIChat solution={solution} currentSence={currentScene} theme={theme} />
+      {currentView !== "aichat" && (
+        <AIChat solution={solution} currentSence={currentScene} theme={theme} onSolveEquation={handleSolve} />
+      )}
 
       {/* Floating AI Math Voice Assistant */}
       <VoiceAssistant
@@ -2135,6 +2343,10 @@ export default function App() {
             setCurrentView("dashboard");
           } else if (view === "explanation") {
             setCurrentView("methods");
+          } else if (view === "matrix") {
+            setCurrentView("matrix");
+          } else if (view === "aichat") {
+            setCurrentView("aichat");
           }
         }}
       />

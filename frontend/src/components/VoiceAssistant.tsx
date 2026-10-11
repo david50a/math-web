@@ -34,7 +34,7 @@ import { ThemeType } from "../types";
 interface VoiceAssistantProps {
   onSolveEquation?: (equation: string) => void;
   onNavigateScene?: (direction: "next" | "prev" | "first") => void;
-  onSwitchView?: (view: "whiteboard" | "graph" | "explanation" | "cheatsheet") => void;
+  onSwitchView?: (view: "whiteboard" | "graph" | "explanation" | "cheatsheet" | "matrix" | "aichat") => void;
   activeScene?: any;
   solution?: any;
   currentView?: string;

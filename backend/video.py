@@ -814,21 +814,14 @@ class UniversalMathAnimation(Scene):
         elif problem_type == "geometry":
             try:
                 import geometry
-                if "translate" in input_str.lower():
-                    match = re.search(r'translate\((.*),\s*(.*),\s*(.*)\)', input_str, re.I)
-                    shape, dx, dy = match.groups()
-                    steps = geometry.translate(shape, float(dx), float(dy))
-                    title_str = f"Translating {shape}"
-                elif "rotate" in input_str.lower():
-                    match = re.search(r'rotate\((.*),\s*(.*)\)', input_str, re.I)
-                    shape, angle = match.groups()
-                    steps = geometry.rotate(shape, float(angle))
-                    title_str = f"Rotating {shape}"
-                elif "scale" in input_str.lower():
-                    match = re.search(r'scale\((.*),\s*(.*)\)', input_str, re.I)
-                    shape, factor = match.groups()
-                    steps = geometry.scale(shape, float(factor))
-                    title_str = f"Scaling {shape}"
+                title_str, steps = geometry.solve_geometry(input_str)
+            except Exception:
+                return
+
+        elif problem_type == "trigonometry":
+            try:
+                import trigonometry
+                title_str, steps = trigonometry.solve_trigonometry(input_str)
             except Exception:
                 return
 
@@ -998,8 +991,11 @@ class UniversalMathAnimation(Scene):
                         circ.set_fill(c, opacity=0.15)
                         new_mobs.add(circ)
                     elif sd.get("type") == "line":
-                        new_mobs.add(Line(sd.get("start",ORIGIN), sd.get("end",RIGHT),
-                                         stroke_width=2.5, color=c))
+                        p1_coord = sd.get("p1", sd.get("start", ORIGIN))
+                        p2_coord = sd.get("p2", sd.get("end", RIGHT))
+                        p1_3d = [p1_coord[0], p1_coord[1], 0] if len(p1_coord) == 2 else p1_coord
+                        p2_3d = [p2_coord[0], p2_coord[1], 0] if len(p2_coord) == 2 else p2_coord
+                        new_mobs.add(Line(p1_3d, p2_3d, stroke_width=2.5, color=c))
                 for ld in step.data.get("labels", []):
                     new_mobs.add(MathTex(ld.get("text",""), font_size=28,
                                          color=TEXT_BRIGHT).move_to(ld.get("pos", ORIGIN)))

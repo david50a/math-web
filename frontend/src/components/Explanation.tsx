@@ -47,7 +47,7 @@ export interface QuestionMultiMethodData {
   id?: string;
   questionInput: string;
   questionTitle: string;
-  category: "Algebra & Equations" | "Calculus & Integrals" | "Derivatives" | "Linear Algebra" | "Statistics" | "Geometry";
+  category: "Algebra & Equations" | "Calculus & Integrals" | "Derivatives" | "Linear Algebra" | "Statistics" | "Geometry" | "Trigonometry";
   latexQuestion: string;
   defaultMethodIndex: number;
   methods: MethodSolution[];
@@ -971,6 +971,422 @@ const COMPREHENSIVE_ENGINE_DATABASE: QuestionMultiMethodData[] = [
         }
       }
     ]
+  },
+  {
+    questionInput: "distance([1, 2], [4, 6])",
+    questionTitle: "2D Euclidean Distance: distance([1, 2], [4, 6])",
+    category: "Geometry",
+    latexQuestion: "d = \\sqrt{(4 - 1)^2 + (6 - 2)^2}",
+    defaultMethodIndex: 0,
+    methods: [
+      {
+        methodId: "geom-dist-formula",
+        methodName: "Method 1: Coordinate Distance Formula",
+        badgeTag: "Euclidean Metric",
+        techniqueSummary: "Direct substitution into Pythagorean-derived distance formula.",
+        formulaLatex: "d = \\sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}",
+        steps: [
+          {
+            stepTitle: "Step 1: Compute coordinate differences",
+            description: "Subtract x and y coordinates: dx = 4 - 1 = 3, dy = 6 - 2 = 4.",
+            latex: "\\Delta x = 4 - 1 = 3, \\quad \\Delta y = 6 - 2 = 4"
+          },
+          {
+            stepTitle: "Step 2: Square and take square root",
+            description: "Sum of squares yields 9 + 16 = 25.",
+            latex: "d = \\sqrt{3^2 + 4^2} = \\sqrt{9 + 16} = \\sqrt{25} = 5"
+          }
+        ],
+        finalResultLatex: "d = 5",
+        prosAndCons: {
+          pros: "Direct analytical formula in Cartesian space.",
+          cons: "None."
+        }
+      },
+      {
+        methodId: "geom-dist-vector",
+        methodName: "Method 2: Vector Norm (Euclidean Magnitude)",
+        badgeTag: "Vector Norm",
+        techniqueSummary: "Computes the L2 norm of the displacement vector.",
+        formulaLatex: "\\|\\vec{v}\\| = \\sqrt{\\vec{v} \\cdot \\vec{v}}",
+        steps: [
+          {
+            stepTitle: "Step 1: Form displacement vector",
+            description: "Vector from P1 to P2.",
+            latex: "\\vec{v} = \\vec{P}_2 - \\vec{P}_1 = \\begin{pmatrix} 4 \\\\ 6 \\end{pmatrix} - \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix} = \\begin{pmatrix} 3 \\\\ 4 \\end{pmatrix}"
+          },
+          {
+            stepTitle: "Step 2: Compute L2 dot product magnitude",
+            description: "Inner product norm.",
+            latex: "\\|\\vec{v}\\| = \\sqrt{3^2 + 4^2} = 5"
+          }
+        ],
+        finalResultLatex: "\\|\\vec{v}\\| = 5",
+        prosAndCons: {
+          pros: "Generalizes directly to higher dimensions (3D, n-D).",
+          cons: "Requires vector notation."
+        }
+      }
+    ]
+  },
+  {
+    questionInput: "pythagorean(3, 4)",
+    questionTitle: "Pythagorean Theorem: pythagorean(3, 4)",
+    category: "Geometry",
+    latexQuestion: "c^2 = 3^2 + 4^2 \\implies c = ?",
+    defaultMethodIndex: 0,
+    methods: [
+      {
+        methodId: "geom-pythag-direct",
+        methodName: "Method 1: Direct Algebraic Equation",
+        badgeTag: "Pythagorean Equality",
+        techniqueSummary: "Sums squares of perpendicular legs and extracts principal square root.",
+        formulaLatex: "c = \\sqrt{a^2 + b^2}",
+        steps: [
+          {
+            stepTitle: "Step 1: State Pythagorean theorem",
+            description: "For any right triangle with legs a, b and hypotenuse c.",
+            latex: "a^2 + b^2 = c^2"
+          },
+          {
+            stepTitle: "Step 2: Substitute legs 3 and 4",
+            description: "Calculate squares.",
+            latex: "c = \\sqrt{3^2 + 4^2} = \\sqrt{9 + 16} = \\sqrt{25} = 5"
+          }
+        ],
+        finalResultLatex: "c = 5",
+        prosAndCons: {
+          pros: "Instant closed-form resolution.",
+          cons: "Requires right angle triangle (90°)."
+        }
+      },
+      {
+        methodId: "geom-pythag-triples",
+        methodName: "Method 2: Primitive Pythagorean Triples Recognition",
+        badgeTag: "Diophantine Triples",
+        techniqueSummary: "Identifies standard (3, 4, 5) primitive right triangle triple.",
+        formulaLatex: "(a, b, c) = (m^2 - n^2, \\, 2mn, \\, m^2 + n^2)",
+        steps: [
+          {
+            stepTitle: "Step 1: Verify Euclid's parameterization",
+            description: "Choose generators m = 2, n = 1.",
+            latex: "m = 2, \\, n = 1 \\implies a = 2^2 - 1^2 = 3, \\, b = 2(2)(1) = 4"
+          },
+          {
+            stepTitle: "Step 2: Conclude hypotenuse value",
+            description: "Hypotenuse c = m^2 + n^2.",
+            latex: "c = 2^2 + 1^2 = 4 + 1 = 5"
+          }
+        ],
+        finalResultLatex: "(3, 4, 5) \\text{ Pythagorean Triple}",
+        prosAndCons: {
+          pros: "Enables instant mental math recognition.",
+          cons: "Only applicable to integer right triangle triples."
+        }
+      }
+    ]
+  },
+  {
+    questionInput: "circle(5)",
+    questionTitle: "Circle Properties: circle(radius=5)",
+    category: "Geometry",
+    latexQuestion: "r = 5 \\implies A = \\pi r^2, \\quad C = 2\\pi r",
+    defaultMethodIndex: 0,
+    methods: [
+      {
+        methodId: "geom-circle-formulas",
+        methodName: "Method 1: Classical Geometric Disk Formulas",
+        badgeTag: "Geometric Closed-Form",
+        techniqueSummary: "Direct evaluation of area and perimeter formulas.",
+        formulaLatex: "A = \\pi r^2, \\quad C = 2\\pi r",
+        steps: [
+          {
+            stepTitle: "Step 1: Compute Area",
+            description: "Area of circular disk with radius r = 5.",
+            latex: "A = \\pi (5)^2 = 25\\pi \\approx 78.54"
+          },
+          {
+            stepTitle: "Step 2: Compute Circumference",
+            description: "Circumference boundary length.",
+            latex: "C = 2\\pi (5) = 10\\pi \\approx 31.42"
+          }
+        ],
+        finalResultLatex: "A = 25\\pi, \\quad C = 10\\pi",
+        prosAndCons: {
+          pros: "Fundamental geometric identities.",
+          cons: "None."
+        }
+      },
+      {
+        methodId: "geom-circle-calculus",
+        methodName: "Method 2: Calculus Polar Integration",
+        badgeTag: "Polar Integration",
+        techniqueSummary: "Integrates infinitesimal concentric rings from 0 to R.",
+        formulaLatex: "A = \\int_0^R 2\\pi r \\, dr = \\left[ \\pi r^2 \\right]_0^R",
+        steps: [
+          {
+            stepTitle: "Step 1: Set up thin ring integral",
+            description: "Integrate circumference elements 2*pi*r dr.",
+            latex: "A = \\int_0^5 2\\pi r \\, dr"
+          },
+          {
+            stepTitle: "Step 2: Evaluate definite integral",
+            description: "Antiderivative gives pi * r^2.",
+            latex: "A = \\left[ \\pi r^2 \\right]_0^5 = \\pi(25) - 0 = 25\\pi"
+          }
+        ],
+        finalResultLatex: "A = 25\\pi",
+        prosAndCons: {
+          pros: "Proves why the area derivative equals circumference (dA/dr = C).",
+          cons: "Requires calculus."
+        }
+      }
+    ]
+  },
+
+  // TRIGONOMETRY ENGINE
+  {
+    questionInput: "sin(x) = 0.5",
+    questionTitle: "Trigonometric Equation: sin(x) = 1/2",
+    category: "Trigonometry",
+    latexQuestion: "\\sin(x) = \\frac{1}{2}, \\quad x \\in [0, 2\\pi)",
+    defaultMethodIndex: 0,
+    methods: [
+      {
+        methodId: "trig-unit-circle-sin",
+        methodName: "Method 1: Unit Circle Reference Angle",
+        badgeTag: "Unit Circle ASTC",
+        techniqueSummary: "Locates reference angle in Quadrant I and mirrors across Quadrant II where sine is positive.",
+        formulaLatex: "x_1 = \\theta_{\\text{ref}}, \\quad x_2 = \\pi - \\theta_{\\text{ref}}",
+        steps: [
+          {
+            stepTitle: "Step 1: Determine reference angle",
+            description: "Find acute angle whose sine is 1/2.",
+            latex: "\\theta_{\\text{ref}} = \\arcsin(0.5) = \\frac{\\pi}{6} = 30^\\circ"
+          },
+          {
+            stepTitle: "Step 2: Identify positive sine quadrants",
+            description: "Sine is positive in Quadrants I and II.",
+            latex: "x_1 = \\frac{\\pi}{6}, \\quad x_2 = \\pi - \\frac{\\pi}{6} = \\frac{5\\pi}{6}"
+          },
+          {
+            stepTitle: "Step 3: State general solutions with 2k*pi periodicity",
+            description: "Add all full rotations for k in integers.",
+            latex: "x = \\frac{\\pi}{6} + 2k\\pi, \\quad x = \\frac{5\\pi}{6} + 2k\\pi \\quad (k \\in \\mathbb{Z})"
+          }
+        ],
+        finalResultLatex: "x \\in \\left\\{ \\frac{\\pi}{6}, \\, \\frac{5\\pi}{6} \\right\\} + 2k\\pi",
+        prosAndCons: {
+          pros: "Geometric visualization prevents missing second quadrant solutions.",
+          cons: "Requires checking quadrant signs."
+        }
+      },
+      {
+        methodId: "trig-inverse-formula",
+        methodName: "Method 2: Analytical Inversion Formula",
+        badgeTag: "General Inversion Formula",
+        techniqueSummary: "Applies closed-form general solution formula x = (-1)^n * arcsin(y) + n*pi.",
+        formulaLatex: "x = (-1)^n \\arcsin(c) + n\\pi, \\quad n \\in \\mathbb{Z}",
+        steps: [
+          {
+            stepTitle: "Step 1: Substitute c = 1/2 into general formula",
+            description: "Evaluate principal inverse sine.",
+            latex: "x = (-1)^n \\left(\\frac{\\pi}{6}\\right) + n\\pi"
+          },
+          {
+            stepTitle: "Step 2: Expand for even and odd integers n",
+            description: "For n = 0: x = pi/6; for n = 1: x = -pi/6 + pi = 5pi/6.",
+            latex: "n = 0 \\implies x = \\frac{\\pi}{6}; \\quad n = 1 \\implies x = \\frac{5\\pi}{6}"
+          }
+        ],
+        finalResultLatex: "x = (-1)^n \\frac{\\pi}{6} + n\\pi",
+        prosAndCons: {
+          pros: "Compact single-line formula covering all infinite integer solutions.",
+          cons: "Alternating (-1)^n sign requires careful interpretation."
+        }
+      }
+    ]
+  },
+  {
+    questionInput: "2*sin(x)^2 + sin(x) - 1 = 0",
+    questionTitle: "Quadratic Trig Equation: 2sin^2(x) + sin(x) - 1 = 0",
+    category: "Trigonometry",
+    latexQuestion: "2\\sin^2(x) + \\sin(x) - 1 = 0",
+    defaultMethodIndex: 0,
+    methods: [
+      {
+        methodId: "trig-quad-factor",
+        methodName: "Method 1: Factoring & Zero Product Property",
+        badgeTag: "Trigonometric Factoring",
+        techniqueSummary: "Factors quadratic expression in terms of sin(x) into two linear factors.",
+        formulaLatex: "(2\\sin x - 1)(\\sin x + 1) = 0",
+        steps: [
+          {
+            stepTitle: "Step 1: Factor the polynomial in sin(x)",
+            description: "Decompose 2u^2 + u - 1 into (2u - 1)(u + 1).",
+            latex: "(2\\sin(x) - 1)(\\sin(x) + 1) = 0"
+          },
+          {
+            stepTitle: "Step 2: Solve factor 2sin(x) - 1 = 0",
+            description: "sin(x) = 1/2 yields Quadrant I and II solutions.",
+            latex: "\\sin(x) = \\frac{1}{2} \\implies x = \\frac{\\pi}{6}, \\, \\frac{5\\pi}{6}"
+          },
+          {
+            stepTitle: "Step 3: Solve factor sin(x) + 1 = 0",
+            description: "sin(x) = -1 occurs at bottom of unit circle.",
+            latex: "\\sin(x) = -1 \\implies x = \\frac{3\\pi}{2}"
+          }
+        ],
+        finalResultLatex: "x \\in \\left\\{ \\frac{\\pi}{6}, \\, \\frac{5\\pi}{6}, \\, \\frac{3\\pi}{2} \\right\\}",
+        prosAndCons: {
+          pros: "Fast and clear factorization.",
+          cons: "Requires recognizable polynomial factorization."
+        }
+      },
+      {
+        methodId: "trig-quad-usub",
+        methodName: "Method 2: u-Substitution Quadratic Formula",
+        badgeTag: "u-Substitution",
+        techniqueSummary: "Substitutes u = sin(x) and solves via standard quadratic formula.",
+        formulaLatex: "u = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
+        steps: [
+          {
+            stepTitle: "Step 1: Set u = sin(x) and compute discriminant",
+            description: "2u^2 + u - 1 = 0: Delta = 1^2 - 4(2)(-1) = 9.",
+            latex: "\\Delta = 1 + 8 = 9 > 0"
+          },
+          {
+            stepTitle: "Step 2: Compute roots for u",
+            description: "u = (-1 +- 3) / 4.",
+            latex: "u_1 = \\frac{-1 + 3}{4} = \\frac{1}{2}, \\quad u_2 = \\frac{-1 - 3}{4} = -1"
+          },
+          {
+            stepTitle: "Step 3: Back-substitute sin(x) = u",
+            description: "Solve sin(x) = 1/2 and sin(x) = -1.",
+            latex: "x = \\frac{\\pi}{6}, \\, \\frac{5\\pi}{6}, \\, \\frac{3\\pi}{2}"
+          }
+        ],
+        finalResultLatex: "x \\in \\left\\{ \\frac{\\pi}{6}, \\, \\frac{5\\pi}{6}, \\, \\frac{3\\pi}{2} \\right\\}",
+        prosAndCons: {
+          pros: "Always works, even when quadratic doesn't factor easily.",
+          cons: "Requires quadratic formula arithmetic."
+        }
+      }
+    ]
+  },
+  {
+    questionInput: "sin(x)^2 + cos(x)^2",
+    questionTitle: "Pythagorean Identity: sin^2(x) + cos^2(x) = 1",
+    category: "Trigonometry",
+    latexQuestion: "\\sin^2(x) + \\cos^2(x) = 1",
+    defaultMethodIndex: 0,
+    methods: [
+      {
+        methodId: "trig-pythag-unit-circle",
+        methodName: "Method 1: Unit Circle Coordinate Proof",
+        badgeTag: "Unit Circle Proof",
+        techniqueSummary: "Applies Cartesian equation of unit circle x^2 + y^2 = 1.",
+        formulaLatex: "x = \\cos\\theta, \\; y = \\sin\\theta \\implies x^2 + y^2 = 1",
+        steps: [
+          {
+            stepTitle: "Step 1: Define unit circle parametric coordinates",
+            description: "Any point on circle of radius 1 has coordinates (cos x, sin x).",
+            latex: "(x, y) = (\\cos\\theta, \\, \\sin\\theta)"
+          },
+          {
+            stepTitle: "Step 2: Substitute into circle equation x^2 + y^2 = 1",
+            description: "Direct geometric identity.",
+            latex: "(\\cos\\theta)^2 + (\\sin\\theta)^2 = 1 \\iff \\sin^2(x) + \\cos^2(x) = 1"
+          }
+        ],
+        finalResultLatex: "1",
+        prosAndCons: {
+          pros: "Proves identity for all real angles theta in (-infinity, +infinity).",
+          cons: "None."
+        }
+      },
+      {
+        methodId: "trig-pythag-sohcahtoa",
+        methodName: "Method 2: Right Triangle SOH-CAH-TOA Proof",
+        badgeTag: "Right Triangle Trigonometry",
+        techniqueSummary: "Expresses sine and cosine as ratios of legs to hypotenuse.",
+        formulaLatex: "\\sin\\theta = \\frac{a}{c}, \\quad \\cos\\theta = \\frac{b}{c}",
+        steps: [
+          {
+            stepTitle: "Step 1: Compute sum of squared ratios",
+            description: "Sum (a/c)^2 + (b/c)^2.",
+            latex: "\\sin^2\\theta + \\cos^2\\theta = \\left(\\frac{a}{c}\\right)^2 + \\left(\\frac{b}{c}\\right)^2 = \\frac{a^2 + b^2}{c^2}"
+          },
+          {
+            stepTitle: "Step 2: Apply Pythagorean theorem a^2 + b^2 = c^2",
+            description: "Numerator equals denominator.",
+            latex: "\\frac{a^2 + b^2}{c^2} = \\frac{c^2}{c^2} = 1"
+          }
+        ],
+        finalResultLatex: "1",
+        prosAndCons: {
+          pros: "Extremely intuitive for right triangle geometry.",
+          cons: "Strictly defined for acute angles (0 < theta < 90°)."
+        }
+      }
+    ]
+  },
+  {
+    questionInput: "unit_circle(pi/3)",
+    questionTitle: "Unit Circle Evaluation: unit_circle(pi/3)",
+    category: "Trigonometry",
+    latexQuestion: "\\theta = \\frac{\\pi}{3} = 60^\\circ \\implies (\\cos\\theta, \\sin\\theta) = ?",
+    defaultMethodIndex: 0,
+    methods: [
+      {
+        methodId: "trig-special-triangle",
+        methodName: "Method 1: 30°-60°-90° Special Right Triangle",
+        badgeTag: "Special Triangle",
+        techniqueSummary: "Uses geometric side ratios 1 : sqrt(3) : 2 of equilateral triangle half.",
+        formulaLatex: "\\cos(60^\\circ) = \\frac{1}{2}, \\quad \\sin(60^\\circ) = \\frac{\\sqrt{3}}{2}",
+        steps: [
+          {
+            stepTitle: "Step 1: Construct equilateral triangle of side 1",
+            description: "Drop altitude to bisect base into length 1/2 and height sqrt(3)/2.",
+            latex: "\\text{Adjacent} = \\frac{1}{2}, \\quad \\text{Opposite} = \\frac{\\sqrt{3}}{2}"
+          },
+          {
+            stepTitle: "Step 2: Unit circle terminal point",
+            description: "Coordinates (x, y) = (cos theta, sin theta).",
+            latex: "(x, y) = \\left( \\frac{1}{2}, \\, \\frac{\\sqrt{3}}{2} \\right)"
+          }
+        ],
+        finalResultLatex: "\\left( \\frac{1}{2}, \\, \\frac{\\sqrt{3}}{2} \\right)",
+        prosAndCons: {
+          pros: "Proves exact radical values directly from Euclidean geometry.",
+          cons: "Only applicable to special angles."
+        }
+      },
+      {
+        methodId: "trig-complex-euler",
+        methodName: "Method 2: Euler's Complex Exponential Formula",
+        badgeTag: "Euler Identity",
+        techniqueSummary: "Evaluates unit complex phasor e^(i*pi/3) on the complex plane.",
+        formulaLatex: "e^{i\\theta} = \\cos\\theta + i\\sin\\theta",
+        steps: [
+          {
+            stepTitle: "Step 1: Evaluate e^(i*pi/3)",
+            description: "Sixth root of unity in upper half plane.",
+            latex: "e^{i\\pi/3} = \\cos\\left(\\frac{\\pi}{3}\\right) + i\\sin\\left(\\frac{\\pi}{3}\\right)"
+          },
+          {
+            stepTitle: "Step 2: Real and imaginary parts",
+            description: "Re = 1/2, Im = sqrt(3)/2.",
+            latex: "\\text{Re} = \\frac{1}{2}, \\quad \\text{Im} = \\frac{\\sqrt{3}}{2}"
+          }
+        ],
+        finalResultLatex: "\\frac{1}{2} + i\\frac{\\sqrt{3}}{2}",
+        prosAndCons: {
+          pros: "Powers phasor analysis in electrical engineering and quantum physics.",
+          cons: "Requires complex numbers."
+        }
+      }
+    ]
   }
 ];
 
@@ -988,8 +1404,13 @@ function formatInputToLatex(input: string): string {
   result = result.replace(/integrate\((.*?)\)/gi, "\\int $1 dx");
   result = result.replace(/derive\((.*?)\)/gi, "\\frac{d}{dx}\\left[$1\\right]");
   result = result.replace(/sqrt\((.*?)\)/gi, "\\sqrt{$1}");
+  result = result.replace(/unit_?circle\((.*?)\)/gi, "\\text{UnitCircle}\\left($1\\right)");
+  result = result.replace(/distance\((.*?)\)/gi, "\\text{dist}\\left($1\\right)");
+  result = result.replace(/midpoint\((.*?)\)/gi, "\\text{mid}\\left($1\\right)");
+  result = result.replace(/pythagor(ean)?\((.*?)\)/gi, "\\text{Pythagorean}\\left($2\\right)");
   result = result.replace(/det\(\[\[(.*?), (.*?)\], \[(.*?), (.*?)\]\]\)/gi, "\\det\\begin{pmatrix}$1 & $2\\\\$3 & $4\\end{pmatrix}");
   result = result.replace(/\*/g, " \\cdot ");
+  result = result.replace(/\bpi\b/g, "\\pi");
   return result;
 }
 
@@ -1026,17 +1447,19 @@ function convertSolutionToQuestionData(data: EquationSolution, fallbackEquation?
   };
 
   const categoryType: QuestionMultiMethodData["category"] =
-    data.equationType?.toLowerCase().includes("calculus") || data.equationType?.toLowerCase().includes("integral")
-      ? "Calculus & Integrals"
-      : data.equationType?.toLowerCase().includes("derivative")
-        ? "Derivatives"
-        : data.equationType?.toLowerCase().includes("linear") || data.equationType?.toLowerCase().includes("matrix")
-          ? "Linear Algebra"
-          : data.equationType?.toLowerCase().includes("stat")
-            ? "Statistics"
-            : data.equationType?.toLowerCase().includes("geo")
-              ? "Geometry"
-              : "Algebra & Equations";
+    data.equationType?.toLowerCase().includes("trig")
+      ? "Trigonometry"
+      : data.equationType?.toLowerCase().includes("geo")
+        ? "Geometry"
+        : data.equationType?.toLowerCase().includes("calculus") || data.equationType?.toLowerCase().includes("integral")
+          ? "Calculus & Integrals"
+          : data.equationType?.toLowerCase().includes("derivative")
+            ? "Derivatives"
+            : data.equationType?.toLowerCase().includes("linear") || data.equationType?.toLowerCase().includes("matrix")
+              ? "Linear Algebra"
+              : data.equationType?.toLowerCase().includes("stat")
+                ? "Statistics"
+                : "Algebra & Equations";
 
   const methodsList = (data.methods && data.methods.length > 0)
     ? data.methods
@@ -1074,7 +1497,7 @@ export default function Explanation({ onTryExample, onClose, initialEquation, th
   const [viewMode, setViewMode] = useState<"single" | "sideBySide">("single");
   const [customWriterInput, setCustomWriterInput] = useState<string>(initialEquation || currentSolution?.equation || 'x^2+2x=15');
   const writerInputRef = useRef<HTMLInputElement>(null);
-  const categories = ["All", "Algebra & Equations", "Calculus & Integrals", "Derivatives", "Linear Algebra", "Statistics", "Geometry"];
+  const categories = ["All", "Algebra & Equations", "Trigonometry", "Geometry", "Calculus & Integrals", "Derivatives", "Linear Algebra", "Statistics"];
   const [renderingVideo, setRenderingVideo] = useState<boolean>(false);
   const [renderingMethodId, setRenderingMethodId] = useState<string | null>(null);
   const [videoModalUrl, setVideoModalUrl] = useState<string | null>(null);

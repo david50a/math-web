@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @layer base {
   :root {
@@ -255,12 +256,600 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(12, 24, 19, 0.8);
+  background: rgba(0, 0, 0, 0.2);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 55, 0.25);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(212, 175, 55, 0.45);
+  background: rgba(255, 255, 255, 0.3);
 }
+
+/* ───────────────────────────── Professional Studio Design Tokens ───────────────────────────── */
+.glass-panel {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-panel-light {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.05);
+}
+
+.pro-card {
+  border-radius: 1rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pro-card:hover {
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.5);
+}
+
+.btn-pill {
+  transition: all 0.15s ease-out;
+}
+.btn-pill:hover {
+  transform: translateY(-1px);
+}
+.btn-pill:active {
+  transform: translateY(0);
+}
+
+/* ───────────────────────────── MorphOrb Keyframes & Styles ───────────────────────────── */
+
+@keyframes mo-spin {
+  to {
+    --angle: 360deg;
+  }
+}
+
+@keyframes mo-drift {
+  from {
+    transform: translateX(-14%);
+  }
+  to {
+    transform: translateX(14%);
+  }
+}
+
+@keyframes mo-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes mo-dot {
+  0%, 80%, 100% {
+    opacity: .25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@keyframes mo-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mo-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes mo-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mo-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes mo-shake {
+  0%, 100% {
+    transform: translate(-50%, -50%);
+  }
+  25% {
+    transform: translate(calc(-50% - 4px), -50%);
+  }
+  75% {
+    transform: translate(calc(-50% + 4px), -50%);
+  }
+}
+
+/* MorphOrb Container & Visual Hierarchy */
+.mo-root {
+  position: relative;
+  width: 100%;
+  min-height: 480px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  user-select: none;
+  --oCenter: 0;
+}
+
+.mo-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mo-halo {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 440px;
+  height: 440px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, rgba(147, 51, 234, 0.15) 35%, transparent 70%);
+  opacity: var(--oCenter, 0);
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.mo-mover {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate3d(0, 0, 0);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.mo-trail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100px;
+  height: 100px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(147, 197, 253, 0.5) 0%, rgba(96, 165, 250, 0.2) 40%, transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity;
+}
+
+.mo-actor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%) scale(var(--cs, 1));
+  width: var(--w, 560px);
+  height: var(--h, 60px);
+  border-radius: var(--r, 999px);
+  pointer-events: auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mo-actor[data-shake] {
+  animation: mo-shake 0.25s ease-in-out;
+}
+
+.mo-actor[data-flash] .mo-ring {
+  border-color: rgba(239, 68, 68, 0.8) !important;
+}
+
+.mo-underglow {
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at 50% 120%, rgba(99, 102, 241, 0.35), rgba(168, 85, 247, 0.25), transparent 70%);
+  opacity: var(--oGlow, 1);
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+.mo-halo-green {
+  position: absolute;
+  inset: -14px;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.45) 0%, rgba(34, 197, 94, 0.1) 50%, transparent 75%);
+  opacity: var(--oHalo, 0);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.mo-surface {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(15, 17, 23, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  opacity: var(--oPill, 1);
+  pointer-events: none;
+}
+
+.mo-aurora {
+  position: absolute;
+  inset: -20%;
+  opacity: var(--oAur, 1);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.mo-aurora i {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  mix-blend-mode: screen;
+  filter: blur(16px);
+}
+
+.mo-aurora i:nth-child(1) {
+  background: radial-gradient(circle at 30% 50%, rgba(59, 130, 246, 0.4), transparent 60%);
+  animation: mo-drift 8s ease-in-out infinite alternate;
+}
+.mo-aurora i:nth-child(2) {
+  background: radial-gradient(circle at 70% 50%, rgba(168, 85, 247, 0.35), transparent 60%);
+  animation: mo-drift 10s ease-in-out infinite alternate-reverse;
+}
+.mo-aurora i:nth-child(3) {
+  background: radial-gradient(circle at 50% 30%, rgba(20, 184, 166, 0.3), transparent 50%);
+  animation: mo-drift 6s ease-in-out infinite alternate;
+}
+.mo-aurora i:nth-child(4) {
+  background: radial-gradient(circle at 50% 70%, rgba(236, 72, 153, 0.25), transparent 50%);
+  animation: mo-drift 12s ease-in-out infinite alternate-reverse;
+}
+
+.mo-ball {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 32% 32%, #ffffff 0%, #93c5fd 35%, #2563eb 70%, #1e1b4b 100%);
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.6), inset 0 0 15px rgba(255, 255, 255, 0.6);
+  opacity: var(--oBall, 0);
+  pointer-events: none;
+}
+
+.mo-green {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 35%, #bbf7d0 0%, #22c55e 40%, #15803d 85%);
+  box-shadow: 0 0 35px rgba(34, 197, 94, 0.8), inset 0 0 12px rgba(255, 255, 255, 0.5);
+  opacity: var(--oGreen, 0);
+  transform: scale(var(--gs, 1));
+  pointer-events: none;
+}
+
+.mo-card {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(15, 20, 30, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  opacity: var(--oCard, 0);
+  pointer-events: none;
+}
+
+.mo-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.12);
+  opacity: var(--oRing, 1);
+  pointer-events: none;
+  transition: border-color 0.2s ease;
+}
+
+form.mo-input {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 16px 0 20px;
+  gap: 12px;
+  opacity: var(--oInput, 1);
+  transform: scale(var(--inScale, 1));
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.mo-spark {
+  width: 20px;
+  height: 20px;
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.mo-actor:focus-within .mo-spark {
+  color: #60a5fa;
+}
+
+.mo-field {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.mo-field::placeholder {
+  color: #64748b;
+}
+
+.mo-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748b;
+  flex-shrink: 0;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.mo-send svg {
+  width: 18px;
+  height: 18px;
+}
+
+.mo-send[data-ready] {
+  background: #3b82f6;
+  border-color: #60a5fa;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+  transform: scale(1.04);
+}
+
+.mo-send[data-ready]:hover {
+  background: #2563eb;
+  transform: scale(1.08);
+}
+
+canvas.mo-orb {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 220px;
+  height: 220px;
+  pointer-events: none;
+  z-index: 25;
+}
+
+.mo-pulse {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 132px;
+  height: 132px;
+  margin-left: -66px;
+  margin-top: -66px;
+  border-radius: 9999px;
+  border: 2px solid #4ade80;
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 20;
+  box-sizing: border-box;
+}
+
+.mo-answer {
+  position: absolute;
+  inset: 0;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  opacity: var(--hOp, 0);
+  pointer-events: auto;
+  z-index: 10;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.mo-a-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #4ade80;
+}
+
+.mo-a-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  transform: scale(var(--dotS, 0));
+  transition: transform 0.2s ease;
+}
+
+.mo-a-body {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #f1f5f9;
+  font-weight: 500;
+  overflow-y: auto;
+  max-height: 64px;
+  scrollbar-width: thin;
+}
+
+.mo-w {
+  display: inline-block;
+  will-change: opacity, transform, filter;
+}
+
+.mo-status {
+  position: absolute;
+  left: 50%;
+  top: calc(46% + 90px);
+  transform: translate(-50%, var(--sTy, 0px));
+  opacity: var(--sOp, 0);
+  pointer-events: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -0.01em;
+}
+
+.mo-lab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mo-lab.mo-in {
+  animation: mo-in 0.25s ease forwards;
+}
+
+.mo-lab.mo-out {
+  position: absolute;
+  animation: mo-out 0.25s ease forwards;
+}
+
+.mo-lab-done {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.mo-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.mo-dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: currentColor;
+  display: inline-block;
+  animation: mo-dot 1.2s infinite ease-in-out;
+}
+
+.mo-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.mo-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.mo-reset {
+  position: absolute;
+  left: 50%;
+  top: calc(46% + 80px);
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 6px 16px;
+  border-radius: 9999px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 30;
+}
+
+.mo-reset:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.mo-root[data-phase="answered"] .mo-reset {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mo-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.mo-debug {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: monospace;
+  background: rgba(0, 0, 0, 0.75);
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  z-index: 50;
+  color: #cbd5e1;
+}
+
+.mo-chip {
+  padding: 2px 6px;
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+  color: #93c5fd;
+}
+
