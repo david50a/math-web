@@ -17,64 +17,126 @@ import eigenvalues_and_eigenvector as eigen
 import re
 import math
 import ast
-from math_models import MathStep, Node, Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_latex as ml_to_latex
+from math_models import MathStep, Node, Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_latex as ml_to_latex, to_string
 from typing import List
 import textwrap
 import numpy as np
 
 
-# THEME — Pure Black & Mathematical High-Contrast Aesthetic
+# ══════════════════════════════════════════════════════════════════════════════
+# 3BLUE1BROWN SIGNATURE COLOR PALETTE & AESTHETIC CONSTANTS
+# ══════════════════════════════════════════════════════════════════════════════
 
-DEEP_BG       = "#000000"  # Pure Pitch Black
-BG_MID        = "#000000"  # Pure Black
-PANEL_BG      = "#0B1120"  # Deep Slate Navy
-PANEL_BORDER  = "#64748B"  # Visible Crisp Border
-
-ACCENT_CYAN   = "#38BDF8"  # Vivid Math Cyan
-ACCENT_BLUE   = "#60A5FA"  # Bright Blue
-ACCENT_TEAL   = "#2DD4BF"  # Vivid Mint
-ACCENT_PURPLE = "#C084FC"  # Bright Purple
-ACCENT_GOLD   = "#FDE047"  # Bright Golden Yellow
-ACCENT_CORAL  = "#FB7185"  # Vibrant Rose
-ACCENT_GREEN  = "#4ADE80"  # Vivid Emerald Green
-ACCENT_PINK   = "#F472B6"  # Bright Pink
-TEXT_DIM      = "#CBD5E1"  # Crisp Light Slate (NOT dark grey)
-TEXT_SUBTLE   = "#E2E8F0"  # Near White
-TEXT_BRIGHT   = "#FFFFFF"  # Pure Bright White
+B3_BG         = "#0E1117"  # Deep chalkboard charcoal
+B3_BLUE       = "#58C4DD"  # Signature 3B1B Sky Blue
+B3_DARK_BLUE  = "#29ABCA"  # Deep blue accent
+B3_TEAL       = "#5CD0B3"  # Mint Teal
+B3_GREEN      = "#83C167"  # Signature 3B1B Olive-Emerald Green
+B3_YELLOW     = "#FFFF00"  # Vibrant 3B1B Notation Yellow
+B3_GOLD       = "#E8C15A"  # Warm Chalk Gold
+B3_RED        = "#FC6255"  # Signature 3B1B Coral Red
+B3_MAROON     = "#C55F73"  # Rose Maroon
+B3_PURPLE     = "#9A72AC"  # Signature 3B1B Purple
+B3_WHITE      = "#ECEFF4"  # Chalkboard White
+B3_DIM        = "#94A3B8"  # Subtle Notation Grey
+B3_GRID       = "#1E293B"  # Muted Coordinate Grid
 
 RULE_COLORS = {
-    "Power Rule":    ACCENT_GOLD,
-    "Product Rule":  ACCENT_PURPLE,
-    "Sum Rule":      ACCENT_CYAN,
-    "Chain Rule":    ACCENT_CORAL,
-    "Constant Rule": ACCENT_CYAN,
-    "Quotient Rule": ACCENT_PINK,
-    "Difference":    ACCENT_TEAL,
-    "Substitution":  ACCENT_PURPLE,
-    "Integration":   ACCENT_GREEN,
-    "Quadratic":     ACCENT_CYAN,
-    "Factoring":     ACCENT_TEAL,
-    "Elimination":   ACCENT_BLUE,
-}
-
-# Formal mathematical theorems and worked derivations
-RULE_EXAMPLES = {
-    "Power Rule":    (r"\dfrac{d}{dx}\left(x^n\right) = n \cdot x^{n-1}",
-                      r"\text{e.g. } \dfrac{d}{dx}(x^3) = 3x^2"),
-    "Product Rule":  (r"\dfrac{d}{dx}(u \cdot v) = u'v + uv'",
-                      r"\text{e.g. } (x^2 \sin x)' = 2x\sin x + x^2\cos x"),
-    "Sum Rule":      (r"\dfrac{d}{dx}(u + v) = \dfrac{du}{dx} + \dfrac{dv}{dx}",
-                      r"\text{e.g. } (x^2+3x)' = 2x+3"),
-    "Chain Rule":    (r"\dfrac{d}{dx}\left[f(g(x))\right] = f'(g(x)) \cdot g'(x)",
-                      r"\text{e.g. } (\sin(x^2))' = 2x\cos(x^2)"),
-    "Constant Rule": (r"\dfrac{d}{dx}(c) = 0 \quad (c \in \mathbb{R})",
-                      r"\text{e.g. } (5)' = 0"),
-    "Quotient Rule": (r"\dfrac{d}{dx}\left(\dfrac{u}{v}\right) = \dfrac{u'v - uv'}{v^2}",
-                      r"\text{e.g. } \left(\dfrac{x^2}{x+1}\right)'"),
+    "Power Rule":    B3_YELLOW,
+    "Product Rule":  B3_PURPLE,
+    "Sum Rule":      B3_BLUE,
+    "Chain Rule":    B3_RED,
+    "Constant Rule": B3_TEAL,
+    "Quotient Rule": B3_MAROON,
+    "Difference":    B3_TEAL,
+    "Substitution":  B3_PURPLE,
+    "Integration":   B3_GREEN,
+    "Quadratic":     B3_GOLD,
+    "Factoring":     B3_TEAL,
+    "Elimination":   B3_BLUE,
 }
 
 
-# STEP FILTERING
+# ══════════════════════════════════════════════════════════════════════════════
+# COMPATIBILITY STUB (EYES / MASCOT REMOVED FOR PURE MATHEMATICAL FOCUS)
+# ══════════════════════════════════════════════════════════════════════════
+
+class PiCreature(VGroup):
+    """Backwards-compatibility stub (character/eyes removed)."""
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def look_at(self, *args, **kwargs):
+        return Wait(0.01)
+
+    def blink(self, *args, **kwargs):
+        return Wait(0.01)
+
+    def cheer(self, *args, **kwargs):
+        return Wait(0.01)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BACKGROUND & 3B1B GRAPHICAL HELPERS
+# ══════════════════════════════════════════════════════════════════════════
+
+def make_3b1b_background(scene: Scene):
+    """Classic 3Blue1Brown chalkboard background with subtle ambient math elements."""
+    scene.camera.background_color = B3_BG
+    bg = Rectangle(
+        width=config.frame_width + 0.5,
+        height=config.frame_height + 0.5,
+        fill_color=B3_BG,
+        fill_opacity=1, stroke_width=0,
+    ).set_z_index(-30)
+
+    # Ambient subtle coordinate dots
+    dots = VGroup(*[
+        Dot(point=[xi, yi, 0], radius=0.015, color="#1E293B")
+        for xi in np.arange(-7.0, 7.5, 1.5)
+        for yi in np.arange(-4.0, 4.5, 1.5)
+    ]).set_z_index(-20)
+
+    scene.add(bg, dots)
+    return bg, dots
+
+
+def make_3b1b_title(text: str, font_size=32):
+    """Elegant title with subtle 3B1B underline."""
+    is_tex = ("$" in text or "\\" in text)
+    try:
+        if is_tex:
+            lbl = Tex(text, font_size=font_size, color=B3_WHITE)
+        else:
+            lbl = Text(text, font_size=font_size, color=B3_WHITE, weight=BOLD)
+    except Exception:
+        lbl = Text(text, font_size=font_size, color=B3_WHITE, weight=BOLD)
+
+    underline_w = min(max(lbl.width + 0.8, 3.8), config.frame_width - 1.5)
+    ul = Line(LEFT * (underline_w / 2), RIGHT * (underline_w / 2),
+              stroke_width=2.2, color=B3_BLUE).next_to(lbl, DOWN, buff=0.15)
+    
+    return VGroup(lbl, ul)
+
+
+def make_3b1b_annotation(text: str, color=B3_GOLD, width=11.5):
+    """Clean, minimalist chalkboard annotation box (no heavy rounded cards)."""
+    wrapped = "\n".join(textwrap.wrap(text, width=60))
+    body = Text(wrapped, font_size=18, color=B3_WHITE, line_spacing=1.3).set_z_index(25)
+    
+    accent_bar = Line(UP * (body.height / 2 + 0.1), DOWN * (body.height / 2 + 0.1),
+                      stroke_width=3.5, color=color).next_to(body, LEFT, buff=0.25).set_z_index(24)
+    
+    group = VGroup(accent_bar, body).to_edge(DOWN, buff=0.45)
+    return group
+
+
+def detect_rule(description: str):
+    for rule in RULE_COLORS:
+        if rule.lower() in description.lower():
+            return rule
+    return None
+
 
 def _is_human_readable_step(step: MathStep, idx: int, total: int) -> bool:
     if idx == 0 or idx == total - 1:
@@ -98,12 +160,14 @@ def filter_derivative_steps(steps: List[MathStep]) -> List[MathStep]:
     return kept
 
 
-# NODE → CALLABLE
+# ══════════════════════════════════════════════════════════════════════════════
+# NODE TO CALLABLE
+# ══════════════════════════════════════════════════════════════════════════
 
 def node_to_function(node):
     if isinstance(node, Const):
         v = node.value
-        return lambda x, _v=v: _v
+        return lambda x, _v=v: float(_v)
     if isinstance(node, Var):
         return lambda x: float(x)
     if isinstance(node, Add):
@@ -115,7 +179,7 @@ def node_to_function(node):
         r = node_to_function(node.right)
         return lambda x, _l=l, _r=r: _l(x) * _r(x)
     if isinstance(node, Pow):
-        b   = node_to_function(node.base)
+        b = node_to_function(node.base)
         exp = node.exp
         return lambda x, _b=b, _e=exp: float(_b(x)) ** _e
     if isinstance(node, Sin):
@@ -148,12 +212,11 @@ def _auto_y_range(func, x_lo=-3.5, x_hi=3.5, samples=300):
     y_arr = np.array(ys)
     lo = float(np.percentile(y_arr, 5))
     hi = float(np.percentile(y_arr, 95))
-    margin = max((hi - lo) * 0.2, 1.0)
+    margin = max((hi - lo) * 0.25, 1.2)
     return lo - margin, hi + margin
 
 
-def safe_plot(axes, func, x_range=(-3.0, 3.0), color=ACCENT_CYAN,
-              stroke_width=3.2, y_clip=None):
+def safe_plot(axes, func, x_range=(-3.0, 3.0), color=B3_BLUE, stroke_width=3.2, y_clip=None):
     if y_clip is None:
         y_clip = _auto_y_range(func, x_range[0], x_range[1])
 
@@ -164,7 +227,7 @@ def safe_plot(axes, func, x_range=(-3.0, 3.0), color=ACCENT_CYAN,
             y = float(func(x))
             if not np.isfinite(y):
                 return lo_clip
-            return y
+            return np.clip(y, lo_clip, hi_clip)
         except Exception:
             return lo_clip
 
@@ -177,417 +240,9 @@ def safe_plot(axes, func, x_range=(-3.0, 3.0), color=ACCENT_CYAN,
     )
 
 
-# MATHEMATICAL UI HELPERS & VISUAL COMPONENTS
-
-def wrap_text(text, width=64):
-    return "\n".join(textwrap.wrap(text, width=width))
-
-
-def detect_rule(description: str):
-    for rule in RULE_COLORS:
-        if rule.lower() in description.lower():
-            return rule
-    return None
-
-
-def make_background(scene: Scene):
-    """Pure black background with subtle mathematical Cartesian grid and watermarks."""
-    scene.camera.background_color = "#000000"
-    bg = Rectangle(
-        width=config.frame_width + 0.2,
-        height=config.frame_height + 0.2,
-        fill_color="#000000",
-        fill_opacity=1, stroke_width=0,
-    ).set_z_index(-30)
-
-    # Ambient mathematical coordinate grid lines on black
-    grid_lines = VGroup()
-    for x in np.arange(-7.2, 7.5, 0.8):
-        grid_lines.add(Line([x, -4.2, 0], [x, 4.2, 0], stroke_width=0.35, stroke_color="#181822", stroke_opacity=0.7))
-    for y in np.arange(-4.2, 4.5, 0.8):
-        grid_lines.add(Line([-7.2, y, 0], [7.2, y, 0], stroke_width=0.35, stroke_color="#181822", stroke_opacity=0.7))
-    grid_lines.set_z_index(-25)
-
-    # Ambient watermark mathematical constants and operators on black
-    math_watermarks = VGroup(
-        MathTex(r"\int", font_size=42, color="#1E1E2A").move_to([-6.2, 3.2, 0]),
-        MathTex(r"\sum_{n=1}^\infty", font_size=28, color="#1E1E2A").move_to([5.8, 3.1, 0]),
-        MathTex(r"\nabla \times \mathbf{F}", font_size=26, color="#1E1E2A").move_to([-6.0, -3.2, 0]),
-        MathTex(r"\pi \approx 3.14159", font_size=22, color="#1E1E2A").move_to([5.6, -3.3, 0]),
-        MathTex(r"\mathbb{R}^n", font_size=26, color="#1A1A26").move_to([0, 3.3, 0]),
-        MathTex(r"\dfrac{\partial f}{\partial x}", font_size=26, color="#1A1A26").move_to([0, -3.3, 0])
-    ).set_z_index(-22)
-
-    # Clean ambient intersection dots
-    dots = VGroup(*[
-        Dot(point=[xi, yi, 0], radius=0.015, color="#252535")
-        for xi in np.arange(-7.2, 7.5, 1.6)
-        for yi in np.arange(-4.2, 4.5, 1.6)
-    ]).set_z_index(-20)
-
-    # Crisp boundary frame
-    vignette_border = RoundedRectangle(
-        corner_radius=0.18,
-        width=config.frame_width - 0.35,
-        height=config.frame_height - 0.35,
-        stroke_color="#1C1C28",
-        stroke_width=1.0,
-        fill_opacity=0
-    ).set_z_index(-10)
-
-    scene.add(bg, grid_lines, math_watermarks, dots, vignette_border)
-    return bg, dots
-
-
-def glowing_title(text: str, font_size=34):
-    """Formal mathematical theorem/problem banner with notation."""
-    is_tex = ("$" in text or "\\" in text)
-    try:
-        if is_tex:
-            lbl = Tex(text, font_size=font_size, color=TEXT_BRIGHT)
-        else:
-            lbl = Text(text, font_size=font_size, color=TEXT_BRIGHT, weight=BOLD)
-    except Exception:
-        lbl = Text(text, font_size=font_size, color=TEXT_BRIGHT, weight=BOLD)
-    
-    line_w = min(max(lbl.width + 1.2, 4.5), config.frame_width - 1.5)
-    ul = Line(LEFT * (line_w / 2), RIGHT * (line_w / 2),
-              stroke_width=2.5, color=ACCENT_CYAN)
-    ul.next_to(lbl, DOWN, buff=0.18)
-    
-    glow = Line(LEFT * (line_w / 2), RIGHT * (line_w / 2),
-                stroke_width=8, color=ACCENT_CYAN, stroke_opacity=0.28)
-    glow.move_to(ul)
-
-    # Left and right mathematical brackets or coordinate marker points
-    left_mark = MathTex(r"\langle", font_size=24, color=ACCENT_CYAN).next_to(lbl, LEFT, buff=0.18)
-    right_mark = MathTex(r"\rangle", font_size=24, color=ACCENT_CYAN).next_to(lbl, RIGHT, buff=0.18)
-
-    return VGroup(lbl, glow, ul, left_mark, right_mark)
-
-
-def step_badge(index: int, total: int):
-    """Mathematical index capsule: e.g. [ Step k = 1 / n ]."""
-    pill_w = 2.6
-    pill_h = 0.58
-    pill_bg = RoundedRectangle(
-        corner_radius=0.16, width=pill_w, height=pill_h,
-        fill_color="#0F172A", fill_opacity=0.96,
-        stroke_color=ACCENT_CYAN, stroke_width=2.0,
-    ).set_z_index(24)
-    glow_pill = pill_bg.copy().set_stroke(color=ACCENT_CYAN, width=8, opacity=0.35).set_z_index(23)
-    
-    # LaTeX formatted mathematical step counter
-    step_tex = MathTex(rf"\mathbf{{Step}}\ k = {index} \big/ {total}", font_size=20, color=ACCENT_CYAN).set_z_index(25)
-    step_tex.move_to(pill_bg)
-
-    return VGroup(glow_pill, pill_bg, step_tex).to_corner(UR, buff=0.42).shift(DOWN * 0.08)
-
-
-def explanation_card(text: str, rule: str = None, width=None):
-    """Formal mathematical lemma/derivation note card with LaTeX rule badge."""
-    wrapped = wrap_text(text, 64)
-    body    = Text(wrapped, font_size=20, color=TEXT_BRIGHT, line_spacing=1.35).set_z_index(25)
-    
-    card_w  = width or min(config.frame_width - 1.0, 13.8)
-    card_h  = max(body.height + 0.85, 1.4)
-    
-    rect = RoundedRectangle(
-        corner_radius=0.16, width=card_w, height=card_h,
-        fill_color="#0F172A", fill_opacity=0.92,
-        stroke_color="#64748B", stroke_width=2.0,
-    ).set_z_index(20)
-    glow_rect = rect.copy().set_stroke(color=ACCENT_CYAN, width=6, opacity=0.25).set_z_index(19)
-    
-    rule_color = RULE_COLORS.get(rule, ACCENT_CYAN) if rule else ACCENT_CYAN
-    left_strip = RoundedRectangle(
-        corner_radius=0.04,
-        width=0.10, height=card_h - 0.24,
-        fill_color=rule_color, fill_opacity=1.0,
-        stroke_width=0
-    ).align_to(rect, LEFT).shift(RIGHT * 0.15).set_z_index(22)
-
-    # Prefix explanation with formal derivation arrow (⟹)
-    deriv_arrow = MathTex(r"\implies", font_size=28, color=rule_color)\
-                  .align_to(rect, LEFT).shift(RIGHT * 0.35).set_z_index(25)
-    body.move_to(rect).shift(RIGHT * 0.3)
-    
-    group = VGroup(glow_rect, rect, left_strip, deriv_arrow, body)
-    
-    if rule:
-        color   = RULE_COLORS.get(rule, ACCENT_GOLD)
-        pill_bg = RoundedRectangle(
-            corner_radius=0.12, height=0.46,
-            width=len(rule) * 0.15 + 1.2,
-            fill_color="#020617", fill_opacity=0.98,
-            stroke_color=color, stroke_width=2.0,
-        ).set_z_index(26)
-        pill_glow = pill_bg.copy().set_stroke(color=color, width=6, opacity=0.35).set_z_index(25)
-        pill_txt = MathTex(rf"\mathbf{{\mathbb{{T}}hm:}}\ \text{{{rule}}}", font_size=18, color=color).set_z_index(27)
-        pill_txt.move_to(pill_bg)
-        pill = VGroup(pill_glow, pill_bg, pill_txt)
-        pill.next_to(rect, UP, buff=0.12).align_to(rect, RIGHT).shift(LEFT * 0.3)
-        group.add(pill)
-        
-    group.to_edge(DOWN, buff=0.35)
-    return group
-
-
-def rule_example_panel(rule: str):
-    """Mathematical definition & lemma worked derivation panel."""
-    if rule not in RULE_EXAMPLES:
-        return None
-    formula_str, example_str = RULE_EXAMPLES[rule]
-    color = RULE_COLORS.get(rule, ACCENT_GOLD)
-
-    header = MathTex(rf"\mathbf{{\underline{{\text{{Definition / Rule:}}\ {rule}}}}}", font_size=20, color=color).set_z_index(25)
-    formula = MathTex(formula_str, font_size=22, color=TEXT_BRIGHT).set_z_index(25)
-    example = MathTex(example_str, font_size=20, color="#E2E8F0").set_z_index(25)
-
-    content = VGroup(header, formula, example).arrange(DOWN, buff=0.22, aligned_edge=LEFT)
-
-    panel_w = max(content.width + 0.85, 4.4)
-    panel_h = content.height + 0.65
-    
-    bg = RoundedRectangle(
-        corner_radius=0.16, width=panel_w, height=panel_h,
-        fill_color="#0F172A", fill_opacity=0.94,
-        stroke_color=color, stroke_width=2.0,
-    ).set_z_index(20)
-    glow_bg = bg.copy().set_stroke(color=color, width=8, opacity=0.25).set_z_index(19)
-    content.move_to(bg).shift(RIGHT * 0.12)
-
-    bar = RoundedRectangle(
-        corner_radius=0.04,
-        width=0.10, height=panel_h - 0.20,
-        fill_color=color, fill_opacity=1.0,
-        stroke_width=0,
-    ).align_to(bg, LEFT).shift(RIGHT * 0.12).set_z_index(22)
-
-    return VGroup(glow_bg, bg, bar, content)
-
-
-def equation_box(mobject, color=ACCENT_CYAN):
-    """Rigorous mathematical step display card with subtle coordinate anchors."""
-    mobject.set_z_index(20)
-    card = RoundedRectangle(
-        corner_radius=0.16,
-        width=mobject.width + 1.0,
-        height=mobject.height + 0.72,
-        stroke_color=color,
-        stroke_width=2.4,
-        fill_color="#0B132B",
-        fill_opacity=0.60
-    ).move_to(mobject).set_z_index(5)
-
-    glow = card.copy().set_stroke(color=color, width=10, opacity=0.32).set_fill(opacity=0).set_z_index(4)
-    
-    # Mathematical frame brackets
-    b_left = MathTex(r"\big[", font_size=32, color=color).align_to(card, LEFT).shift(RIGHT*0.12).set_z_index(21)
-    b_right = MathTex(r"\big]", font_size=32, color=color).align_to(card, RIGHT).shift(LEFT*0.12).set_z_index(21)
-    
-    return VGroup(glow, card, b_left, b_right)
-
-
-def progress_bar(ratio: float, width=6.5):
-    """Mathematical interval progress indicator [0, 1]."""
-    track = RoundedRectangle(
-        corner_radius=0.04, width=width, height=0.07,
-        fill_color="#181822", fill_opacity=1.0, stroke_width=0
-    )
-    fill_w = max(width * min(max(ratio, 0.02), 1.0), 0.1)
-    fill = RoundedRectangle(
-        corner_radius=0.04, width=fill_w, height=0.07,
-        fill_color=ACCENT_CYAN, fill_opacity=1.0, stroke_width=0
-    ).align_to(track, LEFT)
-    
-    tip_dot = Dot(fill.get_right(), radius=0.055, color=ACCENT_CYAN)
-    tip_glow = Dot(fill.get_right(), radius=0.12, color=ACCENT_CYAN, fill_opacity=0.35)
-    
-    return VGroup(track, fill, tip_glow, tip_dot).to_edge(UP, buff=0.14)
-
-
-def play_intro(scene: Scene, title_group: VGroup):
-    """Cinematic entry sequence for problem statement."""
-    title_group.shift(UP * 0.4)
-    scene.play(
-        FadeIn(title_group[0], shift=DOWN * 0.25, run_time=0.9),
-        FadeIn(title_group[3], shift=RIGHT * 0.1, run_time=0.6),
-        FadeIn(title_group[4], shift=LEFT * 0.1, run_time=0.6)
-    )
-    scene.play(
-        Create(title_group[2], run_time=0.7),
-        FadeIn(title_group[1], run_time=0.7)
-    )
-    scene.wait(0.35)
-
-
-def play_outro(scene: Scene, final_eq):
-    """Rigorous mathematical conclusion with Q.E.D. / Halmos symbol and conclusion frame."""
-    final_eq.set_z_index(30)
-    
-    frame = RoundedRectangle(
-        corner_radius=0.18,
-        width=final_eq.width + 1.2,
-        height=final_eq.height + 0.9,
-        stroke_color=ACCENT_GREEN, stroke_width=3.2,
-        fill_color="#064E3B", fill_opacity=0.30,
-    ).move_to(final_eq).set_z_index(10)
-    
-    glow_frame = frame.copy().set_stroke(color=ACCENT_GREEN, width=14, opacity=0.45).set_fill(opacity=0).set_z_index(9)
-    
-    # Formal conclusion box with Halmos square Q.E.D.
-    badge_bg = RoundedRectangle(
-        corner_radius=0.16, width=4.2, height=0.74,
-        fill_color="#064E3B", fill_opacity=0.92,
-        stroke_color=ACCENT_GREEN, stroke_width=2.2
-    ).set_z_index(25)
-    badge_glow = badge_bg.copy().set_stroke(color=ACCENT_GREEN, width=10, opacity=0.40).set_z_index(24)
-    
-    qed_txt = MathTex(r"\therefore\ \mathbf{Final\ Solution}\ \ \blacksquare\ \text{Q.E.D.}",
-                      font_size=22, color=TEXT_BRIGHT).set_z_index(26)
-    qed_txt.move_to(badge_bg)
-    done_badge = VGroup(badge_glow, badge_bg, qed_txt).next_to(frame, DOWN, buff=0.35)
-    
-    scene.play(
-        Circumscribe(final_eq, color=ACCENT_GREEN, run_time=1.0),
-        Create(glow_frame, run_time=0.8),
-        Create(frame, run_time=0.8)
-    )
-    scene.play(
-        FadeIn(done_badge, shift=UP * 0.2, run_time=0.6),
-        Flash(done_badge.get_center(), color=ACCENT_GREEN, line_length=0.3, num_lines=14, run_time=0.8)
-    )
-    scene.wait(3.5)
-
-
-# MATHEMATICAL GRAPH & FUNCTION PANEL
-
-def _nice_tick_step(span: float) -> float:
-    raw = span / 6.0
-    for step in [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100]:
-        if raw <= step:
-            return step
-    return round(raw)
-
-
-def build_derivative_axes(scene: Scene, orig_func=None, deriv_func=None):
-    """
-    Build mathematical Cartesian coordinate axes with grid lines and LaTeX ticks.
-    """
-    X_LO, X_HI = -3.5, 3.5
-
-    funcs = [f for f in [orig_func, deriv_func] if f is not None]
-    all_y = []
-    xs = np.linspace(X_LO, X_HI, 400)
-    for f in funcs:
-        for x in xs:
-            try:
-                y = float(f(x))
-                if np.isfinite(y):
-                    all_y.append(y)
-            except Exception:
-                pass
-
-    if all_y:
-        y_arr = np.array(all_y)
-        y_lo = float(np.percentile(y_arr, 3))
-        y_hi = float(np.percentile(y_arr, 97))
-        margin = max((y_hi - y_lo) * 0.18, 1.5)
-        y_lo -= margin
-        y_hi += margin
-    else:
-        y_lo, y_hi = -5.0, 9.0
-
-    y_lo = math.floor(y_lo)
-    y_hi = math.ceil(y_hi)
-    y_step = _nice_tick_step(y_hi - y_lo)
-
-    y_ticks = list(range(
-        int(math.ceil(y_lo / y_step) * y_step),
-        int(math.floor(y_hi / y_step) * y_step) + 1,
-        int(y_step),
-    ))
-
-    axes = Axes(
-        x_range=[X_LO, X_HI, 1],
-        y_range=[y_lo, y_hi, y_step],
-        x_length=5.6,
-        y_length=5.4,
-        axis_config={
-            "color": "#334155", "stroke_width": 2.0,
-            "include_tip": True, "tip_length": 0.2, "tip_width": 0.14,
-        },
-        x_axis_config={
-            "numbers_to_include": range(-3, 4),
-            "label_constructor": MathTex, "font_size": 16, "color": TEXT_DIM,
-        },
-        y_axis_config={
-            "numbers_to_include": y_ticks,
-            "label_constructor": MathTex, "font_size": 16, "color": TEXT_DIM,
-        },
-    )
-    axes.to_edge(LEFT, buff=0.5).shift(DOWN * 0.3)
-
-    # Subtle Cartesian coordinate grid
-    h_lines = VGroup(*[
-        DashedLine(axes.c2p(X_LO, y), axes.c2p(X_HI, y),
-                   stroke_width=0.6, color="#1E293B", dash_length=0.1)
-        for y in y_ticks
-    ])
-    v_lines = VGroup(*[
-        DashedLine(axes.c2p(x, y_lo), axes.c2p(x, y_hi),
-                   stroke_width=0.6, color="#1E293B", dash_length=0.1)
-        for x in range(-3, 4)
-    ])
-    
-    ax_labels = axes.get_axis_labels(
-        x_label=MathTex(r"x \in \mathbb{R}", font_size=18, color=ACCENT_CYAN),
-        y_label=MathTex(r"y = f(x)", font_size=18, color=ACCENT_CYAN),
-    )
-
-    origin_pt = axes.c2p(0, 0)
-    origin_dot = Dot(origin_pt, radius=0.04, color=TEXT_DIM)
-    origin_lbl = MathTex(r"\mathcal{O}", font_size=16, color=TEXT_DIM).next_to(origin_dot, DL, buff=0.08)
-
-    scene.play(
-        Create(h_lines, run_time=0.4),
-        Create(v_lines, run_time=0.4),
-        Create(axes, run_time=0.8),
-        FadeIn(ax_labels, run_time=0.5),
-        FadeIn(origin_dot, origin_lbl, run_time=0.4)
-    )
-    axes._y_lo = y_lo
-    axes._y_hi = y_hi
-    return axes
-
-
-def add_graph_legend(axes, orig_label_tex, deriv_label_tex):
-    """Mathematical function & derivative legend box."""
-    orig_line  = Line(ORIGIN, RIGHT*0.45, stroke_width=3.0, color=ACCENT_CYAN)
-    orig_lbl   = MathTex(orig_label_tex, font_size=18, color=ACCENT_CYAN)
-    deriv_line = Line(ORIGIN, RIGHT*0.45, stroke_width=3.0, color=ACCENT_CORAL)
-    deriv_lbl  = MathTex(deriv_label_tex, font_size=18, color=ACCENT_CORAL)
-
-    row1 = VGroup(orig_line, orig_lbl).arrange(RIGHT, buff=0.12)
-    row2 = VGroup(deriv_line, deriv_lbl).arrange(RIGHT, buff=0.12)
-    rows = VGroup(row1, row2).arrange(DOWN, buff=0.18, aligned_edge=LEFT)
-
-    header = MathTex(r"\mathbf{\mathcal{F}\text{unctions:}}", font_size=16, color=TEXT_DIM)
-    content = VGroup(header, rows).arrange(DOWN, buff=0.14, aligned_edge=LEFT)
-
-    bg = RoundedRectangle(
-        corner_radius=0.12, width=content.width + 0.45, height=content.height + 0.4,
-        fill_color=PANEL_BG, fill_opacity=0.94,
-        stroke_color=PANEL_BORDER, stroke_width=1.2,
-    )
-    content.move_to(bg)
-    legend = VGroup(bg, content)
-    legend.next_to(axes, UP, buff=0.18).align_to(axes, RIGHT)
-    return legend
-
-
-# MAIN SCENE
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN UNIVERSAL ANIMATION SCENE
+# ══════════════════════════════════════════════════════════════════════════
 
 class UniversalMathAnimation(Scene):
 
@@ -597,7 +252,7 @@ class UniversalMathAnimation(Scene):
         method_id    = os.environ.get("MATH_METHOD_ID", "").strip()
         method_name  = os.environ.get("MATH_METHOD_NAME", "").strip()
 
-        # Method-specific rendering if requested by user
+        # Method-specific handling if requested
         if method_id:
             try:
                 import algebra
@@ -628,30 +283,15 @@ class UniversalMathAnimation(Scene):
                     node = parse_expr(clean_expr)
                     _, steps = integral.integrate_node(node)
                     title_str = method_name or "Symbolic Integration"
-                elif method_id == "integral-simpson":
+                elif method_id in ["integral-simpson", "integral-trapezoid", "integral-midpoint"]:
                     from main import parse_expr
                     clean_expr = input_str
                     if clean_expr.lower().startswith('integrate(') and clean_expr.endswith(')'):
                         clean_expr = clean_expr[10:-1]
                     node = parse_expr(clean_expr)
-                    _, steps = integral.integrate_numerical(node, 0, 1, 6, "simpson")
-                    title_str = method_name or "Simpson's Rule Quadrature"
-                elif method_id == "integral-trapezoid":
-                    from main import parse_expr
-                    clean_expr = input_str
-                    if clean_expr.lower().startswith('integrate(') and clean_expr.endswith(')'):
-                        clean_expr = clean_expr[10:-1]
-                    node = parse_expr(clean_expr)
-                    _, steps = integral.integrate_numerical(node, 0, 1, 6, "trapezoid")
-                    title_str = method_name or "Trapezoidal Rule Quadrature"
-                elif method_id == "integral-midpoint":
-                    from main import parse_expr
-                    clean_expr = input_str
-                    if clean_expr.lower().startswith('integrate(') and clean_expr.endswith(')'):
-                        clean_expr = clean_expr[10:-1]
-                    node = parse_expr(clean_expr)
-                    _, steps = integral.integrate_numerical(node, 0, 1, 6, "midpoint")
-                    title_str = method_name or "Midpoint Rule Quadrature"
+                    rule_type = "simpson" if "simpson" in method_id else ("trapezoid" if "trapezoid" in method_id else "midpoint")
+                    _, steps = integral.integrate_numerical(node, 0, 1, 6, rule_type)
+                    title_str = method_name or f"{rule_type.capitalize()} Rule Quadrature"
                 elif method_id == "derive-rules":
                     from main import parse_expr
                     clean_expr = input_str
@@ -660,19 +300,6 @@ class UniversalMathAnimation(Scene):
                     node = parse_expr(clean_expr)
                     _, steps = derivative.derive(node)
                     title_str = method_name or "Differentiation Rules"
-                elif method_id == "derive-limit-definition":
-                    from main import parse_expr
-                    clean_expr = input_str
-                    if clean_expr.lower().startswith('derive(') and clean_expr.endswith(')'):
-                        clean_expr = clean_expr[7:-1]
-                    node = parse_expr(clean_expr)
-                    d_res, _ = derivative.derive(node)
-                    d_ans = to_string(d_res)
-                    steps = [
-                        MathStep("Difference quotient formulation", r"f'(x) = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h}", "equation"),
-                        MathStep("Expand & evaluate limit as h -> 0", rf"f'(x) = {d_ans}", "equation")
-                    ]
-                    title_str = method_name or "Definition of Derivative"
                 elif method_id in ["linear-rref", "matrix-rref"]:
                     matrices = re.findall(r'\[\[.*?\]\]|\[.*?\]', input_str)
                     if matrices:
@@ -698,59 +325,32 @@ class UniversalMathAnimation(Scene):
                         matrix = ast.literal_eval(matrices[0])
                         A = [row[:-1] for row in matrix] if len(matrix[0]) == len(matrix) + 1 else matrix
                         _, steps = solvers.inverse(A)
-                    title_str = method_name or "Matrix Inversion"
-                elif method_id == "matrix-det":
-                    matrices = re.findall(r'\[\[.*?\]\]|\[.*?\]', input_str)
-                    if matrices:
-                        matrix = ast.literal_eval(matrices[0])
-                        _, steps = solvers.determinant(matrix)
-                    title_str = method_name or "Matrix Determinant"
-                elif method_id == "stats-direct-mean":
-                    data_str = re.search(r'\((.*)\)', input_str).group(1) if '(' in input_str else input_str
-                    steps = stats_engine.mean(data_str)
-                    title_str = method_name or "Arithmetic Mean"
-                elif method_id == "stats-median":
-                    data_str = re.search(r'\((.*)\)', input_str).group(1) if '(' in input_str else input_str
-                    steps = stats_engine.median(data_str)
-                    title_str = method_name or "Median Resolution"
+                    title_str = method_name or "Matrix Inverse"
+                else:
+                    from main import solve_algebra
+                    _, steps = solve_algebra(input_str)
+                    title_str = method_name or f"Solving: {input_str}"
 
                 if steps:
                     self.render_math_steps(steps, title_str)
                     return
-            except Exception as err:
-                print(f"Error handling method_id '{method_id}': {err}")
+            except Exception as e:
+                pass
 
-        solution_node = None
-
+        # Dispatch based on problem_type
         if problem_type == "matrix":
-            try:
-                matrix_match = re.search(r'\[.*\]', input_str)
-                if not matrix_match:
-                    return
-                A = ast.literal_eval(matrix_match.group(0))
-                if 'det' in input_str.lower():
-                    solution_node, steps = solvers.determinant(A)
-                    title_str = "Calculating Determinant"
-                elif 'eigen' in input_str.lower() or 'char' in input_str.lower():
-                    import eigenvalues_and_eigenvector as eigen
-                    solution_node, steps = eigen.eigenvalue(A)
-                    title_str = "Calculating Eigenvalues"
-                else:
-                    solution_node, steps = solvers.reduced_row_echelon(A)
-                    title_str = "Gaussian Elimination"
-            except Exception:
-                return
-
+            self.render_linear_algebra_3b1b(input_str)
+        elif problem_type == "derivative":
+            self.render_derivative_3b1b(input_str)
         elif problem_type == "integral":
+            self.render_integral_3b1b(input_str)
+        elif problem_type == "trigonometry":
             try:
-                from main import parse_expr
-                node = parse_expr(input_str)
-                from math_models import to_latex as ml_to_latex
-                solution_node, steps = integral.integrate_node(node)
-                title_str = rf"Integrating $\int ({ml_to_latex(node)})\,dx$"
+                import trigonometry
+                title_str, steps = trigonometry.solve_trigonometry(input_str)
+                self.render_math_steps(steps, title_str)
             except Exception:
-                return
-
+                pass
         elif problem_type == "statistics":
             try:
                 lower_input = input_str.lower()
@@ -808,538 +408,498 @@ class UniversalMathAnimation(Scene):
                     data_str = re.search(r'mean\((.*)\)', input_str, re.I).group(1)
                     steps = stats_engine.mean(data_str)
                     title_str = "Calculating Mean"
+                self.render_math_steps(steps, title_str)
             except Exception:
-                return
-
+                pass
         elif problem_type == "geometry":
             try:
                 import geometry
                 title_str, steps = geometry.solve_geometry(input_str)
+                self.render_geometry(steps, title_str)
             except Exception:
-                return
-
-        elif problem_type == "trigonometry":
-            try:
-                import trigonometry
-                title_str, steps = trigonometry.solve_trigonometry(input_str)
-            except Exception:
-                return
-
-        elif problem_type == "algebra":
+                pass
+        else:
             try:
                 from main import solve_algebra
-                solution_node, steps = solve_algebra(input_str)
-                title_str = f"Solving: {input_str}"
+                _, steps = solve_algebra(input_str)
+                self.render_math_steps(steps, f"Solving: {input_str}")
             except Exception:
-                return
-
-        else:  # derivative
-            try:
-                from main import parse_expr
-                node = parse_expr(input_str)
-                from math_models import to_latex as ml_to_latex
-                orig_node     = node          # keep original for graphing
-                solution_node_result, steps = derivative.derive(node)
-                solution_node = solution_node_result
-                title_str     = rf"Deriving $\dfrac{{d}}{{dx}}\!\left({ml_to_latex(node)}\right)$"
-                # attach original node to self for the renderer
-                self._orig_node = orig_node
-                self._soln_node = solution_node
-            except Exception:
-                return
-
-        if problem_type == "geometry":
-            self.render_geometry(steps, title_str)
-        elif problem_type in ["derivative", "integral", "matrix"]:
-            self.title_str    = title_str
-            self.steps        = steps
-            self.problem_type = problem_type
-            self.is_calculus  = problem_type in ["integral", "derivative"]
-            self.render_calculus_matrix()
-        else:
-            self.render_math_steps(steps, title_str)
+                pass
 
     # ══════════════════════════════════════════════════════════════════════════
-    # GENERIC MATH STEPS
+    # OPTION 1: CALCULUS OVERHAUL (DERIVATIVE & INTEGRAL)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def render_derivative_3b1b(self, input_str: str):
+        """
+        3Blue1Brown-style derivative visualizer:
+        - Plots function f(x)
+        - Dynamic tangent line sliding along the curve
+        - Slope triangle: dx, df, and instantaneous rate of change
+        - Morphs into the derivative function f'(x) tracing the tangent slopes
+        """
+        from main import parse_expr
+        try:
+            node = parse_expr(input_str)
+            orig_node = node
+            soln_node, steps = derivative.derive(node)
+            steps = filter_derivative_steps(steps)
+        except Exception:
+            return
+
+        make_3b1b_background(self)
+
+        title_group = make_3b1b_title(rf"The Derivative: Rate of Change", font_size=32).to_edge(UP, buff=0.45)
+        self.play(FadeIn(title_group, shift=DOWN * 0.2), run_time=0.7)
+
+        # Axes setup
+        func = node_to_function(orig_node)
+        deriv_func = node_to_function(soln_node)
+        y_lo, y_hi = _auto_y_range(func, -3.0, 3.0)
+
+        axes = Axes(
+            x_range=[-3.2, 3.2, 1],
+            y_range=[math.floor(y_lo), math.ceil(y_hi), max(1, round((y_hi - y_lo) / 5))],
+            x_length=6.0,
+            y_length=4.8,
+            axis_config={"color": B3_DIM, "stroke_width": 2.0},
+        ).to_edge(LEFT, buff=0.6).shift(DOWN * 0.2)
+
+        curve_f = safe_plot(axes, func, x_range=(-3.0, 3.0), color=B3_BLUE, stroke_width=3.5)
+        f_label = MathTex(rf"f(x) = {ml_to_latex(orig_node)}", font_size=22, color=B3_BLUE).next_to(axes, UP, buff=0.15).align_to(axes, LEFT)
+
+        self.play(
+            Create(axes, run_time=0.7),
+            Create(curve_f, run_time=0.9),
+            FadeIn(f_label)
+        )
+
+        # ── Tangent Line & Slope Triangle Demonstration ──────────────────────
+        x_val = 1.0
+        y_val = func(x_val)
+        slope = (func(x_val + 0.001) - func(x_val - 0.001)) / 0.002
+
+        # Tangent line segment
+        p1 = axes.c2p(x_val - 1.2, y_val - 1.2 * slope)
+        p2 = axes.c2p(x_val + 1.2, y_val + 1.2 * slope)
+        tangent_line = Line(p1, p2, color=B3_YELLOW, stroke_width=3.2)
+        pt_dot = Dot(axes.c2p(x_val, y_val), radius=0.065, color=B3_YELLOW)
+
+        # Slope triangle (dx, df)
+        dx_val = 0.6
+        p_corner = axes.c2p(x_val + dx_val, y_val)
+        p_top = axes.c2p(x_val + dx_val, y_val + dx_val * slope)
+        dx_line = Line(axes.c2p(x_val, y_val), p_corner, color=B3_TEAL, stroke_width=2.5)
+        df_line = Line(p_corner, p_top, color=B3_RED, stroke_width=2.5)
+
+        dx_label = MathTex(r"dx", font_size=16, color=B3_TEAL).next_to(dx_line, DOWN, buff=0.06)
+        df_label = MathTex(r"df", font_size=16, color=B3_RED).next_to(df_line, RIGHT, buff=0.06)
+        slope_label = MathTex(r"\text{Slope} = \dfrac{df}{dx}", font_size=20, color=B3_YELLOW).next_to(tangent_line, UP, buff=0.12)
+
+        tangent_group = VGroup(tangent_line, pt_dot, dx_line, df_line, dx_label, df_label, slope_label)
+
+        # Right side equation steps
+        curr_step_eq = None
+        curr_card = None
+
+        if steps:
+            curr_step_eq = MathTex(steps[0].latex, color=B3_WHITE).scale(1.2).to_edge(RIGHT, buff=0.8).shift(UP * 0.8)
+            curr_card = make_3b1b_annotation(steps[0].description, color=B3_BLUE)
+            self.play(FadeIn(curr_step_eq), FadeIn(curr_card), Create(tangent_group), run_time=1.0)
+        else:
+            self.play(Create(tangent_group), run_time=0.8)
+
+        self.wait(1.5)
+
+        # Slide tangent line along curve to demonstrate dynamic derivative
+        for test_x in [0.0, 1.8]:
+            try:
+                y_t = func(test_x)
+                slope_t = (func(test_x + 0.001) - func(test_x - 0.001)) / 0.002
+                new_p1 = axes.c2p(test_x - 1.2, y_t - 1.2 * slope_t)
+                new_p2 = axes.c2p(test_x + 1.2, y_t + 1.2 * slope_t)
+                new_line = Line(new_p1, new_p2, color=B3_YELLOW, stroke_width=3.2)
+                new_dot = Dot(axes.c2p(test_x, y_t), radius=0.065, color=B3_YELLOW)
+                self.play(
+                    Transform(tangent_line, new_line),
+                    Transform(pt_dot, new_dot),
+                    run_time=0.9
+                )
+                self.wait(0.5)
+            except Exception:
+                pass
+
+        # Progress through algebraic steps
+        for i, step in enumerate(steps[1:]):
+            rule = detect_rule(step.description)
+            rule_color = RULE_COLORS.get(rule, B3_GOLD)
+            new_step_eq = MathTex(step.latex, color=rule_color).scale(1.2).to_edge(RIGHT, buff=0.8).shift(UP * 0.8)
+            new_card = make_3b1b_annotation(step.description, color=rule_color)
+
+            anims = [
+                ReplacementTransform(curr_step_eq, new_step_eq),
+                ReplacementTransform(curr_card, new_card)
+            ]
+            self.play(*anims, run_time=0.9)
+            curr_step_eq = new_step_eq
+            curr_card = new_card
+            self.wait(1.8)
+
+        # Final revelation: Plot f'(x) curve
+        curve_fp = safe_plot(axes, deriv_func, x_range=(-3.0, 3.0), color=B3_YELLOW, stroke_width=3.5)
+        fp_label = MathTex(rf"f'(x) = {ml_to_latex(soln_node)}", font_size=22, color=B3_YELLOW).next_to(f_label, DOWN, buff=0.1).align_to(f_label, LEFT)
+
+        self.play(
+            Create(curve_fp, run_time=1.2),
+            FadeIn(fp_label),
+            Indicate(curr_step_eq, color=B3_GREEN, scale_factor=1.05),
+            run_time=1.1
+        )
+        self.wait(2.5)
+
+    def render_integral_3b1b(self, input_str: str):
+        """
+        3Blue1Brown-style integral visualizer:
+        - Plots function f(x)
+        - Shows Riemann sum rectangles partitioning [a, b]
+        - Demonstrates dx width approaching 0 as rectangles morph into smooth shaded area
+        """
+        from main import parse_expr
+        try:
+            clean_expr = input_str
+            if clean_expr.lower().startswith('integrate(') and clean_expr.endswith(')'):
+                clean_expr = clean_expr[10:-1]
+            node = parse_expr(clean_expr)
+            soln_node, steps = integral.integrate_node(node)
+        except Exception:
+            return
+
+        make_3b1b_background(self)
+
+        title_group = make_3b1b_title(r"Integration: Continuous Accumulation of Area", font_size=30).to_edge(UP, buff=0.45)
+        self.play(FadeIn(title_group, shift=DOWN * 0.2), run_time=0.7)
+
+        func = node_to_function(node)
+        y_lo, y_hi = _auto_y_range(func, -1.0, 3.0)
+
+        axes = Axes(
+            x_range=[-1.0, 3.2, 1],
+            y_range=[max(-1.0, math.floor(y_lo)), math.ceil(y_hi) + 1, max(1, round((y_hi - y_lo) / 4))],
+            x_length=6.0,
+            y_length=4.8,
+            axis_config={"color": B3_DIM, "stroke_width": 2.0},
+        ).to_edge(LEFT, buff=0.6).shift(DOWN * 0.2)
+
+        curve = safe_plot(axes, func, x_range=(-0.8, 3.0), color=B3_BLUE, stroke_width=3.5)
+        f_lbl = MathTex(rf"f(x) = {ml_to_latex(node)}", font_size=22, color=B3_BLUE).next_to(axes, UP, buff=0.15).align_to(axes, LEFT)
+
+        self.play(Create(axes, run_time=0.7), Create(curve, run_time=0.9), FadeIn(f_lbl))
+
+        # Interval [0, 2]
+        x_a, x_b = 0.0, 2.0
+        brace = BraceBetweenPoints(axes.c2p(x_a, 0), axes.c2p(x_b, 0), DOWN, buff=0.1)
+        brace_lbl = MathTex(r"\Delta x \to dx", font_size=18, color=B3_TEAL).next_to(brace, DOWN, buff=0.08)
+
+        # 1. Coarse Riemann Rectangles
+        rects_coarse = axes.get_riemann_rectangles(curve, x_range=[x_a, x_b], dx=0.5, color=B3_TEAL, fill_opacity=0.5)
+        riemann_note = make_3b1b_annotation(r"Summing approximating rectangles: \sum f(x_i) \Delta x", color=B3_TEAL)
+
+        self.play(
+            Create(rects_coarse, run_time=0.9),
+            FadeIn(brace), FadeIn(brace_lbl),
+            FadeIn(riemann_note)
+        )
+        self.wait(1.5)
+
+        # 2. Refined Riemann Rectangles (dx smaller)
+        rects_fine = axes.get_riemann_rectangles(curve, x_range=[x_a, x_b], dx=0.15, color=B3_GREEN, fill_opacity=0.6)
+        fine_note = make_3b1b_annotation(r"As \Delta x \to 0, the sum approaches the exact integral \int f(x) dx", color=B3_GREEN)
+
+        self.play(
+            ReplacementTransform(rects_coarse, rects_fine),
+            ReplacementTransform(riemann_note, fine_note),
+            run_time=1.0
+        )
+        self.wait(1.5)
+
+        # 3. Continuous Integral Area
+        smooth_area = axes.get_area(curve, x_range=[x_a, x_b], color=B3_BLUE, opacity=0.45)
+        self.play(ReplacementTransform(rects_fine, smooth_area), run_time=0.8)
+
+        # Right-side integral formula
+        int_eq = MathTex(rf"\int ({ml_to_latex(node)})\,dx = {ml_to_latex(soln_node)} + C", color=B3_YELLOW).scale(1.15).to_edge(RIGHT, buff=0.8).shift(UP * 0.8)
+        self.play(
+            FadeIn(int_eq),
+            Indicate(int_eq, color=B3_GREEN, scale_factor=1.05),
+            run_time=1.0
+        )
+        self.wait(2.5)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # OPTION 2: LINEAR ALGEBRA OVERHAUL (MATRICES & TRANSFORMATIONS)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def render_linear_algebra_3b1b(self, input_str: str):
+        """
+        Classic 'Essence of Linear Algebra' visualizer:
+        - 2D coordinate grid with NumberPlane
+        - Basis vectors i-hat (green) and j-hat (red)
+        - Unit square representing unit area
+        - Smoothly transforms space via matrix [[a, b], [c, d]]
+        - Shows that columns are the transformed basis vectors
+        - Visualizes the Determinant as the scaling factor of area
+        """
+        make_3b1b_background(self)
+
+        title_group = make_3b1b_title(r"Linear Transformations: How Space Warps", font_size=32).to_edge(UP, buff=0.45)
+        self.play(FadeIn(title_group, shift=DOWN * 0.2), run_time=0.7)
+
+        # Parse or default matrix
+        matrices = re.findall(r'\[\[.*?\]\]|\[.*?\]', input_str)
+        a, b, c, d = 1.5, 0.5, 0.5, 1.2
+        if matrices:
+            try:
+                raw_mat = ast.literal_eval(matrices[0])
+                if len(raw_mat) >= 2 and len(raw_mat[0]) >= 2:
+                    a = float(raw_mat[0][0])
+                    b = float(raw_mat[0][1])
+                    c = float(raw_mat[1][0])
+                    d = float(raw_mat[1][1])
+            except Exception:
+                pass
+
+        det_val = a * d - b * c
+
+        # 2D Coordinate Grid
+        plane = NumberPlane(
+            x_range=[-4, 4, 1], y_range=[-3.5, 3.5, 1],
+            x_length=7.0, y_length=5.0,
+            background_line_style={"stroke_color": "#334155", "stroke_width": 1.2, "stroke_opacity": 0.55}
+        ).to_edge(LEFT, buff=0.6).shift(DOWN * 0.2)
+
+        self.play(Create(plane, run_time=0.8))
+
+        # Basis vectors: i-hat (green) & j-hat (red)
+        i_vec = Arrow(plane.c2p(0, 0), plane.c2p(1, 0), buff=0, color=B3_GREEN, stroke_width=4.5)
+        j_vec = Arrow(plane.c2p(0, 0), plane.c2p(0, 1), buff=0, color=B3_RED, stroke_width=4.5)
+
+        i_lbl = MathTex(r"\hat{\imath}", font_size=20, color=B3_GREEN).next_to(i_vec.get_end(), DR, buff=0.08)
+        j_lbl = MathTex(r"\hat{\jmath}", font_size=20, color=B3_RED).next_to(j_vec.get_end(), UL, buff=0.08)
+
+        # Unit Square Area = 1
+        unit_sq = Polygon(
+            plane.c2p(0, 0), plane.c2p(1, 0), plane.c2p(1, 1), plane.c2p(0, 1),
+            fill_color=B3_YELLOW, fill_opacity=0.35, stroke_color=B3_YELLOW, stroke_width=1.8
+        )
+
+        # Right side Matrix Representation
+        mat_tex = MathTex(
+            rf"A = \begin{{bmatrix}} {a:.1f} & {b:.1f} \\ {c:.1f} & {d:.1f} \end{{bmatrix}}",
+            color=B3_WHITE
+        ).scale(1.2).to_edge(RIGHT, buff=0.9).shift(UP * 1.0)
+
+        # Color the columns to match i-hat and j-hat
+        col_note = make_3b1b_annotation(r"Columns dictate where the basis vectors \hat{\imath} and \hat{\jmath} land", color=B3_BLUE)
+
+        self.play(
+            Create(unit_sq), GrowArrow(i_vec), GrowArrow(j_vec),
+            FadeIn(i_lbl), FadeIn(j_lbl),
+            FadeIn(mat_tex), FadeIn(col_note),
+            run_time=1.0
+        )
+        self.wait(1.5)
+
+        # ── Matrix Space Transformation ──────────────────────────────────────
+        new_i = Arrow(plane.c2p(0, 0), plane.c2p(a, c), buff=0, color=B3_GREEN, stroke_width=4.5)
+        new_j = Arrow(plane.c2p(0, 0), plane.c2p(b, d), buff=0, color=B3_RED, stroke_width=4.5)
+        new_sq = Polygon(
+            plane.c2p(0, 0), plane.c2p(a, c), plane.c2p(a + b, c + d), plane.c2p(b, d),
+            fill_color=B3_YELLOW, fill_opacity=0.4, stroke_color=B3_YELLOW, stroke_width=1.8
+        )
+
+        trans_note = make_3b1b_annotation(rf"Transformed unit area = \det(A) = {det_val:.2f}", color=B3_YELLOW)
+
+        self.play(
+            plane.animate.apply_matrix([[a, b], [c, d]]),
+            Transform(unit_sq, new_sq),
+            Transform(i_vec, new_i),
+            Transform(j_vec, new_j),
+            i_lbl.animate.next_to(plane.c2p(a, c), DR, buff=0.08),
+            j_lbl.animate.next_to(plane.c2p(b, d), UL, buff=0.08),
+            ReplacementTransform(col_note, trans_note),
+            run_time=1.8
+        )
+        self.wait(1.0)
+
+        # Determinant calculation badge
+        det_eq = MathTex(
+            rf"\det(A) = ({a:.1f})({d:.1f}) - ({b:.1f})({c:.1f}) = {det_val:.2f}",
+            color=B3_YELLOW
+        ).scale(1.05).next_to(mat_tex, DOWN, buff=0.45)
+
+        self.play(
+            FadeIn(det_eq),
+            Indicate(det_eq, color=B3_GREEN),
+            run_time=1.0
+        )
+        self.wait(2.5)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # OPTION 3: GENERAL 3B1B AESTHETIC & EQUATION STEPPING
     # ══════════════════════════════════════════════════════════════════════════
 
     def render_math_steps(self, steps, title_str):
+        """
+        Pure 3B1B chalkboard derivation:
+        - Minimalist typography and blackboard background
+        - Terms color-coded to their derivation rules
+        - Curly braces explaining key transformations
+        """
         if not steps:
             return
-        make_background(self)
-        title_group = glowing_title(title_str, font_size=36)
-        title_group.to_edge(UP, buff=0.55)
-        play_intro(self, title_group)
+
+        make_3b1b_background(self)
+
+        title_group = make_3b1b_title(title_str, font_size=32).to_edge(UP, buff=0.45)
+        self.play(FadeIn(title_group, shift=DOWN * 0.2), run_time=0.7)
 
         n = len(steps)
-        current_equation = None
-        current_eq_box = None
+        current_eq = None
         current_card = None
-        pbar = None
 
         for i, step in enumerate(steps):
-            rule     = detect_rule(step.description)
-            new_card = explanation_card(step.description, rule)
-            new_pbar = progress_bar((i + 1) / n)
-            badge    = step_badge(i + 1, n)
-            theme_color = RULE_COLORS.get(rule, ACCENT_CYAN) if rule else ACCENT_CYAN
-
+            rule = detect_rule(step.description)
+            rule_color = RULE_COLORS.get(rule, B3_BLUE) if rule else B3_BLUE
             is_final = (i == n - 1)
-            step_color = ACCENT_GREEN if is_final else theme_color
+            step_color = B3_GREEN if is_final else rule_color
 
             if step.type == "matrix":
                 matrix_data = step.data or [[0]]
-                fmt = [[(str(int(v)) if abs(v-int(v))<1e-9 else f"{v:.2f}") for v in row]
+                fmt = [[(str(int(v)) if abs(v - int(v)) < 1e-9 else f"{v:.2f}") for v in row]
                        for row in matrix_data]
-                new_eq = Matrix(fmt, element_to_mobject=Text, element_to_mobject_config={"color": "#FFFFFF"}, h_buff=1.6, v_buff=1.1)\
-                         .scale(0.85).center().shift(UP*0.55).set_z_index(20)
+                new_eq = Matrix(fmt, element_to_mobject=Text, element_to_mobject_config={"color": "#FFFFFF"},
+                                h_buff=1.5, v_buff=1.0).scale(0.85).center().shift(UP * 0.5)
                 new_eq.get_brackets().set_color(step_color)
             elif step.type == "text":
-                new_eq = Text(step.latex.replace("\\\\","\n"), font_size=28,
-                              color="#FFFFFF").center().shift(UP*0.55).set_z_index(20)
+                new_eq = Text(step.latex.replace("\\\\", "\n"), font_size=26, color=B3_WHITE).center().shift(UP * 0.5)
             else:
-                new_eq = MathTex(step.latex, color=step_color).scale(1.35).center().shift(UP*0.55).set_z_index(20)
+                new_eq = MathTex(step.latex, color=step_color).scale(1.35).center().shift(UP * 0.5)
 
-            new_eq_box = equation_box(new_eq, color=step_color)
+            new_card = make_3b1b_annotation(step.description, color=step_color)
 
             anims = []
-            if pbar:
-                anims.append(FadeOut(pbar))
-            anims += [FadeIn(new_pbar), FadeIn(badge)]
 
             if current_card:
                 anims.append(ReplacementTransform(current_card, new_card))
             else:
-                anims.append(FadeIn(new_card, shift=UP*0.15))
+                anims.append(FadeIn(new_card, shift=UP * 0.1))
 
-            if current_equation is None:
-                anims += [FadeIn(new_eq_box), FadeIn(new_eq, scale=0.9)]
+            if current_eq is None:
+                anims.append(FadeIn(new_eq, scale=0.9))
             else:
-                anims += [
-                    ReplacementTransform(current_eq_box, new_eq_box),
-                    ReplacementTransform(current_equation, new_eq)
-                ]
+                anims.append(ReplacementTransform(current_eq, new_eq))
 
-            self.play(*anims, run_time=1.1)
+            self.play(*anims, run_time=1.0)
 
-            # Highlight significant intermediate or final steps
-            if i == n - 1:
-                self.play(Circumscribe(new_eq, color=ACCENT_GREEN, run_time=0.9))
+            if is_final:
+                # Halmos Q.E.D.
+                qed = MathTex(r"\blacksquare\ \text{Q.E.D.}", font_size=24, color=B3_GREEN).next_to(new_eq, DOWN, buff=0.4)
+                self.play(
+                    Indicate(new_eq, color=B3_GREEN, scale_factor=1.05),
+                    FadeIn(qed),
+                    run_time=0.9
+                )
             elif rule:
-                self.play(Indicate(new_eq, color=theme_color, scale_factor=1.05, run_time=0.7))
+                self.play(Indicate(new_eq, color=rule_color, scale_factor=1.04, run_time=0.6))
 
-            self.wait(4.2)
-            self.play(FadeOut(badge), run_time=0.4)
-            current_equation = new_eq
-            current_eq_box = new_eq_box
+            self.wait(2.2)
+            current_eq = new_eq
             current_card = new_card
-            pbar = new_pbar
 
-        if current_card:
-            self.play(FadeOut(current_card), FadeOut(current_eq_box), run_time=0.5)
-        play_outro(self, current_equation)
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # GEOMETRY
-    # ══════════════════════════════════════════════════════════════════════════
+        self.wait(1.5)
 
     def render_geometry(self, steps, title_str):
+        """Minimalist 3B1B geometric proof visualization."""
         if not steps:
             return
-        make_background(self)
-        title_group = glowing_title(title_str, font_size=36)
-        title_group.to_edge(UP, buff=0.55)
-        play_intro(self, title_group)
 
-        COLOR_MAP = {"blue": ACCENT_CYAN, "green": ACCENT_GREEN,
-                     "teal": ACCENT_TEAL, "purple": ACCENT_PURPLE,
-                     "gold": ACCENT_GOLD, "coral": ACCENT_CORAL}
+        make_3b1b_background(self)
+        title_group = make_3b1b_title(title_str, font_size=32).to_edge(UP, buff=0.45)
+        self.play(FadeIn(title_group, shift=DOWN * 0.2), run_time=0.7)
 
-        current_mobjects = VGroup()
+        current_mobs = VGroup()
         current_card = None
-        n = len(steps)
-        pbar = None
+
+        COLOR_MAP = {"blue": B3_BLUE, "green": B3_GREEN, "teal": B3_TEAL,
+                     "purple": B3_PURPLE, "gold": B3_GOLD, "coral": B3_RED}
 
         for i, step in enumerate(steps):
-            rule     = detect_rule(step.description)
-            new_card = explanation_card(step.description, rule)
-            new_pbar = progress_bar((i+1)/n)
-            badge    = step_badge(i+1, n)
-
-            anims = []
-            if pbar:  anims.append(FadeOut(pbar))
-            anims += [FadeIn(new_pbar), FadeIn(badge)]
-            if current_card:
-                anims.append(ReplacementTransform(current_card, new_card))
-            else:
-                anims.append(FadeIn(new_card, shift=UP*0.1))
-            current_card = new_card
-
+            new_card = make_3b1b_annotation(step.description, color=B3_BLUE)
             new_mobs = VGroup()
+
             if step.type == "geometry" and isinstance(step.data, dict):
                 for sd in step.data.get("shapes", []):
-                    c = COLOR_MAP.get(sd.get("color","blue").lower(), ACCENT_CYAN)
+                    c = COLOR_MAP.get(sd.get("color", "blue").lower(), B3_BLUE)
                     if sd.get("type") == "polygon":
                         pts = sd.get("points", [])
                         if len(pts) >= 3:
                             poly = Polygon(*pts, color=c, stroke_width=2.5)
-                            poly.set_fill(c, opacity=sd.get("fill_opacity", 0.18))
+                            poly.set_fill(c, opacity=sd.get("fill_opacity", 0.2))
                             new_mobs.add(poly)
                     elif sd.get("type") == "circle":
-                        circ = Circle(radius=sd.get("radius",1.0), color=c, stroke_width=2.5)\
-                               .move_to(sd.get("center", ORIGIN))
+                        circ = Circle(radius=sd.get("radius", 1.0), color=c, stroke_width=2.5).move_to(sd.get("center", ORIGIN))
                         circ.set_fill(c, opacity=0.15)
                         new_mobs.add(circ)
                     elif sd.get("type") == "line":
-                        p1_coord = sd.get("p1", sd.get("start", ORIGIN))
-                        p2_coord = sd.get("p2", sd.get("end", RIGHT))
-                        p1_3d = [p1_coord[0], p1_coord[1], 0] if len(p1_coord) == 2 else p1_coord
-                        p2_3d = [p2_coord[0], p2_coord[1], 0] if len(p2_coord) == 2 else p2_coord
+                        p1_c = sd.get("p1", sd.get("start", ORIGIN))
+                        p2_c = sd.get("p2", sd.get("end", RIGHT))
+                        p1_3d = [p1_c[0], p1_c[1], 0] if len(p1_c) == 2 else p1_c
+                        p2_3d = [p2_c[0], p2_c[1], 0] if len(p2_c) == 2 else p2_c
                         new_mobs.add(Line(p1_3d, p2_3d, stroke_width=2.5, color=c))
-                for ld in step.data.get("labels", []):
-                    new_mobs.add(MathTex(ld.get("text",""), font_size=28,
-                                         color=TEXT_BRIGHT).move_to(ld.get("pos", ORIGIN)))
 
-            if len(new_mobs):
-                if len(current_mobjects): anims.append(FadeOut(current_mobjects))
-                anims.append(Create(new_mobs, lag_ratio=0.15))
-                current_mobjects = new_mobs
-            elif step.type == "equation":
-                eq = MathTex(step.latex, color=ACCENT_CYAN).scale(1.25)
-                if len(current_mobjects): anims.append(FadeOut(current_mobjects))
-                anims.append(FadeIn(eq, scale=0.85))
-                current_mobjects = VGroup(eq)
-            elif step.type == "text":
-                txt = Text(step.latex, font_size=24, color=TEXT_BRIGHT)
-                if len(current_mobjects): anims.append(FadeOut(current_mobjects))
-                anims.append(FadeIn(txt))
-                current_mobjects = VGroup(txt)
-
-            if anims:
-                self.play(*anims, run_time=1.1)
-                self.wait(4.2)
-            self.play(FadeOut(badge), run_time=0.4)
-            pbar = new_pbar
-
-        if current_card: self.play(FadeOut(current_card))
-        play_outro(self, current_mobjects)
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # CALCULUS / MATRIX  — completely rewritten for derivatives
-    # ══════════════════════════════════════════════════════════════════════════
-
-    def render_calculus_matrix(self):
-        steps       = self.steps
-        title_str   = self.title_str
-        is_calculus = self.is_calculus
-        is_deriv    = self.problem_type == "derivative"
-
-        # ── Filter steps for derivative only ──────────────────────────────
-        if is_deriv:
-            steps = filter_derivative_steps(steps)
-        n = len(steps)
-
-        make_background(self)
-
-        title_group = glowing_title(title_str, font_size=34)
-        title_group.to_edge(UP, buff=0.5)
-        play_intro(self, title_group)
-
-        # ── Axes ──────────────────────────────────────────────────────────
-        axes = None
-        orig_plot  = None   # f(x)  — drawn once, stays the whole time
-        deriv_plot = None   # f'(x) — drawn only at the final step
-
-        # Pre-compute callables so build_derivative_axes can set a correct y-range
-        _orig_func  = node_to_function(self._orig_node) if (is_deriv and hasattr(self, '_orig_node'))  else None
-        _deriv_func = node_to_function(self._soln_node) if (is_deriv and hasattr(self, '_soln_node')) else None
-
-        if is_calculus:
-            axes = build_derivative_axes(self,
-                                         orig_func=_orig_func,
-                                         deriv_func=_deriv_func)
-
-        # ── Draw f(x) immediately, using axes' computed y-range for clipping ──
-        if is_deriv and axes is not None and _orig_func is not None:
-            y_clip = (axes._y_lo, axes._y_hi)
-            orig_plot = safe_plot(axes, _orig_func,
-                                  x_range=(-3.5, 3.5),
-                                  color=ACCENT_CYAN,
-                                  y_clip=y_clip)
-            self.play(Create(orig_plot, run_time=1.2))
-
-            # legend — only f(x) row visible now; f'(x) row added at final step
-            from math_models import to_latex as ml_to_latex
-            f_tex  = rf"f(x) = {ml_to_latex(self._orig_node)}"
-            fp_tex = rf"f'(x) = {ml_to_latex(self._soln_node)}"
-            legend = add_graph_legend(axes, f_tex, fp_tex)
-            self.play(FadeIn(legend[0]), FadeIn(legend[1][0]), run_time=0.5)
-        else:
-            legend = None
-
-        # ── Step loop ─────────────────────────────────────────────────────
-        current_equation = None
-        current_eq_box = None
-        current_rule_panel = None
-        current_card = None
-        pbar = None
-
-        for i, step in enumerate(steps):
-            rule     = detect_rule(step.description)
-            new_card = explanation_card(step.description, rule)
-            new_pbar = progress_bar((i+1)/n)
-            badge    = step_badge(i+1, n)
-            is_final = (i == n - 1)
-            eq_color = ACCENT_GREEN if is_final else (RULE_COLORS.get(rule, ACCENT_GOLD) if rule else ACCENT_CYAN)
-
-            # equation mobject
-            if step.type == "matrix":
-                raw = (step.data['matrix'] if isinstance(step.data, dict) and 'matrix' in step.data
-                       else (step.data if isinstance(step.data, list) else [[0]]))
-                fmt = [[(str(int(v)) if abs(v-int(v))<1e-9 else f"{v:.2f}") for v in row]
-                       for row in raw]
-                new_eq = Matrix(fmt, element_to_mobject=Text, element_to_mobject_config={"color": "#FFFFFF"}, h_buff=1.6, v_buff=1.1)\
-                         .scale(0.80).set_z_index(20)
-                new_eq.get_brackets().set_color(eq_color)
-            else:
-                new_eq = MathTex(step.latex, color=eq_color).scale(1.32).set_z_index(20)
-
-            # position: right side if axes present, else centre
-            if is_calculus:
-                new_eq.to_edge(RIGHT, buff=0.9).shift(UP*0.85)
-            else:
-                new_eq.center().shift(UP*0.55)
-
-            new_eq_box = equation_box(new_eq, color=eq_color)
-
-            # rule example panel (right side, below equation)
-            new_rule_panel = None
-            if rule and is_deriv:
-                new_rule_panel = rule_example_panel(rule)
-                if new_rule_panel is not None:
-                    if is_calculus:
-                        new_rule_panel.to_edge(RIGHT, buff=0.9).shift(DOWN*0.5)
-                    else:
-                        new_rule_panel.to_edge(RIGHT, buff=0.9)
-
-            # build animation list
             anims = []
-            if pbar:  anims.append(FadeOut(pbar))
-            anims += [FadeIn(new_pbar), FadeIn(badge)]
-            
             if current_card:
                 anims.append(ReplacementTransform(current_card, new_card))
             else:
-                anims.append(FadeIn(new_card, shift=UP*0.1))
+                anims.append(FadeIn(new_card))
 
-            if current_equation is None:
-                anims += [FadeIn(new_eq_box), FadeIn(new_eq, scale=0.85)]
-            else:
-                anims += [
-                    ReplacementTransform(current_eq_box, new_eq_box),
-                    ReplacementTransform(current_equation, new_eq)
-                ]
+            if len(new_mobs):
+                if len(current_mobs):
+                    anims.append(ReplacementTransform(current_mobs, new_mobs))
+                else:
+                    anims.append(Create(new_mobs))
+                current_mobs = new_mobs
 
-            if current_rule_panel: anims.append(FadeOut(current_rule_panel))
-            if new_rule_panel:     anims.append(FadeIn(new_rule_panel, shift=LEFT*0.1))
-
-            self.play(*anims, run_time=1.2)
-
-            # ── At the FINAL step: draw f'(x) on the graph ────────────────
-            if is_deriv and i == n - 1 and axes is not None and _deriv_func is not None:
-                deriv_plot = safe_plot(axes, _deriv_func,
-                                       x_range=(-3.5, 3.5),
-                                       color=ACCENT_CORAL,
-                                       y_clip=(axes._y_lo, axes._y_hi))
-                # reveal the second legend row
-                legend_anims = [Create(deriv_plot, run_time=1.4)]
-                if legend is not None:
-                    legend_anims += [FadeIn(legend[1][1])]
-                self.play(*legend_anims)
-
-            self.wait(4.5)
-            self.play(FadeOut(badge), run_time=0.4)
-            current_equation = new_eq
-            current_eq_box = new_eq_box
-            current_rule_panel = new_rule_panel
+            self.play(*anims, run_time=1.0)
+            self.wait(2.5)
             current_card = new_card
-            pbar = new_pbar
 
-        if current_rule_panel:
-            self.play(FadeOut(current_rule_panel), run_time=0.4)
-        if current_card:
-            self.play(FadeOut(current_card), FadeOut(current_eq_box), run_time=0.5)
-
-        play_outro(self, current_equation)
+        self.wait(1.5)
 
 
-# STANDALONE SCENE CLASSES
+# ══════════════════════════════════════════════════════════════════════════════
+# STANDALONE SCENE WRAPPERS
+# ══════════════════════════════════════════════════════════════════════════
 
-class MathStepsScene(Scene):
+class MathStepsScene(UniversalMathAnimation):
     def __init__(self, steps: List[MathStep], title_str: str, **kwargs):
-        self.steps     = steps
+        self.steps = steps
         self.title_str = title_str
         super().__init__(**kwargs)
 
     def construct(self):
-        if not self.steps:
-            return
-        make_background(self)
-        title_group = glowing_title(self.title_str, font_size=36)
-        title_group.to_edge(UP, buff=0.55)
-        play_intro(self, title_group)
-
-        n = len(self.steps)
-        current_equation = None
-        current_eq_box = None
-        current_card = None
-        pbar = None
-
-        for i, step in enumerate(self.steps):
-            rule     = detect_rule(step.description)
-            new_card = explanation_card(step.description, rule)
-            new_pbar = progress_bar((i + 1) / n)
-            badge    = step_badge(i + 1, n)
-            theme_color = RULE_COLORS.get(rule, ACCENT_CYAN) if rule else ACCENT_CYAN
-
-            is_final = (i == n - 1)
-            step_color = ACCENT_GREEN if is_final else theme_color
-
-            if step.type == "matrix":
-                matrix_data = step.data or [[0]]
-                fmt = [[(str(int(v)) if abs(v-int(v))<1e-9 else f"{v:.2f}") for v in row]
-                       for row in matrix_data]
-                new_eq = Matrix(fmt, element_to_mobject=Text, element_to_mobject_config={"color": "#FFFFFF"}, h_buff=1.6, v_buff=1.1)\
-                         .scale(0.85).center().shift(UP*0.55).set_z_index(20)
-                new_eq.get_brackets().set_color(step_color)
-            elif step.type == "text":
-                new_eq = Text(step.latex.replace("\\\\","\n"), font_size=28,
-                              color="#FFFFFF").center().shift(UP*0.55).set_z_index(20)
-            else:
-                new_eq = MathTex(step.latex, color=step_color).scale(1.35).center().shift(UP*0.55).set_z_index(20)
-
-            new_eq_box = equation_box(new_eq, color=step_color)
-
-            anims = []
-            if pbar:
-                anims.append(FadeOut(pbar))
-            anims += [FadeIn(new_pbar), FadeIn(badge)]
-
-            if current_card:
-                anims.append(ReplacementTransform(current_card, new_card))
-            else:
-                anims.append(FadeIn(new_card, shift=UP*0.15))
-
-            if current_equation is None:
-                anims += [FadeIn(new_eq_box), FadeIn(new_eq, scale=0.9)]
-            else:
-                anims += [
-                    ReplacementTransform(current_eq_box, new_eq_box),
-                    ReplacementTransform(current_equation, new_eq)
-                ]
-
-            self.play(*anims, run_time=1.1)
-
-            if i == n - 1:
-                self.play(Circumscribe(new_eq, color=ACCENT_GREEN, run_time=0.9))
-            elif rule:
-                self.play(Indicate(new_eq, color=theme_color, scale_factor=1.05, run_time=0.7))
-
-            self.wait(4.2)
-            self.play(FadeOut(badge), run_time=0.4)
-            current_equation = new_eq
-            current_eq_box = new_eq_box
-            current_card = new_card
-            pbar = new_pbar
-
-        if current_card:
-            self.play(FadeOut(current_card), FadeOut(current_eq_box), run_time=0.5)
-        play_outro(self, current_equation)
+        self.render_math_steps(self.steps, self.title_str)
 
 
-class GeometrySolverScene(Scene):
+class GeometrySolverScene(UniversalMathAnimation):
     def __init__(self, steps: List[MathStep], title_str: str, **kwargs):
-        self.steps     = steps
+        self.steps = steps
         self.title_str = title_str
         super().__init__(**kwargs)
 
     def construct(self):
-        if not self.steps:
-            return
-        make_background(self)
-        title_group = glowing_title(self.title_str, font_size=36)
-        title_group.to_edge(UP, buff=0.55)
-        play_intro(self, title_group)
+        self.render_geometry(self.steps, self.title_str)
 
-        COLOR_MAP = {"blue": ACCENT_CYAN, "green": ACCENT_GREEN,
-                     "teal": ACCENT_TEAL, "purple": ACCENT_PURPLE,
-                     "gold": ACCENT_GOLD, "coral": ACCENT_CORAL}
-        current_mobjects = VGroup()
-        current_card = None
-        n = len(self.steps)
-        pbar = None
-
-        for i, step in enumerate(self.steps):
-            rule     = detect_rule(step.description)
-            new_card = explanation_card(step.description, rule)
-            new_pbar = progress_bar((i+1)/n)
-            badge    = step_badge(i+1, n)
-            anims = []
-            if pbar:  anims.append(FadeOut(pbar))
-            anims += [FadeIn(new_pbar), FadeIn(badge)]
-            if current_card:
-                anims.append(ReplacementTransform(current_card, new_card))
-            else:
-                anims.append(FadeIn(new_card, shift=UP*0.1))
-            current_card = new_card
-
-            new_mobs = VGroup()
-            if step.type == "geometry" and isinstance(step.data, dict):
-                for sd in step.data.get("shapes", []):
-                    c = COLOR_MAP.get(sd.get("color","blue").lower(), ACCENT_CYAN)
-                    if sd.get("type") == "polygon":
-                        pts = sd.get("points",[])
-                        if len(pts)>=3:
-                            poly = Polygon(*pts, color=c, stroke_width=2.5)
-                            poly.set_fill(c, opacity=sd.get("fill_opacity",0.18))
-                            new_mobs.add(poly)
-                    elif sd.get("type") == "circle":
-                        circ = Circle(radius=sd.get("radius",1.0), color=c, stroke_width=2.5)\
-                               .move_to(sd.get("center",ORIGIN))
-                        circ.set_fill(c, opacity=0.15)
-                        new_mobs.add(circ)
-                    elif sd.get("type") == "line":
-                        new_mobs.add(Line(sd.get("start",ORIGIN), sd.get("end",RIGHT),
-                                         stroke_width=2.5, color=c))
-                for ld in step.data.get("labels",[]):
-                    new_mobs.add(MathTex(ld.get("text",""), font_size=28,
-                                         color=TEXT_BRIGHT).move_to(ld.get("pos",ORIGIN)))
-            if len(new_mobs):
-                if len(current_mobjects): anims.append(FadeOut(current_mobjects))
-                anims.append(Create(new_mobs, lag_ratio=0.15))
-                current_mobjects = new_mobs
-            elif step.type == "equation":
-                eq = MathTex(step.latex, color=ACCENT_CYAN).scale(1.25)
-                if len(current_mobjects): anims.append(FadeOut(current_mobjects))
-                anims.append(FadeIn(eq, scale=0.85))
-                current_mobjects = VGroup(eq)
-            elif step.type == "text":
-                txt = Text(step.latex, font_size=24, color=TEXT_BRIGHT)
-                if len(current_mobjects): anims.append(FadeOut(current_mobjects))
-                anims.append(FadeIn(txt))
-                current_mobjects = VGroup(txt)
-
-            if anims:
-                self.play(*anims, run_time=1.1)
-                self.wait(4.5)
-            self.play(FadeOut(badge), run_time=0.4)
-            pbar = new_pbar
-
-        if current_card: self.play(FadeOut(current_card))
-        play_outro(self, current_mobjects)
-
-
-# PUBLIC API
 
 def generate_solver_video(
     steps: List[MathStep],
@@ -1347,11 +907,11 @@ def generate_solver_video(
     output_path: str,
     scene_class=MathStepsScene,
 ):
-    output_dir  = os.path.dirname(output_path)
+    output_dir = os.path.dirname(output_path)
     output_file = os.path.basename(output_path)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-    config.media_dir   = output_dir
+    config.media_dir = output_dir
     config.output_file = output_file
     scene = scene_class(steps, title)
     scene.render()

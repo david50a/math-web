@@ -672,37 +672,27 @@ def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bo
     # 1. ALGEBRA & POLYNOMIALS
     if equation_type == "Algebra" and not any(t in input_str.lower() for t in ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan']):
         try:
-            import sympy as sp
-            clean_str = re.sub(r'^(y|f\(x\))\s*=\s*', '', input_str.strip(), flags=re.IGNORECASE)
-            l_str, r_str = clean_str.split('=', 1) if '=' in clean_str else (clean_str, '0')
-            l_sym = safe_sympify(l_str, sp)
-            r_sym = safe_sympify(r_str, sp)
-            eq_sym = sp.simplify(l_sym - r_sym)
-            syms = list(eq_sym.free_symbols)
-            var_x = syms[0] if syms else sp.Symbol('x')
-            poly_sym = sp.Poly(eq_sym, var_x)
-            deg_val = poly_sym.degree()
-            monoms_list = poly_sym.monoms()
-            powers_list = [p[0] for p in monoms_list]
+            poly_obj, var_x, _, _ = algebra.parse_equation_to_poly(input_str)
+            deg_val = poly_obj.degree
+            powers_list = list(poly_obj.coeffs.keys())
             is_biquad = (deg_val == 4 and all(p % 2 == 0 for p in powers_list))
             a, b, c, d = algebra.parse_polynomial(input_str)
 
             if deg_val is not None and deg_val >= 4:
                 # Method 1: Factoring & Zero Product Property
-                factored_sym = sp.factor(eq_sym)
+                factored_latex, factors, rem_poly = algebra.factor_poly(poly_obj)
                 f_steps = []
                 min_p = min(powers_list) if powers_list else 0
                 if min_p > 0:
-                    gcf = var_x**min_p if min_p > 1 else var_x
-                    rem = sp.simplify(eq_sym / gcf)
+                    gcf_latex = f"{var_x}^{{{min_p}}}" if min_p > 1 else var_x
                     f_steps.append(MathStep(
-                        f"Factor out common factor {sp.latex(gcf)}",
-                        rf"{sp.latex(gcf)}\left({sp.latex(rem)}\right) = 0",
+                        f"Factor out common factor {gcf_latex}",
+                        rf"{gcf_latex}\left({rem_poly.to_latex()}\right) = 0",
                         "equation"
                     ))
                 f_steps.append(MathStep(
                     "Factor completely into algebraic factors",
-                    rf"{sp.latex(factored_sym)} = 0",
+                    rf"{factored_latex} = 0",
                     "equation"
                 ))
                 f_steps.append(MathStep(
@@ -710,20 +700,13 @@ def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bo
                     r"A \cdot B = 0 \implies A = 0 \text{ or } B = 0",
                     "equation"
                 ))
-                coeff, f_list = sp.factor_list(eq_sym)
-                for f_term, mult in f_list:
-                    if f_term.has(var_x):
-                        f_s = sp.solve(f_term, var_x)
-                        if not allow_complex:
-                            f_s = [s for s in f_s if getattr(s, 'is_real', True) is not False and not s.has(sp.I)]
-                        if f_s:
-                            s_str = ", ".join([f"{var_x} = {sp.latex(s)}" for s in f_s])
-                            mult_txt = f" (multiplicity {mult})" if mult > 1 else ""
-                            f_steps.append(MathStep(
-                                f"Solve factor {sp.latex(f_term)} = 0{mult_txt}",
-                                rf"{sp.latex(f_term)} = 0 \implies {s_str}",
-                                "equation"
-                            ))
+                for f_term_latex, root_val, mult in factors:
+                    mult_txt = f" (multiplicity {mult})" if mult > 1 else ""
+                    f_steps.append(MathStep(
+                        f"Solve factor {f_term_latex} = 0{mult_txt}",
+                        rf"{f_term_latex} = 0 \implies {var_x} = {algebra.fmt_fraction_latex(root_val)}",
+                        "equation"
+                    ))
                 methods.append(MethodSolutionModel(
                     methodId="poly-factor",
                     methodName="Method 1: Factorization & Zero Product Property",
@@ -740,35 +723,7 @@ def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bo
 
                 if is_biquad:
                     # Method 2: Bi-quadratic substitution u = x^2
-                    u = sp.Symbol('u')
-                    coeffs_dict = {p[0]: c for p, c in zip(monoms_list, poly_sym.coeffs())}
-                    a_bi = coeffs_dict.get(4, 0)
-                    b_bi = coeffs_dict.get(2, 0)
-                    c_bi = coeffs_dict.get(0, 0)
-                    quad_u = a_bi * u**2 + b_bi * u + c_bi
-                    bi_steps = [
-                        MathStep(
-                            f"Substitute u = {var_x}^2 to convert into a quadratic equation in u",
-                            rf"u = {var_x}^2 \implies {sp.latex(quad_u)} = 0",
-                            "equation"
-                        )
-                    ]
-                    u_sols = sp.solve(quad_u, u)
-                    bi_steps.append(MathStep(
-                        "Solve quadratic equation for u",
-                        ", ".join([f"u = {sp.latex(sol)}" for sol in u_sols]),
-                        "equation"
-                    ))
-                    for sol_u in u_sols:
-                        x_s = sp.solve(var_x**2 - sol_u, var_x)
-                        if not allow_complex:
-                            x_s = [s for s in x_s if getattr(s, 'is_real', True) is not False and not s.has(sp.I)]
-                        if x_s:
-                            bi_steps.append(MathStep(
-                                f"Back-substitute u = {var_x}^2 for u = {sp.latex(sol_u)}",
-                                rf"{var_x}^2 = {sp.latex(sol_u)} \implies " + ", ".join([f"{var_x} = {sp.latex(r)}" for r in x_s]),
-                                "equation"
-                            ))
+                    _, bi_steps = algebra.solve_biquadratic(poly_obj, allow_complex=allow_complex)
                     methods.append(MethodSolutionModel(
                         methodId="biquadratic-sub",
                         methodName="Method 2: Bi-quadratic Substitution (u = x^2)",
@@ -1375,285 +1330,12 @@ def parse_expr(expr_str: str):
 
     return transform(tree)
 
-def safe_sympify(expr_str: str, sp):
-    """
-    Safely parses an algebraic expression string into a SymPy expression
-    using a restricted AST whitelist, completely avoiding Python eval() or RCE.
-    """
-    expr_str = expr_str.strip()
-    if not expr_str:
-        return sp.Integer(0)
-    
-    # Replace ^ with **
-    expr_str = expr_str.replace('^', '**')
-    # Handle implicit multiplication
-    expr_str = expr_str.replace(')(', ')*(')
-    expr_str = re.sub(r'(\d)\(', r'\1*(', expr_str)
-    expr_str = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', expr_str)
-    expr_str = re.sub(r'\bx\(', r'x*(', expr_str)
-
-    tree = ast.parse(expr_str, mode='eval')
-
-    ALLOWED_FUNCS = {
-        'sin': sp.sin,
-        'cos': sp.cos,
-        'tan': sp.tan,
-        'exp': sp.exp,
-        'ln': sp.log,
-        'log': sp.log,
-        'sqrt': sp.sqrt,
-        'abs': sp.Abs,
-    }
-
-    def walk(node):
-        if isinstance(node, ast.Expression):
-            return walk(node.body)
-        elif isinstance(node, ast.BinOp):
-            left = walk(node.left)
-            right = walk(node.right)
-            if isinstance(node.op, ast.Add):
-                return left + right
-            elif isinstance(node.op, ast.Sub):
-                return left - right
-            elif isinstance(node.op, ast.Mult):
-                return left * right
-            elif isinstance(node.op, ast.Div):
-                return left / right
-            elif isinstance(node.op, ast.Pow):
-                return left ** right
-            elif isinstance(node.op, ast.Mod):
-                return left % right
-            else:
-                raise ValueError(f"Unsupported binary operator: {type(node.op).__name__}")
-        elif isinstance(node, ast.UnaryOp):
-            operand = walk(node.operand)
-            if isinstance(node.op, ast.USub):
-                return -operand
-            elif isinstance(node.op, ast.UAdd):
-                return +operand
-            else:
-                raise ValueError(f"Unsupported unary operator: {type(node.op).__name__}")
-        elif isinstance(node, ast.Constant):
-            if isinstance(node.value, (int, float)):
-                return sp.Rational(str(node.value)) if isinstance(node.value, float) and node.value.is_integer() else sp.sympify(node.value)
-            raise ValueError(f"Unsupported constant type: {type(node.value).__name__}")
-        elif isinstance(node, ast.Num):
-            return sp.sympify(node.n)
-        elif isinstance(node, ast.Name):
-            name = node.id
-            if name.lower() == 'pi':
-                return sp.pi
-            elif name.lower() == 'e':
-                return sp.E
-            elif name.lower() == 'i':
-                return sp.I
-            elif name.isalpha() and len(name) <= 4:
-                return sp.Symbol(name)
-            else:
-                raise ValueError(f"Invalid symbol name: {name}")
-        elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id.lower() in ALLOWED_FUNCS:
-                func = ALLOWED_FUNCS[node.func.id.lower()]
-                args = [walk(arg) for arg in node.args]
-                return func(*args)
-            else:
-                raise ValueError("Unsupported function call")
-        else:
-            raise ValueError(f"Disallowed expression element: {type(node).__name__}")
-
-    return walk(tree)
-
 def solve_algebra(input_str: str, allow_complex: bool = True):
-    import sympy as sp
-    from math_models import MathStep
-    
-    # Strip y = or f(x) =
-    input_str = re.sub(r'^(y|f\(x\))\s*=\s*', '', input_str.strip(), flags=re.IGNORECASE)
-    
-    if '=' in input_str:
-        lhs_str, rhs_str = input_str.split('=', 1)
-    else:
-        lhs_str, rhs_str = input_str, '0'
-        
-    lhs = safe_sympify(lhs_str, sp)
-    rhs = safe_sympify(rhs_str, sp)
-    eq = lhs - rhs
-    
-    # Detect the symbol used in equation
-    symbols = list(eq.free_symbols)
-    x = symbols[0] if symbols else sp.Symbol('x')
-    
-    steps = []
-    
-    steps.append(MathStep(
-        description="Write down the equation",
-        latex=f"{sp.latex(lhs)} = {sp.latex(rhs)}",
-        type="equation"
-    ))
-    
-    simplified_eq = sp.simplify(eq)
-    steps.append(MathStep(
-        description="Subtract right-hand side from both sides to set the equation to 0",
-        latex=f"{sp.latex(simplified_eq)} = 0",
-        type="equation"
-    ))
-    
-    all_solutions = sp.solve(eq, x)
-    if allow_complex:
-        solutions = all_solutions
-    else:
-        solutions = [sol for sol in all_solutions if getattr(sol, 'is_real', True) is not False and not sol.has(sp.I)]
-    
-    if not solutions:
-        final_answer = "No real solutions" if not allow_complex else "No solutions"
-        steps.append(MathStep(
-            description="Solving the equation",
-            latex=rf"\text{{{final_answer}}}",
-            type="equation"
-        ))
-    else:
-        try:
-            poly = sp.Poly(simplified_eq, x)
-            degree = poly.degree()
-        except Exception:
-            degree = None
-            
-        if degree == 1:
-            a = poly.all_coeffs()[0]
-            b = poly.all_coeffs()[1]
-            steps.append(MathStep(
-                description=f"Isolate the variable {x}",
-                latex=f"{sp.latex(a * x)} = {sp.latex(-b)}",
-                type="equation"
-            ))
-            steps.append(MathStep(
-                description=f"Divide both sides by the coefficient of {x}",
-                latex=f"{x} = {sp.latex(-b / a)}",
-                type="equation"
-            ))
-        elif degree == 2:
-            coeffs = poly.all_coeffs()
-            a = coeffs[0]
-            b = coeffs[1]
-            c = coeffs[2]
-            
-            discriminant = b**2 - 4*a*c
-            steps.append(MathStep(
-                description=f"Identify coefficients of the quadratic form a{x}^2 + b{x} + c = 0",
-                latex=f"a = {sp.latex(a)}, \\quad b = {sp.latex(b)}, \\quad c = {sp.latex(c)}",
-                type="equation"
-            ))
-            steps.append(MathStep(
-                description="Calculate the discriminant: D = b^2 - 4ac",
-                latex=rf"D = {sp.latex(b)}^2 - 4 \cdot {sp.latex(a)} \cdot {sp.latex(c)} = {sp.latex(discriminant)}",
-                type="equation"
-            ))
-            
-            is_disc_negative = False
-            try:
-                if discriminant.is_number and discriminant < 0:
-                    is_disc_negative = True
-            except Exception:
-                pass
-
-            if is_disc_negative:
-                if allow_complex:
-                    steps.append(MathStep(
-                        description="Since discriminant D < 0, solutions are complex conjugate numbers involving imaginary unit i = \\sqrt{-1}",
-                        latex=rf"D < 0 \implies \sqrt{{D}} = \sqrt{{{sp.latex(discriminant)}}} = {sp.latex(sp.sqrt(discriminant))}",
-                        type="equation"
-                    ))
-                    steps.append(MathStep(
-                        description="Apply the quadratic formula to calculate complex roots",
-                        latex=rf"{x} = \frac{{-{sp.latex(b)} \pm {sp.latex(sp.sqrt(discriminant))}}}{{2 \cdot {sp.latex(a)}}}",
-                        type="equation"
-                    ))
-                else:
-                    steps.append(MathStep(
-                        description="The discriminant is negative (D < 0), so there are no real solutions",
-                        latex=r"\text{No real solutions } (D < 0)",
-                        type="equation"
-                    ))
-                    return "No real solutions", steps
-            else:
-                steps.append(MathStep(
-                    description="Apply the quadratic formula",
-                    latex=rf"{x} = \frac{{-{sp.latex(b)} \pm \sqrt{{{sp.latex(discriminant)}}}}}{{2 \cdot {sp.latex(a)}}}",
-                    type="equation"
-                ))
-        elif degree is not None and degree >= 3:
-            monoms = poly.monoms()
-            powers = [p[0] for p in monoms]
-            min_pow = min(powers) if powers else 0
-            factored = sp.factor(simplified_eq)
-            
-            if min_pow > 0:
-                gcf_term = x**min_pow if min_pow > 1 else x
-                remaining_poly = sp.simplify(simplified_eq / gcf_term)
-                steps.append(MathStep(
-                    description=f"Factor out the greatest common factor {sp.latex(gcf_term)}",
-                    latex=rf"{sp.latex(gcf_term)}\left({sp.latex(remaining_poly)}\right) = 0",
-                    type="equation"
-                ))
-            
-            if factored != simplified_eq:
-                steps.append(MathStep(
-                    description="Factor the polynomial completely into simpler algebraic factors",
-                    latex=rf"{sp.latex(factored)} = 0",
-                    type="equation"
-                ))
-                
-                steps.append(MathStep(
-                    description="Apply the Zero Product Property: set each factor equal to 0",
-                    latex=r"A \cdot B = 0 \implies A = 0 \text{ or } B = 0",
-                    type="equation"
-                ))
-                
-                coeff, factor_list = sp.factor_list(simplified_eq)
-                for f_term, mult in factor_list:
-                    if f_term.has(x):
-                        f_sols = sp.solve(f_term, x)
-                        if not allow_complex:
-                            f_sols = [s for s in f_sols if getattr(s, 'is_real', True) is not False and not s.has(sp.I)]
-                        if f_sols:
-                            sols_str = ", ".join([f"{x} = {sp.latex(s)}" for s in f_sols])
-                            mult_note = f" (multiplicity {mult})" if mult > 1 else ""
-                            steps.append(MathStep(
-                                description=f"Solve the factor {sp.latex(f_term)} = 0{mult_note}",
-                                latex=rf"{sp.latex(f_term)} = 0 \implies {sols_str}",
-                                type="equation"
-                            ))
-            elif degree == 3:
-                try:
-                    c_res = algebra.cubic_equation_solver(input_str, allow_complex=allow_complex)
-                    c_steps = c_res[-1]
-                    for cs in c_steps:
-                        if cs.description not in [s.description for s in steps]:
-                            steps.append(cs)
-                except Exception:
-                    steps.append(MathStep(
-                        description="Solve the cubic equation using Cardano's formula",
-                        latex=rf"{sp.latex(simplified_eq)} = 0",
-                        type="equation"
-                    ))
-            else:
-                steps.append(MathStep(
-                    description=f"Solve the degree {degree} polynomial equation",
-                    latex=rf"{sp.latex(simplified_eq)} = 0",
-                    type="equation"
-                ))
-            
-        sol_latex = ", ".join([f"{x} = {sp.latex(sol)}" for sol in solutions])
-        has_complex = any(sol.has(sp.I) for sol in solutions)
-        desc = f"Find the final complex solutions of {x}" if has_complex else f"Find the final values of {x}"
-        steps.append(MathStep(
-            description=desc,
-            latex=sol_latex,
-            type="equation"
-        ))
-        final_answer = sol_latex
-        
-    return final_answer, steps
+    """
+    Solves algebraic equations using the 100% scratch pure-Python engine.
+    Zero external dependencies (zero SymPy).
+    """
+    return algebra.solve_algebra_pure(input_str, allow_complex=allow_complex)
 
 
 @app.post("/api/render")
@@ -2044,4 +1726,4 @@ def read_root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=4000)
+    uvicorn.run("main:app", host="0.0.0.0", port=4000, reload=True)

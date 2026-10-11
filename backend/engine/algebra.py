@@ -2,7 +2,9 @@ import sys
 import os
 import re
 import math
-from typing import List, Tuple, Union, Optional
+import ast
+from fractions import Fraction
+from typing import List, Tuple, Union, Optional, Dict, Set
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from math_models import MathStep, Node, parse_expr, to_latex, Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln
@@ -591,7 +593,9 @@ def rational_root_theorem_solver(equation: str, allow_complex: bool = True)-> Tu
             steps.append(MathStep(f"Perform synthetic division by (x - {fmt_num(r)})",
                                   rf"({fmt_num(a)}x^3 + {fmt_num(b)}x^2 + {fmt_num(c)}x + {fmt_num(d)}) = (x - {fmt_num(r)})({fmt_num(a_new)}x^2 + {fmt_num(b_new)}x + {fmt_num(c_new)})", "equation"))
             
-            quad_str = f"{a_new}x^2 + {b_new}x + {c_new} = 0"
+            b_sign = "+ " if b_new >= 0 else "- "
+            c_sign = "+ " if c_new >= 0 else "- "
+            quad_str = f"{a_new}x^2 {b_sign}{abs(b_new)}x {c_sign}{abs(c_new)} = 0"
             quad_res = quadratic_equation_solver(quad_str, allow_complex=allow_complex)
             quad_steps = quad_res[-1]
             quad_sols = quad_res[:-1]
@@ -675,6 +679,548 @@ def solve_equation(equation: str, type_of_equation: str = 'one_variable', allow_
     else:
         raise Exception('Invalid equation type')
 
+
+# ==============================================================================
+# PURE PYTHON POLYNOMIAL ENGINE (100% SCRATCH, ZERO SYMPY)
+# ==============================================================================
+
+def fmt_fraction_latex(frac: Union[Fraction, int, float]) -> str:
+    """Format a number or Fraction into clean, publication-quality LaTeX."""
+    if isinstance(frac, float):
+        if abs(frac - round(frac)) < 1e-9:
+            return str(int(round(frac)))
+        return f"{frac:.4g}"
+    if not isinstance(frac, Fraction):
+        try:
+            frac = Fraction(frac)
+        except Exception:
+            return str(frac)
+    if frac.denominator == 1:
+        return str(frac.numerator)
+    if frac < 0:
+        return rf"-\frac{{{abs(frac.numerator)}}}{{{frac.denominator}}}"
+    return rf"\frac{{{frac.numerator}}}{{{frac.denominator}}}"
+
+class PurePoly:
+    """Pure-Python polynomial class represented as a sparse power->Fraction dictionary."""
+    def __init__(self, coeffs: Dict[int, Union[Fraction, int, float]], var: str = 'x'):
+        self.var = var
+        self.coeffs: Dict[int, Fraction] = {}
+        for p, c in coeffs.items():
+            f = Fraction(c) if not isinstance(c, Fraction) else c
+            if f != 0:
+                self.coeffs[p] = f
+
+    @property
+    def degree(self) -> int:
+        return max(self.coeffs.keys()) if self.coeffs else 0
+
+    def coeff(self, deg: int) -> Fraction:
+        return self.coeffs.get(deg, Fraction(0))
+
+    def is_zero(self) -> bool:
+        return len(self.coeffs) == 0
+
+    def eval(self, x_val: Union[int, float, Fraction]) -> Union[float, Fraction]:
+        res = Fraction(0) if isinstance(x_val, (int, Fraction)) else 0.0
+        for p, c in self.coeffs.items():
+            res += c * (x_val ** p)
+        return res
+
+    def to_latex(self) -> str:
+        if not self.coeffs:
+            return "0"
+        powers = sorted(self.coeffs.keys(), reverse=True)
+        terms = []
+        for p in powers:
+            c = self.coeffs[p]
+            is_neg = c < 0
+            abs_c = abs(c)
+            c_str = str(abs_c.numerator) if abs_c.denominator == 1 else rf"\frac{{{abs_c.numerator}}}{{{abs_c.denominator}}}"
+            if p == 0:
+                term = c_str
+            elif p == 1:
+                term = self.var if abs_c == 1 else f"{c_str}{self.var}"
+            else:
+                term = f"{self.var}^{{{p}}}" if abs_c == 1 else f"{c_str}{self.var}^{{{p}}}"
+            if not terms:
+                terms.append(f"-{term}" if is_neg else term)
+            else:
+                sign = " - " if is_neg else " + "
+                terms.append(f"{sign}{term}")
+        return "".join(terms)
+
+    def to_string(self) -> str:
+        return self.to_latex().replace(r"\frac", "").replace("{", "").replace("}", "")
+
+def detect_variable(s: str) -> str:
+    """Finds single-letter variable names ignoring standard math functions."""
+    s_clean = re.sub(r'\b(sin|cos|tan|cot|sec|csc|exp|log|ln|sqrt|abs)\b', '', s, flags=re.IGNORECASE)
+    vars_found = re.findall(r'[a-zA-Z]', s_clean)
+    if 'x' in vars_found or 'X' in vars_found:
+        return 'x'
+    return vars_found[0].lower() if vars_found else 'x'
+
+def parse_poly_ast(expr_str: str, var: str = 'x') -> Dict[int, Fraction]:
+    """Parses algebraic expression using restricted Python AST into polynomial coefficient dict."""
+    s = expr_str.strip()
+    if not s:
+        return {}
+    s = s.replace('^', '**')
+    s = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', s)
+    s = re.sub(r'(\d)\(', r'\1*(', s)
+    s = re.sub(r'\)([a-zA-Z0-9])', r')*\1', s)
+    s = re.sub(r'\)\(', r')*(', s)
+    s = re.sub(rf'\b{var}\(', rf'{var}*(', s)
+
+    tree = ast.parse(s, mode='eval')
+
+    def to_poly(node):
+        if isinstance(node, ast.Expression):
+            return to_poly(node.body)
+        elif isinstance(node, ast.Constant):
+            if isinstance(node.value, (int, float)):
+                return {0: Fraction(str(node.value))}
+            raise ValueError("Non-numeric constant")
+        elif isinstance(node, ast.Name):
+            if node.id.lower() == var.lower():
+                return {1: Fraction(1)}
+            raise ValueError(f"Unknown variable: {node.id}")
+        elif isinstance(node, ast.UnaryOp):
+            val = to_poly(node.operand)
+            if isinstance(node.op, ast.USub):
+                return {p: -c for p, c in val.items()}
+            elif isinstance(node.op, ast.UAdd):
+                return val
+            raise ValueError("Unsupported unary op")
+        elif isinstance(node, ast.BinOp):
+            left = to_poly(node.left)
+            right = to_poly(node.right)
+            if isinstance(node.op, ast.Add):
+                res = dict(left)
+                for p, c in right.items():
+                    res[p] = res.get(p, Fraction(0)) + c
+                return {p: c for p, c in res.items() if c != 0}
+            elif isinstance(node.op, ast.Sub):
+                res = dict(left)
+                for p, c in right.items():
+                    res[p] = res.get(p, Fraction(0)) - c
+                return {p: c for p, c in res.items() if c != 0}
+            elif isinstance(node.op, ast.Mult):
+                res = {}
+                for p1, c1 in left.items():
+                    for p2, c2 in right.items():
+                        res[p1 + p2] = res.get(p1 + p2, Fraction(0)) + c1 * c2
+                return {p: c for p, c in res.items() if c != 0}
+            elif isinstance(node.op, ast.Pow):
+                if len(right) == 1 and 0 in right and right[0].denominator == 1 and right[0] >= 0:
+                    power = int(right[0])
+                    res = {0: Fraction(1)}
+                    for _ in range(power):
+                        new_res = {}
+                        for p1, c1 in res.items():
+                            for p2, c2 in left.items():
+                                new_res[p1 + p2] = new_res.get(p1 + p2, Fraction(0)) + c1 * c2
+                        res = new_res
+                    return {p: c for p, c in res.items() if c != 0}
+                raise ValueError("Power must be non-negative integer")
+            elif isinstance(node.op, ast.Div):
+                if len(right) == 1 and 0 in right and right[0] != 0:
+                    denom = right[0]
+                    return {p: c / denom for p, c in left.items()}
+                raise ValueError("Division only supported by constant")
+            raise ValueError("Unsupported binary op")
+        raise ValueError(f"Unsupported node: {type(node)}")
+
+    return to_poly(tree)
+
+def parse_poly_regex(side_str: str, var: str = 'x') -> Dict[int, Fraction]:
+    deg_map = {}
+    pattern = re.compile(rf'([+-]?(?:\d+(?:\.\d+)?|\.\d+)?)(?:({var})(?:\^(\d+))?)?', re.IGNORECASE)
+    for match in pattern.finditer(side_str.replace(" ", "")):
+        coeff_str, var_name, pow_str = match.groups()
+        if not coeff_str and not var_name:
+            continue
+        if coeff_str in ("", "+"):
+            coeff = Fraction(1)
+        elif coeff_str == "-":
+            coeff = Fraction(-1)
+        else:
+            try:
+                coeff = Fraction(coeff_str)
+            except ValueError:
+                continue
+        degree = int(pow_str) if pow_str else (1 if var_name else 0)
+        deg_map[degree] = deg_map.get(degree, Fraction(0)) + coeff
+    return {p: c for p, c in deg_map.items() if c != 0}
+
+def parse_poly_side(side_str: str, var: str = 'x') -> PurePoly:
+    try:
+        coeffs = parse_poly_ast(side_str, var)
+        return PurePoly(coeffs, var)
+    except Exception:
+        coeffs = parse_poly_regex(side_str, var)
+        return PurePoly(coeffs, var)
+
+def parse_equation_to_poly(eq_str: str) -> Tuple[PurePoly, str, str, str]:
+    clean_str = re.sub(r'^(y|f\(x\))\s*=\s*', '', eq_str.strip(), flags=re.IGNORECASE)
+    var = detect_variable(clean_str)
+    if '=' in clean_str:
+        lhs_str, rhs_str = clean_str.split('=', 1)
+    else:
+        lhs_str, rhs_str = clean_str, '0'
+    lhs_poly = parse_poly_side(lhs_str, var)
+    rhs_poly = parse_poly_side(rhs_str, var)
+    all_powers = set(lhs_poly.coeffs.keys()) | set(rhs_poly.coeffs.keys())
+    diff_coeffs = {p: lhs_poly.coeff(p) - rhs_poly.coeff(p) for p in all_powers}
+    poly = PurePoly(diff_coeffs, var)
+    return poly, var, lhs_str, rhs_str
+
+def poly_div_root(poly: PurePoly, r: Fraction) -> Tuple[PurePoly, Fraction]:
+    deg = poly.degree
+    coeffs = [poly.coeff(d) for d in range(deg, -1, -1)]
+    quot = [coeffs[0]]
+    for i in range(1, deg):
+        quot.append(coeffs[i] + quot[-1] * r)
+    rem = coeffs[-1] + quot[-1] * r
+    res_poly = {deg - 1 - i: quot[i] for i in range(deg)}
+    return PurePoly(res_poly, poly.var), rem
+
+def factor_poly(poly: PurePoly) -> Tuple[str, List[Tuple[str, Fraction, int]], PurePoly]:
+    """Factors a polynomial into linear and irreducible factors with Zero Product details."""
+    var = poly.var
+    if poly.degree == 0:
+        return poly.to_latex(), [], poly
+    factors = []
+    curr = PurePoly(poly.coeffs, var)
+    
+    # 1. GCF x^k
+    min_p = min(curr.coeffs.keys()) if curr.coeffs else 0
+    if min_p > 0:
+        gcf_latex = f"{var}^{{{min_p}}}" if min_p > 1 else var
+        factors.append((gcf_latex, Fraction(0), min_p))
+        curr = PurePoly({p - min_p: c for p, c in curr.coeffs.items()}, var)
+
+    # 2. Rational roots
+    def get_factors(n):
+        s = set()
+        for i in range(1, int(math.isqrt(n)) + 1):
+            if n % i == 0:
+                s.add(i); s.add(n // i)
+        return s
+
+    while curr.degree >= 1:
+        deg = curr.degree
+        lead = abs(curr.coeff(deg).numerator * curr.coeff(0).denominator)
+        const = abs(curr.coeff(0).numerator * curr.coeff(deg).denominator)
+        if const == 0:
+            factors.append((var, Fraction(0), 1))
+            curr = PurePoly({p - 1: c for p, c in curr.coeffs.items() if p > 0}, var)
+            continue
+        p_facs = get_factors(const)
+        q_facs = get_factors(lead)
+        cands = set()
+        for p in p_facs:
+            for q in q_facs:
+                cands.add(Fraction(p, q))
+                cands.add(Fraction(-p, q))
+        found = None
+        for cand in sorted(cands):
+            if curr.eval(cand) == 0:
+                found = cand
+                break
+        if found is not None:
+            q = found.denominator
+            p = found.numerator
+            if q == 1:
+                term_latex = f"({var} - {p})" if p > 0 else f"({var} + {-p})"
+            else:
+                term_latex = f"({q}{var} - {p})" if p > 0 else f"({q}{var} + {-p})"
+            factors.append((term_latex, found, 1))
+            curr, _ = poly_div_root(curr, found)
+        else:
+            break
+
+    rem_latex = ""
+    if curr.degree > 0:
+        rem_latex = f"({curr.to_latex()})"
+    
+    factored_latex = "".join([f[0] for f in factors]) + rem_latex
+    return factored_latex, factors, curr
+
+def solve_biquadratic(poly: PurePoly, allow_complex: bool = True) -> Tuple[List, List[MathStep]]:
+    """Solves bi-quadratic polynomial (ax^4 + bx^2 + c = 0) via substitution u = x^2."""
+    var = poly.var
+    a = float(poly.coeff(4))
+    b = float(poly.coeff(2))
+    c = float(poly.coeff(0))
+    
+    D = b**2 - 4*a*c
+    steps = []
+    b_sign = "+ " if b >= 0 else "- "
+    c_sign = "+ " if c >= 0 else "- "
+    steps.append(MathStep(
+        f"Substitute u = {var}^2 to convert into a quadratic equation in u",
+        rf"u = {var}^2 \implies {a:g}u^2 {b_sign}{abs(b):g}u {c_sign}{abs(c):g} = 0",
+        "equation"
+    ))
+    
+    if D < 0 and not allow_complex:
+        steps.append(MathStep(
+            "Discriminant is negative",
+            r"D < 0 \implies \text{No real solutions}",
+            "equation"
+        ))
+        return [], steps
+        
+    sqrt_D = math.sqrt(D) if D >= 0 else complex(0, math.sqrt(-D))
+    u1 = (-b + sqrt_D) / (2*a)
+    u2 = (-b - sqrt_D) / (2*a)
+    
+    u_sols = [u1] if D == 0 else [u1, u2]
+    steps.append(MathStep(
+        "Solve quadratic equation for u",
+        ", ".join([f"u = {u:g}" if isinstance(u, float) else f"u = {u}" for u in u_sols]),
+        "equation"
+    ))
+    
+    x_sols = []
+    for u in u_sols:
+        if isinstance(u, (int, float)):
+            if u > 0:
+                sq = math.isqrt(int(u)) if u.is_integer() else None
+                if sq and sq*sq == int(u):
+                    x_sols.extend([sq, -sq])
+                    steps.append(MathStep(
+                        f"Back-substitute u = {var}^2 for u = {u:g}",
+                        rf"{var}^2 = {u:g} \implies {var} = \pm {sq}",
+                        "equation"
+                    ))
+                else:
+                    r = math.sqrt(u)
+                    x_sols.extend([r, -r])
+                    steps.append(MathStep(
+                        f"Back-substitute u = {var}^2 for u = {u:g}",
+                        rf"{var}^2 = {u:g} \implies {var} = \pm \sqrt{{{u:g}}}",
+                        "equation"
+                    ))
+            elif u == 0:
+                x_sols.append(0)
+                steps.append(MathStep(
+                    f"Back-substitute u = {var}^2 for u = 0",
+                    rf"{var}^2 = 0 \implies {var} = 0",
+                    "equation"
+                ))
+            else:
+                if allow_complex:
+                    pos_u = -u
+                    sq = math.isqrt(int(pos_u)) if pos_u.is_integer() else None
+                    if sq and sq*sq == int(pos_u):
+                        x_sols.extend([complex(0, sq), complex(0, -sq)])
+                        steps.append(MathStep(
+                            f"Back-substitute u = {var}^2 for u = {u:g}",
+                            rf"{var}^2 = {u:g} \implies {var} = \pm {sq}i",
+                            "equation"
+                        ))
+                    else:
+                        r = math.sqrt(pos_u)
+                        x_sols.extend([complex(0, r), complex(0, -r)])
+                        steps.append(MathStep(
+                            f"Back-substitute u = {var}^2 for u = {u:g}",
+                            rf"{var}^2 = {u:g} \implies {var} = \pm i\sqrt{{{pos_u:g}}}",
+                            "equation"
+                        ))
+    return x_sols, steps
+
+def solve_algebra_pure(input_str: str, allow_complex: bool = True) -> Tuple[str, List[MathStep]]:
+    """
+    Pure Python algebraic equation solver. Generates full step-by-step mathematical reasoning.
+    Zero external dependencies.
+    """
+    poly, var, lhs_str, rhs_str = parse_equation_to_poly(input_str)
+    steps = []
+    
+    steps.append(MathStep(
+        description="Write down the equation",
+        latex=f"{lhs_str.strip()} = {rhs_str.strip()}",
+        type="equation"
+    ))
+    
+    simplified_latex = poly.to_latex()
+    steps.append(MathStep(
+        description="Subtract right-hand side from both sides to set the equation to 0",
+        latex=f"{simplified_latex} = 0",
+        type="equation"
+    ))
+    
+    deg = poly.degree
+    if poly.is_zero():
+        steps.append(MathStep("Equation has infinitely many solutions", r"\text{All real numbers } " + var, "equation"))
+        return r"\text{All real numbers}", steps
+        
+    if deg == 0:
+        steps.append(MathStep("Constant non-zero expression has no solution", r"\text{No solution}", "equation"))
+        return r"\text{No solution}", steps
+        
+    if deg == 1:
+        a = poly.coeff(1)
+        b = poly.coeff(0)
+        neg_b = -b
+        sol = neg_b / a
+        coeff_var_str = var if a == 1 else (f"-{var}" if a == -1 else f"{fmt_fraction_latex(a)}{var}")
+        steps.append(MathStep(
+            description=f"Isolate the variable term {var}",
+            latex=f"{coeff_var_str} = {fmt_fraction_latex(neg_b)}",
+            type="equation"
+        ))
+        steps.append(MathStep(
+            description=f"Divide both sides by the coefficient of {var}",
+            latex=f"{var} = {fmt_fraction_latex(sol)}",
+            type="equation"
+        ))
+        final_str = f"{var} = {fmt_fraction_latex(sol)}"
+        return final_str, steps
+        
+    elif deg == 2:
+        a = float(poly.coeff(2))
+        b = float(poly.coeff(1))
+        c = float(poly.coeff(0))
+        D = b**2 - 4*a*c
+        
+        steps.append(MathStep(
+            description=f"Identify coefficients of quadratic equation a{var}^2 + b{var} + c = 0",
+            latex=f"a = {a:g}, \\quad b = {b:g}, \\quad c = {c:g}",
+            type="equation"
+        ))
+        steps.append(MathStep(
+            description="Calculate the discriminant: D = b^2 - 4ac",
+            latex=rf"D = ({b:g})^2 - 4 \cdot ({a:g}) \cdot ({c:g}) = {D:g}",
+            type="equation"
+        ))
+        
+        neg_b_val = -b
+        neg_b_str = f"{neg_b_val:g}"
+        
+        if D < 0:
+            if not allow_complex:
+                steps.append(MathStep(
+                    description="Discriminant is negative (D < 0), so there are no real solutions",
+                    latex=r"\text{No real solutions } (D < 0)",
+                    type="equation"
+                ))
+                return r"\text{No real solutions}", steps
+            else:
+                sqrt_D = math.sqrt(-D)
+                re_part = -b / (2*a)
+                im_part = sqrt_D / (2*a)
+                re_str = f"{re_part:g}" if abs(re_part) > 1e-9 else ""
+                im_str = f"{abs(im_part):g}i" if abs(abs(im_part) - 1.0) > 1e-9 else "i"
+                if re_str:
+                    sols_str = f"{var} = {re_str} \\pm {im_str}"
+                else:
+                    sols_str = f"{var} = \\pm {im_str}"
+                steps.append(MathStep(
+                    description="Since discriminant D < 0, roots are complex conjugates involving imaginary unit i = \\sqrt{-1}",
+                    latex=rf"{var} = \frac{{{neg_b_str} \pm i\sqrt{{{abs(D):g}}}}}{{2 \cdot {a:g}}} \implies {sols_str}",
+                    type="equation"
+                ))
+                return sols_str, steps
+        elif D == 0:
+            sol = -b / (2*a)
+            sol_str = f"{var} = {sol:g}"
+            steps.append(MathStep(
+                description="Discriminant D = 0, so there is one repeated real root",
+                latex=rf"{var} = \frac{{{neg_b_str}}}{{2 \cdot {a:g}}} = {sol:g}",
+                type="equation"
+            ))
+            return sol_str, steps
+        else:
+            sqrt_D = math.isqrt(int(D)) if float(D).is_integer() and math.isqrt(int(D))**2 == int(D) else math.sqrt(D)
+            s1 = (-b + sqrt_D) / (2*a)
+            s2 = (-b - sqrt_D) / (2*a)
+            steps.append(MathStep(
+                description="Apply the quadratic formula",
+                latex=rf"{var} = \frac{{{neg_b_str} \pm \sqrt{{{D:g}}}}}{{2 \cdot {a:g}}}",
+                type="equation"
+            ))
+            steps.append(MathStep(
+                description=f"Calculate two distinct real roots of {var}",
+                latex=f"{var} = {s1:g}, \\quad {var} = {s2:g}",
+                type="equation"
+            ))
+            return f"{var} = {s1:g}, \\quad {var} = {s2:g}", steps
+            
+    elif deg == 3:
+        try:
+            r1_roots, r1_steps = rational_root_theorem_solver(input_str, allow_complex=allow_complex)
+            if r1_steps:
+                steps.extend(r1_steps)
+                roots_list = r1_roots if isinstance(r1_roots, list) else [r1_roots]
+                roots_str = ", ".join([f"{var} = {fmt_num(r)}" if isinstance(r, (int, float)) else f"{var} = {format_complex_latex(r.real, r.imag)}" for r in roots_list if r is not None])
+                return roots_str, steps
+        except Exception:
+            pass
+
+    # Degree >= 4 (or general polynomial)
+    factored_latex, factors, rem = factor_poly(poly)
+    if factored_latex != poly.to_latex():
+        steps.append(MathStep(
+            description="Factor the polynomial into algebraic factors",
+            latex=f"{factored_latex} = 0",
+            type="equation"
+        ))
+        steps.append(MathStep(
+            description="Apply the Zero Product Property: set each factor equal to 0",
+            latex=r"A \cdot B = 0 \implies A = 0 \text{ or } B = 0",
+            type="equation"
+        ))
+        
+    sols = []
+    for term_latex, root_val, mult in factors:
+        mult_str = f" (multiplicity {mult})" if mult > 1 else ""
+        steps.append(MathStep(
+            description=f"Solve factor {term_latex} = 0{mult_str}",
+            latex=rf"{term_latex} = 0 \implies {var} = {fmt_fraction_latex(root_val)}",
+            type="equation"
+        ))
+        sols.append(f"{var} = {fmt_fraction_latex(root_val)}")
+        
+    if rem.degree == 2:
+        rem_a = float(rem.coeff(2))
+        rem_b = float(rem.coeff(1))
+        rem_c = float(rem.coeff(0))
+        rem_D = rem_b**2 - 4*rem_a*rem_c
+        if rem_D >= 0:
+            sq = math.sqrt(rem_D)
+            r1 = (-rem_b + sq) / (2*rem_a)
+            r2 = (-rem_b - sq) / (2*rem_a)
+            steps.append(MathStep(
+                description=f"Solve remaining quadratic factor ({rem.to_latex()}) = 0",
+                latex=rf"({rem.to_latex()}) = 0 \implies {var} = {r1:g}, \quad {var} = {r2:g}",
+                type="equation"
+            ))
+            sols.extend([f"{var} = {r1:g}", f"{var} = {r2:g}"])
+        elif allow_complex:
+            sq = math.sqrt(-rem_D)
+            im = sq / (2*rem_a)
+            re_p = -rem_b / (2*rem_a)
+            re_s = f"{re_p:g}" if abs(re_p) > 1e-9 else ""
+            im_s = f"{abs(im):g}i" if abs(abs(im) - 1.0) > 1e-9 else "i"
+            steps.append(MathStep(
+                description=f"Solve remaining quadratic factor ({rem.to_latex()}) = 0 for complex roots",
+                latex=rf"({rem.to_latex()}) = 0 \implies {var} = {re_s} \pm {im_s}" if re_s else rf"({rem.to_latex()}) = 0 \implies {var} = \pm {im_s}",
+                type="equation"
+            ))
+            sols.append(f"{var} = {re_s} \\pm {im_s}" if re_s else f"{var} = \\pm {im_s}")
+            
+    final_ans = ", ".join(sols) if sols else "Roots computed"
+    steps.append(MathStep(
+        description=f"Find the final values of {var}",
+        latex=final_ans,
+        type="equation"
+    ))
+    return final_ans, steps
+
 if __name__ == '__main__':
     expression = 'x^3-16x-9=0'
     print("Parsing polynomial:", parse_polynomial(expression))
@@ -686,4 +1232,5 @@ if __name__ == '__main__':
     print("\nSolving quadratic equation (x^2 - 5x + 6 = 0):")
     sol1, sol2, quad_steps = quadratic_equation_solver("x^2 - 5x + 6 = 0")
     print("Quadratic roots:", sol1, sol2)
+
 
