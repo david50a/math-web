@@ -1,12 +1,14 @@
 from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Dict, Tuple
 import sys
 import os
 import ast
 import re
+import json
 import subprocess
 import hashlib
 import uuid
@@ -18,10 +20,16 @@ import requests
 from PIL import Image
 from io import BytesIO
 import pytesseract
+from openai import OpenAI
+import dotenv
+
+# Load environment variables (.env)
+dotenv.load_dotenv()
 
 # Add engine to path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, "engine"))
+dotenv.load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 try:
     import algebra
@@ -323,6 +331,380 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
+    reasoning: Optional[str] = None
+
+NVIDIA_MATH_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "describe_harry_potter_character",
+            "description": "Returns information and images of Harry Potter characters.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "enum": [
+                            "Harry James Potter", "Hermione Jean Granger", "Ron Weasley",
+                            "Fred Weasley", "George Weasley", "Bill Weasley", "Percy Weasley",
+                            "Charlie Weasley", "Ginny Weasley", "Molly Weasley", "Arthur Weasley",
+                            "Neville Longbottom", "Luna Lovegood", "Draco Malfoy",
+                            "Albus Percival Wulfric Brian Dumbledore", "Minerva McGonagall",
+                            "Remus Lupin", "Rubeus Hagrid", "Sirius Black", "Severus Snape",
+                            "Bellatrix Lestrange", "Lord Voldemort", "Cedric Diggory",
+                            "Nymphadora Tonks", "James Potter"
+                        ],
+                        "description": "Name of the Harry Potter character"
+                    }
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "name_a_color",
+            "description": "A tool that returns a bunch of color names for a given color_hex.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "color_hex": {
+                        "type": "string",
+                        "description": "A hexadecimal color value which must be represented as a string."
+                    }
+                },
+                "required": ["color_hex"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "solve_equation",
+            "description": "Solves an algebraic, calculus, or equation problem step-by-step using Axiom math engine.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "equation": {"type": "string", "description": "Equation to solve, e.g. x^2 - 5x + 6 = 0 or integrate(x*e^x)"}
+                },
+                "required": ["equation"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "solve_geometry",
+            "description": "Solves geometric properties of triangles, circles, and polygons.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Geometric query, e.g. triangle(3, 4, 5) or pythagorean(3, 4)"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_statistics",
+            "description": "Calculates statistical metrics (summary, regression, z-score, t-test).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Statistics query, e.g. summary([1, 2, 3, 4, 5]) or regression([(1, 2), (2, 3)])"}
+                },
+                "required": ["query"]
+            }
+        }
+    }
+]
+
+def handle_harry_potter_tool(name: str) -> str:
+    hp_data = {
+        "Harry James Potter": "The Boy Who Lived, Gryffindor Seeker, Gryffindor sword wielder, defeated Voldemort. Patronus: Stag. Wand: 11-inch holly with phoenix feather.",
+        "Hermione Jean Granger": "Brightest witch of her age, Gryffindor, Minister for Magic, advocate for magical creatures. Patronus: Otter. Wand: 10¾-inch vine wood with dragon heartstring.",
+        "Ron Weasley": "Loyal Gryffindor, chess master, Gryffindor Keeper, Auror. Patronus: Jack Russell Terrier. Wand: 14-inch willow with unicorn hair.",
+        "Albus Percival Wulfric Brian Dumbledore": "Headmaster of Hogwarts, founder of the Order of the Phoenix, Supreme Mugwump. Patronus: Phoenix. Wand: Elder Wand (15-inch elder with thestral tail hair).",
+        "Severus Snape": "Potions Master, Defense Against the Dark Arts professor, Headmaster of Hogwarts, double agent. Patronus: Doe. Wand: 13-inch birch.",
+        "Lord Voldemort": "Tom Marvolo Riddle, Dark Lord, heir of Slytherin, creator of Horcruxes. Wand: 13½-inch yew with phoenix feather.",
+        "Luna Lovegood": "Ravenclaw, naturalist, editor of The Quibbler, believer in Nargles and Wrackspurts. Patronus: Hare.",
+        "Draco Malfoy": "Slytherin Seeker and prefect, seeker of redemption. Patronus: None. Wand: 10-inch hawthorn with unicorn hair.",
+        "Minerva McGonagall": "Transfiguration Professor, Head of Gryffindor, Headmistress of Hogwarts. Animagus: Silver tabby cat. Patronus: Cat.",
+        "Sirius Black": "Padfoot, Harry's godfather, Gryffindor Marauder. Animagus: Large black bear-like dog.",
+        "Remus Lupin": "Moony, Marauder, werewolf, beloved Defense Against the Dark Arts professor. Patronus: Wolf.",
+        "Rubeus Hagrid": "Keeper of Keys and Grounds at Hogwarts, Care of Magical Creatures teacher, half-giant with a pink umbrella.",
+        "Bellatrix Lestrange": "Fiercest Death Eater, Death Eater lieutenant, dark arts duelist. Wand: 12¾-inch walnut with dragon heartstring.",
+        "Cedric Diggory": "Hufflepuff Captain, Triwizard Tournament champion. Wand: 12¼-inch ash with unicorn hair.",
+        "Nymphadora Tonks": "Metamorphmagus, Auror, Order of the Phoenix member. Patronus: Jackal / Wolf.",
+        "James Potter": "Prongs, Harry's father, Gryffindor Marauder, Head Boy. Animagus: Stag. Patronus: Stag."
+    }
+    return hp_data.get(name, f"{name}: Renowned wizard/witch in the wizarding world of Hogwarts.")
+
+def handle_color_tool(color_hex: str) -> str:
+    cleaned = color_hex.strip().lstrip('#').upper()
+    exact_colors = {
+        "FF0000": ["Crimson", "Scarlet", "Ruby Red", "Vermilion"],
+        "00FF00": ["Lime Green", "Electric Emerald", "Chartreuse", "Neon Spring"],
+        "0000FF": ["Royal Blue", "Sapphire", "Cobalt", "Ultramarine", "Azure"],
+        "FFFF00": ["Canary Yellow", "Lemon", "Cyber Yellow", "Electric Gold"],
+        "FFA500": ["Tangerine", "Marigold", "Sunset Orange", "Carrot"],
+        "800080": ["Purple", "Amethyst", "Imperial Violet", "Tyrian Purple"],
+        "00FFFF": ["Cyan", "Aqua", "Electric Turquoise", "Bright Cerulean"],
+        "FF00FF": ["Magenta", "Hot Fuchsia", "Neon Pink"],
+        "FFFFFF": ["Pure Alabaster White", "Snow", "Ivory"],
+        "000000": ["Obsidian Black", "Onyx", "Midnight Jet"]
+    }
+    if cleaned in exact_colors:
+        return f"Color names for #{cleaned}: {', '.join(exact_colors[cleaned])}"
+    try:
+        r = int(cleaned[0:2], 16)
+        g = int(cleaned[2:4], 16)
+        b = int(cleaned[4:6], 16)
+        names = []
+        if r > 180 and g < 100 and b < 100:
+            names = ["Vivid Ruby", "Crimson Hue", "Fiery Scarlet"]
+        elif g > 180 and r < 100 and b < 100:
+            names = ["Lush Meadow Green", "Emerald Glow", "Electric Lime"]
+        elif b > 180 and r < 100 and g < 100:
+            names = ["Ocean Depths Blue", "Celestial Azure", "Deep Sapphire"]
+        elif r > 180 and g > 180 and b < 100:
+            names = ["Solar Gold", "Sunburst Amber", "Honey Mustard"]
+        elif r > 150 and b > 150 and g < 100:
+            names = ["Royal Orchid", "Deep Violet", "Mystic Mauve"]
+        elif r > 200 and g > 200 and b > 200:
+            names = ["Platinum Mist", "Ghost Pearl", "Frost Silver"]
+        elif r < 50 and g < 50 and b < 50:
+            names = ["Deep Charcoal", "Midnight Abyss", "Dark Graphite"]
+        else:
+            names = [f"Bespoke Hex #{cleaned}", "Harmonic Tone", "Spectral Gradient"]
+        return f"Color names for #{cleaned}: {', '.join(names)}"
+    except Exception:
+        return f"Color #{cleaned}"
+
+def call_nvidia_nemotron(
+    messages: List[Dict[str, str]],
+    enable_thinking: bool = True,
+    reasoning_budget: int = 16384,
+    temperature: float = 1.0,
+    top_p: float = 0.95,
+    max_tokens: int = 16384,
+    tools: Optional[List[Dict[str, Any]]] = None
+) -> Tuple[str, Optional[str], Optional[List[Any]]]:
+    """
+    Executes NVIDIA Nemotron reasoning with thinking budget and tool calling via integrate.api.nvidia.com/v1.
+    Streams chunks, extracts reasoning_content and content, aggregates tool calls.
+    """
+    api_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("NVIDIA_API_KEY is not configured.")
+
+    base_url = os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+    model_name = os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b")
+
+    client = OpenAI(
+        base_url=base_url,
+        api_key=api_key
+    )
+
+    extra_body: Dict[str, Any] = {}
+    if enable_thinking:
+        extra_body = {
+            "chat_template_kwargs": {"enable_thinking": True},
+            "reasoning_budget": reasoning_budget
+        }
+
+    kwargs: Dict[str, Any] = {
+        "model": model_name,
+        "messages": messages,
+        "temperature": temperature,
+        "top_p": top_p,
+        "max_tokens": max_tokens,
+        "stream": True
+    }
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+    if tools is not None:
+        kwargs["tools"] = tools
+        kwargs["tool_choice"] = "auto"
+    elif NVIDIA_MATH_TOOLS:
+        kwargs["tools"] = NVIDIA_MATH_TOOLS
+        kwargs["tool_choice"] = "auto"
+
+    completion = client.chat.completions.create(**kwargs)
+
+    reasoning_chunks: List[str] = []
+    content_chunks: List[str] = []
+    tool_calls_acc: List[Dict[str, str]] = []
+
+    for chunk in completion:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        
+        # 1. Capture Reasoning / Thinking tokens
+        reasoning_delta = getattr(delta, "reasoning_content", None)
+        if reasoning_delta:
+            reasoning_chunks.append(reasoning_delta)
+            
+        # 2. Capture Content tokens
+        if delta.content is not None:
+            content_chunks.append(delta.content)
+            
+        # 3. Stream & assemble Tool Calls
+        if getattr(delta, "tool_calls", None):
+            for tc in delta.tool_calls:
+                idx = getattr(tc, "index", 0)
+                while len(tool_calls_acc) <= idx:
+                    tool_calls_acc.append({"name": "", "arguments": ""})
+                if getattr(tc, "function", None):
+                    if getattr(tc.function, "name", None):
+                        tool_calls_acc[idx]["name"] += tc.function.name
+                    if getattr(tc.function, "arguments", None):
+                        tool_calls_acc[idx]["arguments"] += tc.function.arguments
+
+    reply_text = "".join(content_chunks).strip()
+    reasoning_text = "".join(reasoning_chunks).strip() if reasoning_chunks else None
+
+    # Execute and incorporate any tool calls
+    if tool_calls_acc:
+        tool_results: List[str] = []
+        for tc_data in tool_calls_acc:
+            fn_name = tc_data.get("name", "")
+            fn_args = tc_data.get("arguments", "{}")
+            if not fn_name:
+                continue
+            try:
+                args = json.loads(fn_args) if isinstance(fn_args, str) and fn_args.strip() else {}
+                if fn_name == "solve_equation":
+                    eq = args.get("equation", "")
+                    sol, _ = solve_algebra(eq)
+                    tool_results.append(f"• Algebraic Verification ({eq}): {sol}")
+                elif fn_name == "solve_geometry":
+                    q = args.get("query", "")
+                    sol, _ = geometry.solve_geometry(q)
+                    tool_results.append(f"• Geometric Verification ({q}): {sol}")
+                elif fn_name == "calculate_statistics":
+                    q = args.get("query", "")
+                    sol, _ = statistics.solve_statistics(q)
+                    tool_results.append(f"• Statistical Verification ({q}): {sol}")
+                elif fn_name == "describe_harry_potter_character":
+                    char_name = args.get("name", "")
+                    res = handle_harry_potter_tool(char_name)
+                    tool_results.append(f"• Harry Potter Character Info: {res}")
+                elif fn_name == "name_a_color":
+                    c_hex = args.get("color_hex", "")
+                    res = handle_color_tool(c_hex)
+                    tool_results.append(f"• Color Palette Info: {res}")
+            except Exception as e:
+                print(f"Tool call execution error ({fn_name}): {e}")
+
+        if tool_results:
+            reply_text = (reply_text + "\n\n" + "\n".join(tool_results)).strip()
+
+    return reply_text, reasoning_text, tool_calls_acc if tool_calls_acc else None
+
+def stream_nvidia_nemotron_generator(
+    messages: List[Dict[str, str]],
+    enable_thinking: bool = True,
+    reasoning_budget: int = 16384,
+    tools: Optional[List[Dict[str, Any]]] = None
+):
+    """
+    Generator yielding Server-Sent Events (SSE) streaming reasoning, content, and tool executions.
+    """
+    api_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        yield f"data: {json.dumps({'type': 'error', 'error': 'NVIDIA_API_KEY is not configured.'})}\n\n"
+        return
+
+    base_url = os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+    model_name = os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b")
+
+    client = OpenAI(base_url=base_url, api_key=api_key)
+
+    extra_body: Dict[str, Any] = {}
+    if enable_thinking:
+        extra_body = {
+            "chat_template_kwargs": {"enable_thinking": True},
+            "reasoning_budget": reasoning_budget
+        }
+
+    kwargs: Dict[str, Any] = {
+        "model": model_name,
+        "messages": messages,
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "max_tokens": 16384,
+        "stream": True,
+        "tools": tools or NVIDIA_MATH_TOOLS,
+        "tool_choice": "auto"
+    }
+    if extra_body:
+        kwargs["extra_body"] = extra_body
+
+    completion = client.chat.completions.create(**kwargs)
+
+    tool_calls_acc: List[Dict[str, str]] = []
+
+    for chunk in completion:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+
+        reasoning_delta = getattr(delta, "reasoning_content", None)
+        if reasoning_delta:
+            yield f"data: {json.dumps({'type': 'reasoning', 'content': reasoning_delta})}\n\n"
+
+        if delta.content is not None:
+            yield f"data: {json.dumps({'type': 'content', 'content': delta.content})}\n\n"
+
+        if getattr(delta, "tool_calls", None):
+            for tc in delta.tool_calls:
+                idx = getattr(tc, "index", 0)
+                while len(tool_calls_acc) <= idx:
+                    tool_calls_acc.append({"name": "", "arguments": ""})
+                if getattr(tc, "function", None):
+                    if getattr(tc.function, "name", None):
+                        tool_calls_acc[idx]["name"] += tc.function.name
+                    if getattr(tc.function, "arguments", None):
+                        tool_calls_acc[idx]["arguments"] += tc.function.arguments
+
+    if tool_calls_acc:
+        for tc_data in tool_calls_acc:
+            fn_name = tc_data.get("name", "")
+            fn_args = tc_data.get("arguments", "{}")
+            if not fn_name:
+                continue
+            try:
+                args = json.loads(fn_args) if isinstance(fn_args, str) and fn_args.strip() else {}
+                tool_msg = ""
+                if fn_name == "solve_equation":
+                    eq = args.get("equation", "")
+                    sol, _ = solve_algebra(eq)
+                    tool_msg = f"• Algebraic Verification ({eq}): {sol}"
+                elif fn_name == "solve_geometry":
+                    q = args.get("query", "")
+                    sol, _ = geometry.solve_geometry(q)
+                    tool_msg = f"• Geometric Verification ({q}): {sol}"
+                elif fn_name == "calculate_statistics":
+                    q = args.get("query", "")
+                    sol, _ = statistics.solve_statistics(q)
+                    tool_msg = f"• Statistical Verification ({q}): {sol}"
+                elif fn_name == "describe_harry_potter_character":
+                    char_name = args.get("name", "")
+                    tool_msg = f"• Harry Potter Character Info: {handle_harry_potter_tool(char_name)}"
+                elif fn_name == "name_a_color":
+                    c_hex = args.get("color_hex", "")
+                    tool_msg = f"• Color Palette Info: {handle_color_tool(c_hex)}"
+                if tool_msg:
+                    yield f"data: {json.dumps({'type': 'content', 'content': chr(10) + chr(10) + tool_msg})}\n\n"
+            except Exception as e:
+                print(f"Tool streaming error: {e}")
+
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 def generate_smart_math_tutor_reply(user_question: str, context: Optional[str] = None) -> str:
     q = user_question.lower().strip()
@@ -374,22 +756,40 @@ async def chat_api(request: ChatRequest):
 
     last_user_message = request.messages[-1].content if request.messages else ""
 
-    # 1. Primary Engine: Local Ollama with Llama 3
+    messages_payload = []
+    system_content = (
+        "You are Axiom, an expert, encouraging, brilliant AI Math Tutor. "
+        "Explain mathematical steps, intuition, and concepts clearly and concisely. "
+        "Use standard LaTeX notation ($...$ or $$...$$) where appropriate for math formulas. Keep answers focused (2-4 sentences)."
+    )
+    if request.context:
+        system_content += f"\nCurrent Problem / Screen Context:\n{request.context}"
+
+    messages_payload.append({"role": "system", "content": system_content})
+
+    for m in request.messages:
+        messages_payload.append({"role": m.role, "content": m.content})
+
+    # 1. Primary Engine: NVIDIA Nemotron (with Thinking / Reasoning and Math Tools)
+    nvidia_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if nvidia_key:
+        try:
+            reply_text, reasoning_text, _ = call_nvidia_nemotron(
+                messages=messages_payload,
+                enable_thinking=True,
+                reasoning_budget=16384,
+                tools=NVIDIA_MATH_TOOLS
+            )
+            if reply_text or reasoning_text:
+                return ChatResponse(
+                    reply=reply_text or "Analysis complete.",
+                    reasoning=reasoning_text
+                )
+        except Exception as e:
+            print(f"NVIDIA Nemotron notice: {e}")
+
+    # 2. Secondary Engine: Local Ollama with Llama 3
     try:
-        messages_payload = []
-        system_content = (
-            "You are Axiom, an expert, encouraging, brilliant AI Math Tutor. "
-            "Explain mathematical steps, intuition, and concepts clearly and concisely. "
-            "Use standard LaTeX notation where appropriate for math formulas. Keep answers focused (2-4 sentences)."
-        )
-        if request.context:
-            system_content += f"\nCurrent Problem / Screen Context:\n{request.context}"
-
-        messages_payload.append({"role": "system", "content": system_content})
-
-        for m in request.messages:
-            messages_payload.append({"role": m.role, "content": m.content})
-
         ollama_model = os.environ.get("OLLAMA_MODEL", "llama3")
         payload = {
             "model": ollama_model,
@@ -411,7 +811,7 @@ async def chat_api(request: ChatRequest):
     except Exception as e:
         print(f"Ollama (llama3) notice: {e}")
 
-    # 2. Secondary Engine: Gemini if configured
+    # 3. Tertiary Engine: Gemini if configured
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if gemini_key:
         try:
@@ -432,9 +832,36 @@ async def chat_api(request: ChatRequest):
         except Exception:
             pass
 
-    # 3. Fallback Engine: Built-in High-Intelligence Math Reasoner
+    # 4. Fallback Engine: Built-in High-Intelligence Math Reasoner
     reply = generate_smart_math_tutor_reply(last_user_message, request.context)
     return ChatResponse(reply=reply)
+
+@app.post("/api/chat/stream")
+async def chat_stream_api(request: ChatRequest):
+    if not request.messages:
+        raise HTTPException(status_code=400, detail="messages array is required.")
+
+    system_content = (
+        "You are Axiom, an expert, encouraging, brilliant AI Math Tutor powered by NVIDIA Nemotron. "
+        "Explain mathematical steps, intuition, and concepts clearly and concisely. "
+        "Use standard LaTeX notation ($...$ or $$...$$) where appropriate for math formulas. Keep answers focused (2-4 sentences)."
+    )
+    if request.context:
+        system_content += f"\nCurrent Problem / Screen Context:\n{request.context}"
+
+    messages_payload = [{"role": "system", "content": system_content}]
+    for m in request.messages:
+        messages_payload.append({"role": m.role, "content": m.content})
+
+    return StreamingResponse(
+        stream_nvidia_nemotron_generator(
+            messages=messages_payload,
+            enable_thinking=True,
+            reasoning_budget=16384,
+            tools=NVIDIA_MATH_TOOLS
+        ),
+        media_type="text/event-stream"
+    )
 
 def normalize_matrix_latex(text: str) -> str:
     if not text:
@@ -476,6 +903,48 @@ async def ocr_api(request: OCRRequest):
     try:
         base64_str = re.sub(r'^data:image/\w+;base64,', '', request.imageBase64)
         img_data = base64.b64decode(base64_str)
+
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if gemini_key:
+            try:
+                from google import genai
+                from google.genai import types
+                client = genai.Client(api_key=gemini_key)
+                prompt = (
+                    "You are an expert mathematical, geometric, and trigonometric visual reasoning engine.\n"
+                    "Analyze this image and extract or formulate the exact mathematical query needed to solve it in the Axiom Engine.\n"
+                    "OUTPUT ONLY the final plain text math string or function call without markdown or backticks.\n"
+                    "Rules:\n"
+                    "- Right Triangle: pythagorean(a, b) (e.g. pythagorean(3, 4))\n"
+                    "- General Triangle: triangle(a, b, c) (e.g. triangle(5, 7, 8))\n"
+                    "- Circle: circle(r) (e.g. circle(5))\n"
+                    "- Rectangle/Square: rectangle(w, h) or square(s)\n"
+                    "- Distance: distance([x1, y1], [x2, y2])\n"
+                    "- Unit Circle: unit_circle(angle) (e.g. unit_circle(pi/3), unit_circle(45))\n"
+                    "- Trig Equations: sin(x) = 0.5, 2*sin(x) - 1 = 0, sin(2*x) = 1, sin(x) = cos(x)\n"
+                    "- Trig Values: sin(pi/6), cos(45), tan(pi/4)\n"
+                    "- Matrices: [[row1], [row2]], det([[...]]), inv([[...]]), eigen([[...]])\n"
+                    "- Calculus: integrate(expr), derive(expr)\n"
+                    "- Algebra: x^2 - 5x + 6 = 0\n"
+                    "- Word Problems: Formulate the equation to solve directly."
+                )
+                resp = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Part.from_bytes(data=img_data, mime_type="image/jpeg"),
+                        prompt
+                    ]
+                )
+                if resp and resp.text:
+                    eq_text = resp.text.strip()
+                    eq_text = re.sub(r'^```[a-zA-Z]*\n?', '', eq_text)
+                    eq_text = re.sub(r'\n?```$', '', eq_text).strip(' "\'')
+                    eq_text = normalize_matrix_latex(eq_text)
+                    if eq_text:
+                        return {'equation': eq_text, 'format': 'latex'}
+            except Exception as e:
+                print(f"Backend Gemini OCR fallback: {e}")
+
         img = Image.open(BytesIO(img_data)).convert('RGB')
 
         equation = ''
@@ -984,7 +1453,7 @@ def generate_multi_methods(input_str: str, equation_type: str, allow_complex: bo
             print(f"Error in derivative multi-methods: {e}")
 
     # 4. STATISTICS
-    elif input_str.lower().startswith(('mean', 'median')):
+    elif equation_type == "Statistics" or any(input_str.lower().startswith(s) for s in ['mean', 'median', 'mode', 'variance', 'stddev', 'std_dev', 'standard_deviation', 'percentile', 'set_theory', 'union', 'intersection', 'iqr', 'z_score', 'zscore', 'summary', 'stats', 'describe', 'regression', 'linreg', 'linear_regression', 'correlation', 'normal', 'binomial', 'poisson', 'geometric', 'hypergeometric', 'exponential', 'uniform', 'spatial', 'centroid', 't_test', 'ttest', 'two_sample', 'hypothesis', 'confidence', 'proportion', 'chi_square', 'chisq', 'goodness', 'contingency', 'anova', 'random_var', 'expected_value', 'combination', 'permutation', 'bayes', 'prob']):
         try:
             data_content = re.search(r'\((.*)\)', input_str)
             data_str = data_content.group(1) if data_content else input_str[5:].strip(' ()')
@@ -1520,19 +1989,9 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
             result_node, steps = derivative.derive(node)
             solution = to_string(result_node)
             
-        elif input_str.lower().startswith('mean'):
+        elif any(input_str.lower().startswith(s) for s in ['mean', 'median', 'mode', 'variance', 'var(', 'stddev', 'std_dev', 'stdev', 'standard_deviation', 'percentile', 'set_theory', 'union', 'intersection', 'set_op', 'iqr', 'z_score', 'zscore', 'std_score', 'summary', 'stats', 'describe', 'regression', 'linreg', 'linear_regression', 'correlation', 'normal_cdf', 'normal_dist', 't_test', 'ttest', 'two_sample', 'hypothesis', 'z_test', 'confidence', 'proportion', 'chi_square', 'chisq', 'goodness', 'contingency', 'anova', 'random_var', 'expected_value', 'combination', 'permutation', 'multinomial', 'derange', 'binomial', 'poisson', 'geometric', 'hypergeometric', 'exponential', 'uniform', 'spatial', 'centroid', 'centile', 'inter_quarterly', 'bayes', 'prob', 'odds']):
             equation_type = "Statistics"
-            data_content = re.search(r'mean\((.*)\)', input_str, re.I)
-            data_str = data_content.group(1) if data_content else input_str[5:].strip(' ()')
-            steps = statistics.mean(data_str)
-            solution = steps[-1].latex if steps else "N/A"
-            
-        elif input_str.lower().startswith('median'):
-            equation_type = "Statistics"
-            data_content = re.search(r'median\((.*)\)', input_str, re.I)
-            data_str = data_content.group(1) if data_content else input_str[7:].strip(' ()')
-            steps = statistics.median(data_str)
-            solution = steps[-1].latex if steps else "N/A"
+            solution, steps = statistics.solve_statistics(input_str)
             
         elif 'eigen' in input_str.lower() or 'char' in input_str.lower():
             equation_type = "Linear Algebra"
@@ -1683,6 +2142,53 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
                         functionLabel=f"f(x) = {plot_fn}",
                         viewPort={"minX": -7, "maxX": 7, "minY": -2.5, "maxY": 2.5}
                     )
+
+            elif equation_type == "Algebra":
+                clean_fn = input_str.split('=')[0].strip() if '=' in input_str else input_str
+                roots_found = None
+                vertex_found = None
+                try:
+                    poly_obj, var_x, _, _ = algebra.parse_equation_to_poly(input_str)
+                    clean_fn = to_string(poly_obj.to_node()).replace('**', '^') if hasattr(poly_obj, 'to_node') else input_str
+                    if poly_obj.degree == 2:
+                        a_c = poly_obj.coeffs.get(2, 0)
+                        b_c = poly_obj.coeffs.get(1, 0)
+                        c_c = poly_obj.coeffs.get(0, 0)
+                        if a_c != 0:
+                            vx = -b_c / (2 * a_c)
+                            vy = a_c * vx * vx + b_c * vx + c_c
+                            vertex_found = {"x": round(vx, 2), "y": round(vy, 2)}
+                            disc = b_c * b_c - 4 * a_c * c_c
+                            if disc >= 0:
+                                roots_found = [round((-b_c - disc**0.5) / (2 * a_c), 2), round((-b_c + disc**0.5) / (2 * a_c), 2)]
+                    elif poly_obj.degree == 1:
+                        a_c = poly_obj.coeffs.get(1, 0)
+                        c_c = poly_obj.coeffs.get(0, 0)
+                        if a_c != 0:
+                            roots_found = [round(-c_c / a_c, 2)]
+                except Exception:
+                    clean_fn = input_str.split('=')[0].strip() if '=' in input_str else input_str
+
+                graph_data = GraphData(
+                    showGraph=True,
+                    functionExpr=clean_fn,
+                    functionLabel=f"f(x) = {clean_fn}",
+                    roots=roots_found,
+                    vertex=vertex_found
+                )
+
+            elif equation_type == "Calculus" and not graph_data.showGraph:
+                # For integrals or other calculus expressions without node
+                calc_fn = input_str
+                if input_str.lower().startswith('integrate'):
+                    calc_match = re.search(r'integrate\((.*?)(?:,|$|\))', input_str, re.I)
+                    calc_fn = calc_match.group(1).strip() if calc_match else input_str[9:].strip(' ()')
+                graph_data = GraphData(
+                    showGraph=True,
+                    functionExpr=calc_fn,
+                    functionLabel=f"f(x) = {calc_fn}"
+                )
+
 
             response_scenes.append(VideoScene(
                 sceneNumber=idx + 1,

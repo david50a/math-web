@@ -66,7 +66,7 @@ app.post('/api/ocr', express.json({ limit: "10mb" }), async (req, res) => {
     }
 
     if (ai) {
-      console.log("Starting OCR with Gemini (with Matrix Recognition)...");
+      console.log("Starting Multimodal Math, Geometry & Trig OCR with Gemini...");
       try {
         const match = imageBase64.match(/^data:(image\/\w+);base64,/);
         const mimeType = match ? match[1] : "image/jpeg";
@@ -79,17 +79,50 @@ app.post('/api/ocr', express.json({ limit: "10mb" }), async (req, res) => {
               role: "user",
               parts: [
                 {
-                  text: `You are an expert mathematical OCR engine capable of recognizing printed, typed, and handwritten math formulas, equations, and matrices.
+                  text: `You are an expert mathematical, geometric, and trigonometric OCR and visual reasoning engine. You recognize handwritten, printed, and textbook equations, diagrams, figures, and word problems.
 
-Extract the mathematical expression or matrix from this image.
-Formatting rules:
-1. Return ONLY the final plain text math string without markdown formatting, backticks, or explanation.
-2. Matrices: Format any matrix as nested arrays: [[row1_elements], [row2_elements]]. Example: [[1, 2], [3, 4]] or [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-3. Determinants: If the image asks for determinant or is enclosed in vertical bars |A| / det(A), return as: det([[...]])
-4. Matrix Inverse: If the image asks for inverse or A^-1, return as: inv([[...]])
-5. Matrix Eigenvalues: If the image asks for eigenvalues or characteristic equation, return as: eigen([[...]])
-6. Matrix Operations: If multiplying or adding matrices, return as: [[1, 2], [3, 4]] * [[5, 6], [7, 8]] or [[1, 2], [3, 4]] + [[5, 6], [7, 8]]
-7. Standard Calculus/Algebra: Use standard formats (e.g. x^2 - 5x + 6 = 0, integrate(x*e^x), derive(sin(x)), mean([10, 20, 30])).`
+Analyze this image and extract or formulate the exact mathematical query needed to solve the problem in our Axiom Engine.
+
+OUTPUT RULES:
+- Return ONLY the final plain text math string or function call without markdown formatting, backticks, or conversational text.
+- Do NOT wrap in quotes or code blocks.
+
+FORMATTING SPECIFICATIONS:
+
+1. GEOMETRY DIAGRAMS & PROBLEMS:
+- Right Triangles (Pythagorean): If a right triangle is shown with two legs known, format as: pythagorean(a, b) (e.g. pythagorean(3, 4)). If one leg 'a' and hypotenuse 'c' are known, format as: pythagorean(a, c) or triangle(a, b, c).
+- General Triangles: If a triangle is shown with sides or SSS/SAS given, format as: triangle(a, b, c) (e.g. triangle(5, 7, 8) or triangle(3, 4, 5)).
+- Circles: If a circle diagram with radius r is shown, format as: circle(r) (e.g. circle(5)).
+- Rectangles / Squares: format as: rectangle(w, h) (e.g. rectangle(6, 4)) or square(s) (e.g. square(5)).
+- Coordinate Geometry:
+  * Distance between points: distance([x1, y1], [x2, y2])
+  * Midpoint: midpoint([x1, y1], [x2, y2])
+  * Slope: slope([x1, y1], [x2, y2])
+  * Line equation: line([x1, y1], [x2, y2])
+- 3D Solids: sphere(r), cylinder(r, h), cone(r, h).
+- Transformations: translate(shape, dx, dy), rotate(shape, angle), scale(shape, factor), reflect(shape, axis).
+
+2. TRIGONOMETRY DIAGRAMS & EQUATIONS:
+- Unit Circle: If an angle on the unit circle or unit circle figure is shown, format as: unit_circle(angle) (e.g. unit_circle(pi/3), unit_circle(45), unit_circle(pi/4)).
+- Trig Equations: Format standard equations cleanly: sin(x) = 0.5, 2*sin(x) - 1 = 0, sin(2*x) = 1, sin(x) = cos(x), sin(x)^2 + cos(x)^2 = 1.
+- Trig Expressions / Values: sin(pi/6), cos(45), tan(pi/4), arcsin(0.5).
+- Trig Word Problems: Extract the core equation to solve (e.g. sin(x) = 0.5 or pythagorean(3, 4)).
+
+3. MATRICES & LINEAR ALGEBRA:
+- Format any matrix as nested arrays: [[row1_elements], [row2_elements]]. Example: [[1, 2], [3, 4]] or [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+- Determinants: If enclosed in vertical bars |A| or asking for det, return: det([[...]])
+- Matrix Inverse: If asking for A^-1 or inverse, return: inv([[...]])
+- Matrix Eigenvalues: If asking for eigenvalues or char poly, return: eigen([[...]])
+- Operations: [[1, 2], [3, 4]] * [[5, 6], [7, 8]] or [[1, 2], [3, 4]] + [[5, 6], [7, 8]]
+
+4. CALCULUS, ALGEBRA & STATISTICS:
+- Integrals: integrate(expr) (e.g. integrate(x^2 - 5x + 6))
+- Derivatives: derive(expr) (e.g. derive(sin(x)*cos(x)))
+- Algebraic Equations: x^2 - 5x + 6 = 0, 3*x + 5 = 20
+- Statistics: mean([10, 20, 30]), median([1, 4, 7, 9])
+
+5. WORD PROBLEMS:
+- Translate the question directly into its mathematical solver query (e.g. "Find the hypotenuse of a triangle with legs 3 and 4" -> pythagorean(3, 4)).`
                 },
                 { inlineData: { data: base64Data, mimeType: mimeType } }
               ]
@@ -97,8 +130,11 @@ Formatting rules:
           ]
         });
         let equation = response.text?.trim() || "";
+        // Strip markdown backticks, quotes, or language tags
+        equation = equation.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim();
+        equation = equation.replace(/^["']|["']$/g, '').trim();
         equation = normalizeMatrixInString(equation);
-        console.log("Gemini OCR matrix-aware result:", equation);
+        console.log("Gemini Multimodal OCR result:", equation);
         return res.json({ equation });
       } catch (err: any) {
         console.error("Gemini OCR failed, falling back to Tesseract...", err);
@@ -184,6 +220,15 @@ function cleanMathOcrText(raw: string): string {
   // Fix letter 'O' confused with digit 0 near equals sign
   s = s.replace(/=\s*[Oo]\b/g, '= 0');
   s = s.replace(/\b[Oo]\s*=/g, '0 =');
+
+  // Normalize trigonometry OCR confusions
+  s = s.replace(/\bs[1l|!]n\b/gi, 'sin');
+  s = s.replace(/\bc[0oO]s\b/gi, 'cos');
+  s = s.replace(/\bt[4a]n\b/gi, 'tan');
+  s = s.replace(/\\(?:theta|vartheta)|[θ]/gi, 'x');
+  s = s.replace(/\\(?:pi)|[π]/gi, 'pi');
+  s = s.replace(/\\(?:alpha)|[α]/gi, 'a');
+  s = s.replace(/\\(?:beta)|[β]/gi, 'b');
 
   // Clean spacing around operators for neat expression
   s = s.replace(/([0-9a-zA-Z\)])\s*([+\-=])\s*([0-9a-zA-Z\(])/g, '$1 $2 $3');

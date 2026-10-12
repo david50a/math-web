@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Send, X, RefreshCw, Sparkles } from "lucide-react";
+import { MessageSquare, Send, X, RefreshCw, Sparkles, ChevronDown, ChevronUp, Brain, Cpu } from "lucide-react";
 import { KatexMath } from "./Whiteboard";
 import { ThemeType } from "../types";
 import MorphOrb from "@/components/ui/ai-thiking-orb-and-input";
@@ -7,6 +7,40 @@ import MorphOrb from "@/components/ui/ai-thiking-orb-and-input";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  reasoning?: string;
+}
+
+function ThinkingAccordion({ reasoning }: { reasoning?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!reasoning) return null;
+
+  return (
+    <div className="mb-2.5 rounded-lg border border-purple-500/30 bg-purple-950/30 overflow-hidden text-xs shadow-inner">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-2.5 py-1.5 text-purple-300 hover:text-purple-100 hover:bg-purple-900/40 transition-colors text-[11px] font-mono cursor-pointer select-none"
+      >
+        <span className="flex items-center gap-1.5">
+          <Brain className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+          <span className="font-semibold text-purple-200">NVIDIA Nemotron 3.5 Thought Process</span>
+          <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/30">
+            16k Budget
+          </span>
+        </span>
+        <span className="flex items-center gap-1 text-purple-300">
+          <span className="text-[10px]">{expanded ? "Collapse" : "Expand"}</span>
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="p-2.5 bg-black/60 border-t border-purple-500/20 max-h-56 overflow-y-auto font-mono text-[11px] text-purple-100/90 whitespace-pre-wrap leading-relaxed select-text scrollbar-thin">
+          {reasoning}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FormattedChatMessage({ content }: { content?: string }) {
@@ -94,9 +128,11 @@ export default function AIChat({
 
       const data = await response.json();
       const replyText = data.reply || data.response || data.message || "I'm here to help! Feel free to ask about any step or formula.";
+      const reasoningText = data.reasoning;
       const modelMessage: Message = {
         role: "assistant",
-        content: replyText
+        content: replyText,
+        reasoning: reasoningText
       };
 
       setHistory((prev) => [...prev, modelMessage]);
@@ -283,7 +319,7 @@ export default function AIChat({
               }`}>
                 {isLightAcademic ? "Academic AI Tutor" : isDarkAI ? "Neural Math Solver" : isNotebook ? "Notebook Math Tutor" : "Scholar AI Tutor"}
               </span>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
+              <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono flex items-center gap-1 ${
                 isLightAcademic ? "bg-blue-50 border border-blue-200 text-blue-700" :
                 isDarkAI ? "bg-indigo-950/60 border border-[#273449] text-cyan-300" :
                 isNotebook ? "bg-stone-100 border border-[#E2DAC7] text-stone-800" :
@@ -291,7 +327,8 @@ export default function AIChat({
                 isCosmos ? "bg-purple-950/60 border border-purple-500/30 text-purple-300" :
                 "bg-amber-500/10 border border-amber-500/20 text-amber-300/80"
               }`}>
-                {isLightAcademic ? "Faculty Pro" : isDarkAI ? "Deep Tensor" : isNotebook ? "Handwritten" : "Academic Fellow"}
+                <Cpu className="w-2.5 h-2.5 text-purple-400" />
+                <span>NVIDIA Nemotron 3.5</span>
               </span>
             </div>
             {(onClose || !standalone) && (
@@ -437,6 +474,9 @@ export default function AIChat({
                         : "bg-[#0f1d16] border border-amber-900/30 text-[#ededdf] rounded-tl-none font-academic text-[13px]"
                     }`}
                   >
+                    {msg.role === "assistant" && msg.reasoning && (
+                      <ThinkingAccordion reasoning={msg.reasoning} />
+                    )}
                     <FormattedChatMessage content={msg.content} />
                   </div>
                 </div>

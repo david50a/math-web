@@ -3,3 +3,6 @@ uvicorn
 manim
 pytesseract
 pillow
+openai
+python-dotenv
+httpx

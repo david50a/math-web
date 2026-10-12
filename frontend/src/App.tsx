@@ -37,6 +37,7 @@ import {
   Grid
 } from "lucide-react";
 import MathGraph from "./components/MathGraph";
+import UnifiedBoardContainer from "./components/boards/UnifiedBoardContainer";
 import Whiteboard, { KatexMath } from "./components/Whiteboard";
 import { EquationSolution, VideoScene, ThemeType, NarratorType } from "./types";
 import AuthModal from "./components/AuthModal";
@@ -63,6 +64,7 @@ const PRESET_EQUATIONS = [
   { name: "Distance Formula", expr: "distance([1, 2], [4, 6])" },
   { name: "Midpoint Formula", expr: "midpoint([2, -4], [6, 8])" },
   { name: "Pythagorean", expr: "pythagorean(3, 4)" },
+  { name: "Dynamic Triangle", expr: "triangle(3, 4, 5)" },
   { name: "Circle Area", expr: "circle(5)" },
   { name: "Translate Circle", expr: "translate(circle, 2, -1)" },
   { name: "Rotate Square", expr: "rotate(square, 45)" },
@@ -72,7 +74,11 @@ const PRESET_EQUATIONS = [
   { name: "3×3 3D Matrix", expr: "[[2, 0, 1], [0, 1, 0], [1, 0, 2]]" },
   { name: "4×4 4D Tesseract", expr: "[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]" },
   { name: "Matrix Eigenvalue", expr: "eigen([[1, 2], [2, 1]])" },
-  { name: "Statistics Mean", expr: "mean([10, 20, 30, 40, 50])" }
+  { name: "Statistics Mean", expr: "mean([10, 20, 30, 40, 50])" },
+  { name: "5-Number Summary", expr: "summary([12, 15, 18, 20, 24, 28, 30, 45])" },
+  { name: "Linear Regression", expr: "regression([(1, 2), (2, 3), (3, 5), (4, 4), (5, 7)])" },
+  { name: "Normal Z-Score", expr: "z_score([10, 20, 30, 40, 50], 35)" },
+  { name: "Binomial Dist", expr: "binomial(10, 3, 0.5)" }
 ];
 
 interface ThemeInfo {
@@ -801,7 +807,7 @@ export default function App() {
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-2">
                 <Scan className="w-5 h-5 text-blue-500" />
-                <h3 className="text-lg font-black uppercase tracking-tight">Math Image OCR Scanner</h3>
+                <h3 className="text-lg font-black uppercase tracking-tight">Math, Geometry & Trigonometry Visual Scanner</h3>
               </div>
               <button
                 onClick={() => {
@@ -844,22 +850,21 @@ export default function App() {
                     {isOcrLoading && (
                       <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center text-blue-400 gap-2">
                         <RefreshCw className="w-8 h-8 animate-spin" />
-                        <span className="text-xs font-bold tracking-wider uppercase font-mono">Recognizing Math Symbols...</span>
+                        <span className="text-xs font-bold tracking-wider uppercase font-mono">Analyzing Math, Diagram & Symbols...</span>
                       </div>
                     )}
                   </div>
 
                   {/* Extracted Math Result Display & Manual Correction */}
-                  {/* Extracted Math Result Display & Manual Correction */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold text-white/50 uppercase tracking-widest block mb-1">
-                      Extracted Math Equation / Matrix (Editable)
+                      Extracted Math Problem / Geometry Query (Editable)
                     </label>
                     <input
                       type="text"
                       value={ocrExtractedMath}
                       onChange={(e) => setOcrExtractedMath(e.target.value)}
-                      placeholder="e.g. det([[1, 2], [3, 4]]), [[1, 2], [3, 4]], x^2 - 5x + 6 = 0"
+                      placeholder="e.g. pythagorean(3, 4), triangle(5, 7, 8), sin(x) = 0.5, unit_circle(pi/3), [[1, 2], [3, 4]]"
                       className="w-full bg-white/5 border border-white/20 px-4 py-3 font-mono text-sm focus:outline-none focus:border-blue-500 rounded-lg text-blue-300"
                     />
 
@@ -1333,70 +1338,19 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 2D Cartesian Function Plot Visualizer Canvas */}
+                {/* Interactive Dynamic Board Container: automatically picks the correct board for every question */}
                 <div className="flex flex-col space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isChalkboard ? "text-amber-200/60 font-scholar-title" : "text-white/50"}`}>
-                      Geometry &amp; Plots Visualizer
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {(solution?.equationType?.toLowerCase().includes("matrix") || solution?.equation?.includes("[[") || equationInput.includes("[[") || equationInput.toLowerCase().includes("det(") || equationInput.toLowerCase().includes("eigen(")) && (
-                        <button
-                          onClick={() => setShowMatrixBackground(!showMatrixBackground)}
-                          className={`text-[9px] px-2 py-0.5 rounded border font-mono transition-all cursor-pointer flex items-center gap-1 ${
-                            showMatrixBackground
-                              ? (isChalkboard ? "bg-[#183626] text-amber-300 border-amber-500/40" : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30")
-                              : "bg-white/5 text-white/50 hover:text-white border-white/10"
-                          }`}
-                          title="Toggle interactive matrix inspector vs plot graph"
-                        >
-                          <Layers className="w-2.5 h-2.5" />
-                          Matrix Inspector: {showMatrixBackground ? "ACTIVE" : "OFF"}
-                        </button>
-                      )}
-                      {currentScene?.graphData.showGraph && (
-                        <span className={`text-[10px] px-2 py-0.5 rounded border font-mono ${
-                          isChalkboard ? "bg-[#183626] text-amber-300 border-amber-500/30" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                        }`}>
-                          Expr: {currentScene.graphData.functionExpr}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="relative overflow-hidden rounded-xl">
-                    {(solution?.equationType?.toLowerCase().includes("matrix") || solution?.equation?.includes("[[") || equationInput.includes("[[") || equationInput.toLowerCase().includes("det(") || equationInput.toLowerCase().includes("eigen(")) && showMatrixBackground ? (
-                      <div className="relative z-10 w-full">
-                        <KineticMatrix
-                          title="Interactive Matrix Inspector"
-                          theme={theme}
-                          className="w-full"
-                          initialMatrix={extractedMatrix?.matrix}
-                          matrixExpr={equationInput}
-                          onMatrixExprChange={(expr) => setEquationInput(expr)}
-                          onSolve={(expr) => {
-                            setEquationInput(expr);
-                            handleSolve(expr);
-                          }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="relative z-10">
-                        {currentScene && currentScene.graphData ? (
-                          <MathGraph
-                            graphData={currentScene.graphData}
-                            annotations={currentScene.annotations}
-                            theme={theme}
-                          />
-                        ) : (
-                          <div className={`h-[320px] rounded-xl flex items-center justify-center text-xs ${
-                            isChalkboard ? "bg-[#0c1813] border border-amber-900/30 text-amber-200/40" : "bg-[#0A0A0A] border border-white/5 text-white/30"
-                          }`}>
-                            No coordinate metrics mapped for current step.
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <UnifiedBoardContainer
+                    solution={solution}
+                    currentScene={currentScene}
+                    equationInput={equationInput}
+                    theme={theme}
+                    extractedMatrix={extractedMatrix}
+                    onSolve={handleSolve}
+                    onEquationChange={(expr) => setEquationInput(expr)}
+                  />
+
+
 
                   {/* Visual coordinate context info cards beneath Graph */}
                   <div className="grid grid-cols-2 gap-3 mt-1.5">
