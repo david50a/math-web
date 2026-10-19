@@ -328,6 +328,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     context: Optional[str] = None
+    api_key: Optional[str] = None
 
 class ChatResponse(BaseModel):
     reply: str
@@ -396,11 +397,25 @@ NVIDIA_MATH_TOOLS = [
         "type": "function",
         "function": {
             "name": "solve_geometry",
-            "description": "Solves geometric properties of triangles, circles, and polygons.",
+            "description": "Solves geometric properties of triangles, circles, polygons, Pythagoras theorem, hypotenuse, distance, midpoint, area, and perimeter.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Geometric query, e.g. triangle(3, 4, 5) or pythagorean(3, 4)"}
+                    "query": {"type": "string", "description": "Geometric query, e.g. triangle(3, 4, 5), pythagorean(3, 4), hypotenuse of 6 and 8, or circle radius 5"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "solve_trigonometry",
+            "description": "Solves trigonometric queries, unit circle coordinates, trigonometric equations, identities, and angle evaluations.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Trigonometric query, e.g. sin(pi/6), sin(x) = 0.5, unit_circle(pi/4), or sin(x)^2 + cos(x)^2"}
                 },
                 "required": ["query"]
             }
@@ -487,18 +502,19 @@ def handle_color_tool(color_hex: str) -> str:
 def call_nvidia_nemotron(
     messages: List[Dict[str, str]],
     enable_thinking: bool = True,
-    reasoning_budget: int = 16384,
+    reasoning_budget: int = 2048,
     temperature: float = 1.0,
     top_p: float = 0.95,
-    max_tokens: int = 16384,
-    tools: Optional[List[Dict[str, Any]]] = None
+    max_tokens: int = 4096,
+    tools: Optional[List[Dict[str, Any]]] = None,
+    api_key: Optional[str] = None
 ) -> Tuple[str, Optional[str], Optional[List[Any]]]:
     """
     Executes NVIDIA Nemotron reasoning with thinking budget and tool calling via integrate.api.nvidia.com/v1.
     Streams chunks, extracts reasoning_content and content, aggregates tool calls.
     """
-    api_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    if not api_key:
+    effective_api_key = api_key or os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if not effective_api_key:
         raise ValueError("NVIDIA_API_KEY is not configured.")
 
     base_url = os.environ.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
@@ -506,7 +522,7 @@ def call_nvidia_nemotron(
 
     client = OpenAI(
         base_url=base_url,
-        api_key=api_key
+        api_key=effective_api_key
     )
 
     extra_body: Dict[str, Any] = {}
@@ -586,6 +602,10 @@ def call_nvidia_nemotron(
                     q = args.get("query", "")
                     sol, _ = geometry.solve_geometry(q)
                     tool_results.append(f"• Geometric Verification ({q}): {sol}")
+                elif fn_name == "solve_trigonometry":
+                    q = args.get("query", "")
+                    sol, _ = trigonometry.solve_trigonometry(q)
+                    tool_results.append(f"• Trigonometric Verification ({q}): {sol}")
                 elif fn_name == "calculate_statistics":
                     q = args.get("query", "")
                     sol, _ = statistics.solve_statistics(q)
@@ -689,6 +709,10 @@ def stream_nvidia_nemotron_generator(
                     q = args.get("query", "")
                     sol, _ = geometry.solve_geometry(q)
                     tool_msg = f"• Geometric Verification ({q}): {sol}"
+                elif fn_name == "solve_trigonometry":
+                    q = args.get("query", "")
+                    sol, _ = trigonometry.solve_trigonometry(q)
+                    tool_msg = f"• Trigonometric Verification ({q}): {sol}"
                 elif fn_name == "calculate_statistics":
                     q = args.get("query", "")
                     sol, _ = statistics.solve_statistics(q)
@@ -726,6 +750,55 @@ def generate_smart_math_tutor_reply(user_question: str, context: Optional[str] =
     # Why Factor vs Quadratic Formula
     if any(k in q for k in ["why factor", "why use quadratic formula", "difference between methods", "which method"]):
         return "Factoring is fastest and cleanest when roots are rational numbers. The quadratic formula, however, is a universal superpower—it solves every quadratic equation unconditionally, even with irrational numbers or negative discriminants."
+
+    # Trigonometry Concepts & Questions
+    if any(k in q for k in ["trigonometry", "trig", "soh cah toa", "sohcahtoa", "unit circle", "sine", "cosine", "tangent", "secant", "cosecant", "cotangent"]):
+        # Try direct solve if question contains numbers or solvable pattern
+        try:
+            trig_sol, trig_steps = trigonometry.solve_trigonometry(user_question)
+            step_summary = "\n".join([f"• {s.description}: ${s.latex}$" for s in trig_steps[:3]])
+            return f"**Trigonometric Solution:**\nResult: ${trig_sol}$\n\n{step_summary}"
+        except Exception:
+            return (
+                "Trigonometry connects triangle ratios with circular periodic functions! "
+                "Remember SOH-CAH-TOA: $\\sin(\\theta) = \\frac{\\text{Opp}}{\\text{Hyp}}$, "
+                "$\\cos(\\theta) = \\frac{\\text{Adj}}{\\text{Hyp}}$, "
+                "$\\tan(\\theta) = \\frac{\\text{Opp}}{\\text{Adj}}$. "
+                "On the unit circle ($x^2 + y^2 = 1$), any angle $\\theta$ corresponds to coordinates $(x, y) = (\\cos\\theta, \\sin\\theta)$."
+            )
+
+    # Geometry Concepts & Questions
+    if any(k in q for k in ["geometry", "triangle", "pythagor", "hypotenuse", "circle", "radius", "diameter", "rectangle", "perimeter", "heron", "sphere", "cylinder", "cone", "distance between", "midpoint"]):
+        # Try direct solve if question contains numbers or solvable pattern
+        try:
+            geo_sol, geo_steps = geometry.solve_geometry(user_question)
+            step_summary = "\n".join([f"• {s.description}: ${s.latex}$" for s in geo_steps[:3]])
+            return f"**Geometric Solution:**\nResult: {geo_sol}\n\n{step_summary}"
+        except Exception:
+            return (
+                "Geometry studies shapes, spatial dimensions, and transformations! "
+                "For right triangles, the Pythagorean Theorem states $a^2 + b^2 = c^2$. "
+                "For circles, Area $A = \\pi r^2$ and Circumference $C = 2\\pi r$. "
+                "For any triangle with base and height, Area $A = \\frac{1}{2} b h$."
+            )
+
+    # Check for direct trig query in general questions (e.g. "sin(pi/6)", "cos 45", "tan(pi/4)")
+    if bool(re.search(r'\b(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan)\b', q)):
+        try:
+            trig_sol, trig_steps = trigonometry.solve_trigonometry(user_question)
+            step_summary = "\n".join([f"• {s.description}: ${s.latex}$" for s in trig_steps[:3]])
+            return f"**Trigonometric Result:** ${trig_sol}$\n\n{step_summary}"
+        except Exception:
+            pass
+
+    # Check for direct geometry query in general questions (e.g. "pythagorean 3 4", "hypotenuse 6 8", "distance between")
+    if any(k in q for k in ["hypotenuse", "distance", "midpoint", "radius", "diameter"]):
+        try:
+            geo_sol, geo_steps = geometry.solve_geometry(user_question)
+            step_summary = "\n".join([f"• {s.description}: ${s.latex}$" for s in geo_steps[:3]])
+            return f"**Geometric Result:** {geo_sol}\n\n{step_summary}"
+        except Exception:
+            pass
 
     # Derivative & Calculus Questions
     if any(k in q for k in ["derivative", "differentiate", "rate of change", "slope", "tangent"]):
@@ -770,15 +843,43 @@ async def chat_api(request: ChatRequest):
     for m in request.messages:
         messages_payload.append({"role": m.role, "content": m.content})
 
+    # 0. Check for Gemini Key directly if supplied or configured
+    custom_key = request.api_key
+    gemini_key = (custom_key if (custom_key and custom_key.startswith("AIzaSy")) else None) or os.environ.get("GEMINI_API_KEY")
+    if gemini_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            prompt = (
+                f"You are Axiom, a friendly, brilliant, human-like AI Math Tutor.\n"
+                f"Context: {request.context or ''}\n"
+                f"User: {last_user_message}\n"
+                f"Answer concisely and intuitively in 2-3 sentences using LaTeX where helpful."
+            )
+            resp = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            if resp and resp.text:
+                return ChatResponse(reply=resp.text.strip())
+        except Exception as e:
+            print(f"Gemini notice: {e}")
+
     # 1. Primary Engine: NVIDIA Nemotron (with Thinking / Reasoning and Math Tools)
-    nvidia_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    nvidia_key = (custom_key if (custom_key and not custom_key.startswith("AIzaSy")) else None) or os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
     if nvidia_key:
         try:
+            # Only use math tools for chat, avoiding unrelated tools
+            math_tools = [
+                t for t in (NVIDIA_MATH_TOOLS or [])
+                if t.get("function", {}).get("name", "").startswith("solve_")
+            ]
             reply_text, reasoning_text, _ = call_nvidia_nemotron(
                 messages=messages_payload,
                 enable_thinking=True,
-                reasoning_budget=16384,
-                tools=NVIDIA_MATH_TOOLS
+                reasoning_budget=2048,
+                tools=math_tools if math_tools else None,
+                api_key=nvidia_key
             )
             if reply_text or reasoning_text:
                 return ChatResponse(
@@ -789,52 +890,43 @@ async def chat_api(request: ChatRequest):
             print(f"NVIDIA Nemotron notice: {e}")
 
     # 2. Secondary Engine: Local Ollama with Llama 3
-    try:
-        ollama_model = os.environ.get("OLLAMA_MODEL", "llama3")
-        payload = {
-            "model": ollama_model,
-            "messages": messages_payload,
-            "stream": False,
-        }
-
-        async with httpx.AsyncClient() as client:
-            chat_response = await client.post(
-                "http://localhost:11434/api/chat",
-                json=payload,
-                timeout=30.0
-            )
-            if chat_response.status_code == 200:
-                res_json = chat_response.json()
-                msg = res_json.get("message", {}).get("content", "")
-                if msg:
-                    return ChatResponse(reply=msg)
-    except Exception as e:
-        print(f"Ollama (llama3) notice: {e}")
-
-    # 3. Tertiary Engine: Gemini if configured
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-    if gemini_key:
+    if os.environ.get("OLLAMA_ENABLED") == "true":
         try:
-            from google import genai
-            client = genai.Client(api_key=gemini_key)
-            prompt = (
-                f"You are Axiom, a friendly, brilliant, human-like AI Math Tutor.\n"
-                f"Context: {request.context or ''}\n"
-                f"User: {last_user_message}\n"
-                f"Answer concisely and intuitively in 2-3 sentences."
-            )
-            resp = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
-            if resp and resp.text:
-                return ChatResponse(reply=resp.text.strip())
-        except Exception:
-            pass
+            ollama_model = os.environ.get("OLLAMA_MODEL", "llama3")
+            payload = {
+                "model": ollama_model,
+                "messages": messages_payload,
+                "stream": False,
+            }
 
-    # 4. Fallback Engine: Built-in High-Intelligence Math Reasoner
+            async with httpx.AsyncClient() as client:
+                chat_response = await client.post(
+                    "http://localhost:11434/api/chat",
+                    json=payload,
+                    timeout=5.0
+                )
+                if chat_response.status_code == 200:
+                    res_json = chat_response.json()
+                    msg = res_json.get("message", {}).get("content", "")
+                    if msg:
+                        return ChatResponse(reply=msg)
+        except Exception as e:
+            print(f"Ollama (llama3) notice: {e}")
+
+    # 3. Fallback Engine: Built-in High-Intelligence Math Reasoner
     reply = generate_smart_math_tutor_reply(last_user_message, request.context)
     return ChatResponse(reply=reply)
+
+@app.get("/api/chat/status")
+async def chat_status_api():
+    nvidia_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    return {
+        "connected": bool(nvidia_key or gemini_key),
+        "engine": "NVIDIA Nemotron 3.5" if nvidia_key else "Google Gemini" if gemini_key else "Built-in Math Engine",
+        "model": os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b"),
+        "has_key": bool(nvidia_key or gemini_key)
+    }
 
 @app.post("/api/chat/stream")
 async def chat_stream_api(request: ChatRequest):
@@ -1849,10 +1941,10 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
     elif input_str.lower().startswith('mean') or input_str.lower().startswith('median'):
         op = "statistics"
         expr = input_str
-    elif any(input_str.lower().startswith(g) for g in ['translate', 'rotate', 'scale', 'reflect', 'distance', 'midpoint', 'slope', 'line', 'circle', 'triangle', 'pythagor', 'rectangle', 'square', 'sphere', 'cylinder', 'cone']) or ('dist(' in input_str.lower()) or ('mid(' in input_str.lower()):
+    elif any(g in input_str.lower() for g in ['translate', 'rotate', 'scale', 'reflect', 'distance', 'midpoint', 'slope', 'circle', 'triangle', 'pythagor', 'hypotenuse', 'rectangle', 'square', 'sphere', 'cylinder', 'cone', 'radius', 'diameter']):
         op = "geometry"
         expr = input_str
-    elif any(t in input_str.lower() for t in ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan', 'unit_circle', 'unitcircle']):
+    elif bool(re.search(r'\b(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|asin|acos|atan|unit_circle|unitcircle)\b', input_str.lower())):
         op = "trigonometry"
         expr = input_str
     elif 'eigen' in input_str.lower() or 'char' in input_str.lower() or 'det' in input_str.lower() or '[' in input_str:
@@ -1933,18 +2025,25 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
         allow_complex = request.show_complex if request.show_complex is not None else (request.allow_complex if request.allow_complex is not None else True)
 
         # Determine operation
-        geo_keywords = ['translate', 'rotate', 'scale', 'reflect', 'distance', 'midpoint', 'slope', 'line', 'circle', 'triangle', 'pythagor', 'rectangle', 'square', 'sphere', 'cylinder', 'cone']
-        trig_keywords = ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan', 'unit_circle', 'unitcircle']
+        geo_keywords = ['translate', 'rotate', 'scale', 'reflect', 'distance', 'midpoint', 'slope', 'circle', 'triangle', 'pythagor', 'hypotenuse', 'rectangle', 'square', 'sphere', 'cylinder', 'cone', 'radius', 'diameter', 'perimeter']
+        trig_pattern = r'\b(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|asin|acos|atan|unit_circle|unitcircle)\b'
         
-        # 1. Geometry Engine
-        if any(input_str.lower().startswith(g) for g in geo_keywords) or ('dist(' in input_str.lower()) or ('mid(' in input_str.lower()):
+        is_geom = any(g in input_str.lower() for g in geo_keywords) or ('dist(' in input_str.lower()) or ('mid(' in input_str.lower())
+        is_trig = bool(re.search(trig_pattern, input_str.lower())) and not input_str.lower().startswith('derive') and not input_str.lower().startswith('integrate')
+
+        # 1. Geometry Engine (Check if explicitly geometric)
+        if is_geom and not is_trig:
             equation_type = "Geometry"
             solution, steps = geometry.solve_geometry(input_str)
             
         # 2. Trigonometry Engine
-        elif any(t in input_str.lower() for t in trig_keywords) and not input_str.lower().startswith('derive') and not input_str.lower().startswith('integrate'):
+        elif is_trig:
             equation_type = "Trigonometry"
             solution, steps = trigonometry.solve_trigonometry(input_str)
+
+        elif is_geom:
+            equation_type = "Geometry"
+            solution, steps = geometry.solve_geometry(input_str)
 
         elif '=' in input_str and not input_str.lower().startswith('integrate') and not input_str.lower().startswith('derive') and not '[' in input_str:
             equation_type = "Algebra"
@@ -2230,6 +2329,104 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
 def read_root():
     return {"status": "active", "engine": "Axiom v4.0"}
 
+class WordProblemRequest(BaseModel):
+    question: str
+
+@app.post("/api/word-problem/solve")
+async def solve_word_problem_api(request: WordProblemRequest):
+    if not request.question or not request.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    try:
+        from word_problem import run_word_problem_pipeline
+        response = await run_word_problem_pipeline(request.question.strip())
+        return response
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Word problem solver encountered an error: {str(e)}")
+
+@app.get("/api/word-problem/presets")
+def get_word_problem_presets():
+    return [
+        {
+            "id": "motion_catchup",
+            "category": "Motion & Kinematics",
+            "title": "Two Trains Catch-Up",
+            "question": "A train leaves Chicago traveling at 60 mph. Two hours later another train leaves from the same station traveling at 90 mph in the same direction. When will the second train catch up?",
+            "difficulty": "Intermediate",
+            "tag": "d1 = d2"
+        },
+        {
+            "id": "geometry_pythagorean",
+            "category": "Geometry & Triangles",
+            "title": "Right Triangle Hypotenuse & Leg",
+            "question": "The hypotenuse of a right triangle is 13 cm and one leg is 5 cm. What is the length of the other leg and the triangle area?",
+            "difficulty": "Basic",
+            "tag": "a^2 + b^2 = c^2"
+        },
+        {
+            "id": "geometry_rectangle",
+            "category": "Geometry & Optimization",
+            "title": "Rectangular Garden Dimensions",
+            "question": "A rectangular garden has a perimeter of 54 meters and an area of 180 square meters. Find its length and width.",
+            "difficulty": "Intermediate",
+            "tag": "Quadratic / Dimensions"
+        },
+        {
+            "id": "work_rate_pipes",
+            "category": "Work & Rates",
+            "title": "Combined Work Rate",
+            "question": "Worker A can complete a job alone in 4 hours, and Worker B can complete the same job alone in 6 hours. How long will it take if they work together?",
+            "difficulty": "Intermediate",
+            "tag": "1/t1 + 1/t2 = 1/T"
+        },
+        {
+            "id": "linear_system_tickets",
+            "category": "Systems of Equations",
+            "title": "Event Ticket Sales System",
+            "question": "A school theater sold 50 tickets for a total of $310. Student tickets cost $5 each and adult tickets cost $8 each. How many of each ticket were sold?",
+            "difficulty": "Intermediate",
+            "tag": "2x2 Linear System"
+        }
+    ]
+
+class WordProblemVideoRenderRequest(BaseModel):
+    title: str
+    scenes: List[Dict[str, Any]]
+
+@app.post("/api/word-problem/video/render-manim")
+async def render_word_problem_manim_api(request: WordProblemVideoRenderRequest):
+    try:
+        from video import render_word_problem_manim
+        filename = f"word_problem_{uuid.uuid4().hex[:8]}.mp4"
+        output_path = os.path.join(MEDIA_DIR, "videos", "1080p60", filename)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, render_word_problem_manim, request.scenes, request.title, output_path)
+        
+        return {
+            "success": True,
+            "filename": filename,
+            "video_url": f"/api/media/videos/1080p60/{filename}"
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Manim render error: {str(e)}")
+
+@app.get("/api/media/{file_path:path}")
+def serve_media_file(file_path: str):
+    full_path = os.path.normpath(os.path.join(MEDIA_DIR, file_path))
+    if not full_path.startswith(os.path.normpath(MEDIA_DIR)):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="Media file not found")
+    from fastapi.responses import FileResponse
+    return FileResponse(full_path)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=4000, reload=True)
+
+

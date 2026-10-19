@@ -308,12 +308,19 @@ export default function VoiceAssistant({
         { role: "user", content: question },
       ];
 
+      const customKey = localStorage.getItem("math_api_key");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (customKey) {
+        headers["X-API-Key"] = customKey;
+      }
+
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           messages: payloadMessages,
           context: contextStr,
+          apiKey: customKey || undefined,
         }),
       });
 

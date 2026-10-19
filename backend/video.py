@@ -863,5 +863,65 @@ def generate_solver_video(
     scene.render()
 
 
+class WordProblemManimScene(Scene):
+
+    def __init__(self, scenes_data, title_str, **kwargs):
+        self.scenes_data = scenes_data
+        self.title_str = title_str
+        super().__init__(**kwargs)
+
+    def construct(self):
+        make_3b1b_background(self)
+        title_group = make_3b1b_title(self.title_str, font_size=30).to_edge(UP, buff=0.45)
+        self.play(FadeIn(title_group, shift=DOWN * 0.2), run_time=0.7)
+
+        current_mobs = VGroup()
+        for sc in self.scenes_data:
+            phase_mob = Text(sc.get("phase_label", ""), font_size=20, color=B3_BLUE).next_to(title_group, DOWN, buff=0.3)
+            title_mob = Text(sc.get("title", ""), font_size=24, color=B3_WHITE).next_to(phase_mob, DOWN, buff=0.2)
+            
+            anims = [FadeIn(phase_mob), FadeIn(title_mob)]
+            latex_callout = sc.get("latex_callout")
+            math_mob = None
+            if latex_callout:
+                try:
+                    math_mob = MathTex(latex_callout, color=B3_GOLD).scale(1.2).shift(DOWN * 0.5)
+                    anims.append(FadeIn(math_mob))
+                except Exception:
+                    math_mob = Text(str(latex_callout), font_size=22, color=B3_GOLD).shift(DOWN * 0.5)
+                    anims.append(FadeIn(math_mob))
+            
+            narr = sc.get("narration", "")[:120]
+            narr_wrapped = textwrap.fill(narr, width=50)
+            narr_mob = Text(narr_wrapped, font_size=16, color=B3_DIM).to_edge(DOWN, buff=0.6)
+            anims.append(FadeIn(narr_mob))
+
+            new_group = VGroup(phase_mob, title_mob, narr_mob)
+            if math_mob:
+                new_group.add(math_mob)
+
+            if len(current_mobs) > 0:
+                self.play(ReplacementTransform(current_mobs, new_group), run_time=1.0)
+            else:
+                self.play(*anims, run_time=1.0)
+            current_mobs = new_group
+            self.wait(2.0)
+        
+        qed = MathTex(r"\blacksquare\ \text{Verified}", font_size=24, color=B3_GREEN).to_edge(DOWN, buff=0.4)
+        self.play(FadeIn(qed), run_time=0.6)
+        self.wait(1.5)
+
+
+def render_word_problem_manim(scenes_data: list, title: str, output_path: str):
+    output_dir = os.path.dirname(output_path)
+    output_file = os.path.basename(output_path)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+    config.media_dir = output_dir
+    config.output_file = output_file
+    scene = WordProblemManimScene(scenes_data, title)
+    scene.render()
+
+
 if __name__ == "__main__":
     UniversalMathAnimation().render()

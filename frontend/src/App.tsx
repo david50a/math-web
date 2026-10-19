@@ -34,7 +34,8 @@ import {
   MessageSquare,
   Palette,
   ChevronDown,
-  Grid
+  Grid,
+  Brain
 } from "lucide-react";
 import MathGraph from "./components/MathGraph";
 import UnifiedBoardContainer from "./components/boards/UnifiedBoardContainer";
@@ -44,6 +45,7 @@ import AuthModal from "./components/AuthModal";
 import PaymentModal from "./components/PaymentModal";
 import AIChat from "./components/AIChat";
 import Explanation from "./components/Explanation";
+import WordProblemSolver from "./components/WordProblemSolver";
 import VoiceAssistant from "./components/VoiceAssistant";
 import ShapeInspectorModal from "./components/ShapeInspectorModal";
 import KineticMatrix, { parseMatrixFromText } from "@/components/ui/kinetic-matrix";
@@ -250,7 +252,7 @@ export default function App() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [renderingVideo, setRenderingVideo] = useState<boolean>(false);
   const [videoQuality, setVideoQuality] = useState<string>("medium");
-  const [currentView, setCurrentView] = useState<"dashboard" | "methods" | "matrix" | "aichat">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "methods" | "matrix" | "aichat" | "word_problems">("dashboard");
   const [showMatrixBackground, setShowMatrixBackground] = useState<boolean>(true);
 
   // Auth & Session States
@@ -1062,6 +1064,17 @@ export default function App() {
             <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
             AI Chat
           </button>
+          <button
+            onClick={() => setCurrentView("word_problems")}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              currentView === "word_problems"
+                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+                : "hover:text-white hover:bg-white/5"
+            }`}
+          >
+            <Brain className="w-3.5 h-3.5 text-pink-400" />
+            Word Problems
+          </button>
         </nav>
 
         {/* Right Action Toolbar */}
@@ -1235,6 +1248,16 @@ export default function App() {
             }}
           />
         </div>
+      ) : currentView === "word_problems" ? (
+        <WordProblemSolver
+          theme={theme}
+          userToken={userToken}
+          onSendToStudio={(eq) => {
+            setEquationInput(eq);
+            handleSolve(eq);
+            setCurrentView("dashboard");
+          }}
+        />
       ) : (
         /* Main interactive grid dashboard layouts */
         <main className="flex-1 flex flex-col lg:flex-row h-full">

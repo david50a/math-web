@@ -9,6 +9,8 @@ import net from "net";
 import Tesseract from "tesseract.js";
 
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), "../backend/.env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 // Initialize Gemini safely at startup
 let ai: GoogleGenAI | null = null;
@@ -489,82 +491,170 @@ function generateSmartMathTutorReply(userQuestion: string, context?: string): st
   return "I'm here to help guide you through this problem step-by-step. What specific part would you like to explore or clarify?";
 }
 
-// AI Chat endpoint - Dedicated exclusively to Ollama (Llama 3)
+// AI Chat endpoint connected to API key (NVIDIA Nemotron / Gemini / Ollama / Fallback)
 app.post('/api/chat', express.json(), async (req, res) => {
   try {
-    const { messages, context } = req.body;
+    const { messages, context, apiKey: clientApiKey } = req.body;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: "messages array is required." });
     }
 
-    const systemContent = `You are Axiom, an extraordinarily smart, warm, and intuitive human-like AI Math Professor and Voice Tutor.
+    const lastUserMessage = messages[messages.length - 1]?.content || "";
+    const customApiKey = (req.headers["x-api-key"] as string) || clientApiKey || "";
 
-YOUR TEACHING PHILOSOPHY & PERSONALITY:
-1. Speak with natural human warmth, enthusiasm, and deep mathematical clarity—like a supportive MIT math professor.
-2. Prioritize INTUITION: Explain the "why" and visual/geometric meaning behind steps, not just mechanical formulas.
-3. Keep spoken replies concise and conversational (2-4 sentences max per spoken response) so it sounds natural when spoken aloud.
-4. When writing math formulas in the response, format them cleanly using standard LaTeX (e.g. $x = \\frac{-b \\pm \\sqrt{D}}{2a}$).
-5. If the user asks about the active equation on the screen, use the provided context to deliver a precise, contextual explanation.
-
-${context ? `ACTIVE SCREEN & EQUATION CONTEXT:\n${context}` : ""}`;
-
-    const ollamaUrl = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
-    const ollamaModel = process.env.OLLAMA_MODEL || "llama3";
-
-    const fullyConfiguredMessages = [
-      { role: "system", content: systemContent },
-      ...messages
-    ];
-
-    console.log(`[Ollama] Sending chat to ${ollamaUrl} using model '${ollamaModel}'...`);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for local inference
-
-    const response = await fetch(`${ollamaUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: ollamaModel,
-        messages: fullyConfiguredMessages,
-        stream: false
-      })
-    });
-    clearTimeout(timeout);
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error(`[Ollama] API error: ${response.status}`, errText);
-      return res.status(502).json({
-        error: `Ollama returned error ${response.status}: ${errText || response.statusText}`,
-        reply: `Ollama error (${response.status}): ${errText || response.statusText}. Please verify the model '${ollamaModel}' is pulled with 'ollama pull ${ollamaModel}'.`
+    // 1. Primary Engine: Python Backend (Runs NVIDIA Nemotron with Thinking Budget & Math Tools)
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 35000);
+      const backendRes = await fetch("http://127.0.0.1:4000/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(req.headers["authorization"] ? { "Authorization": req.headers["authorization"] as string } : {}),
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          messages,
+          context,
+          api_key: customApiKey || undefined
+        })
       });
+      clearTimeout(timeout);
+
+      if (backendRes.ok) {
+        const data = await backendRes.json() as any;
+        if (data && (data.reply || data.reasoning)) {
+          return res.json(data);
+        }
+      }
+    } catch (backendErr: any) {
+      console.warn("[Chat] Backend port 4000 not responding, trying direct API / fallback:", backendErr.message);
     }
 
-    const data = await response.json() as any;
-    const reply = data.message?.content || data.response || "";
+    // 2. Secondary Engine: Direct NVIDIA API call via HTTPS if NVIDIA_API_KEY is available
+    const activeNvidiaKey = (customApiKey && !customApiKey.startsWith("AIzaSy") ? customApiKey : null) || process.env.NVIDIA_API_KEY;
+    if (activeNvidiaKey) {
+      try {
+        const systemContent = `You are Axiom, an extraordinarily smart, warm, and intuitive human-like AI Math Professor and Voice Tutor.
+Explain mathematical steps, intuition, and concepts clearly and concisely.
+Use standard LaTeX notation ($...$ or $$...$$) where appropriate for math formulas. Keep answers focused (2-4 sentences).
+${context ? `ACTIVE CONTEXT:\n${context}` : ""}`;
 
-    if (!reply) {
-      return res.json({ reply: "Received an empty response from Ollama." });
+        const nController = new AbortController();
+        const nTimeout = setTimeout(() => nController.abort(), 35000);
+
+        const nvidiaRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${activeNvidiaKey}`
+          },
+          signal: nController.signal,
+          body: JSON.stringify({
+            model: process.env.NVIDIA_MODEL || "nvidia/nemotron-3.5-lightning-30b-a3b",
+            messages: [
+              { role: "system", content: systemContent },
+              ...messages
+            ],
+            extra_body: {
+              chat_template_kwargs: { enable_thinking: true },
+              reasoning_budget: 2048
+            },
+            max_tokens: 4096,
+            temperature: 0.6
+          })
+        });
+        clearTimeout(nTimeout);
+
+        if (nvidiaRes.ok) {
+          const nData = await nvidiaRes.json() as any;
+          const choice = nData.choices?.[0];
+          const reply = choice?.message?.content?.trim();
+          const reasoning = choice?.message?.reasoning_content?.trim() || undefined;
+          if (reply || reasoning) {
+            return res.json({
+              reply: reply || "Analysis complete.",
+              reasoning
+            });
+          }
+        }
+      } catch (nvidiaErr: any) {
+        console.warn("[Chat] Direct NVIDIA API error:", nvidiaErr.message);
+      }
     }
 
-    return res.json({ reply });
+    // 3. Tertiary Engine: Google Gemini API if configured
+    const activeGeminiKey = (customApiKey && customApiKey.startsWith("AIzaSy") ? customApiKey : null) || process.env.GEMINI_API_KEY;
+    if (activeGeminiKey && activeGeminiKey !== "MY_GEMINI_API_KEY") {
+      try {
+        const client = new GoogleGenAI({ apiKey: activeGeminiKey });
+        const geminiPrompt = `You are Axiom, a friendly, brilliant AI Math Tutor.
+Context: ${context || ''}
+User: ${lastUserMessage}
+Answer concisely, intuitively, and warmly in 2-3 sentences.`;
+
+        const geminiRes = await client.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: geminiPrompt
+        });
+        const reply = geminiRes.text?.trim();
+        if (reply) {
+          return res.json({ reply });
+        }
+      } catch (geminiErr: any) {
+        console.warn("[Chat] Direct Gemini call error:", geminiErr.message);
+      }
+    }
+
+    // 4. Local Ollama if explicitly enabled
+    if (process.env.OLLAMA_ENABLED === "true") {
+      try {
+        const ollamaUrl = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
+        const ollamaModel = process.env.OLLAMA_MODEL || "llama3";
+        const oController = new AbortController();
+        const oTimeout = setTimeout(() => oController.abort(), 2000);
+        const ollamaRes = await fetch(`${ollamaUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: oController.signal,
+          body: JSON.stringify({
+            model: ollamaModel,
+            messages,
+            stream: false
+          })
+        });
+        clearTimeout(oTimeout);
+        if (ollamaRes.ok) {
+          const oData = await ollamaRes.json() as any;
+          const reply = oData.message?.content?.trim();
+          if (reply) return res.json({ reply });
+        }
+      } catch (oErr) {
+        // Fall through
+      }
+    }
+
+    // 5. Intelligent Built-in Math Tutor Fallback
+    const fallbackReply = generateSmartMathTutorReply(lastUserMessage, context);
+    return res.json({ reply: fallbackReply });
 
   } catch (err: any) {
-    console.error("[Ollama] Chat connection failed:", err.message);
-    const isConnRefused =
-      err.name === "AbortError"
-        ? "Ollama request timed out after 60 seconds."
-        : err.cause?.code === "ECONNREFUSED" || err.message?.includes("fetch failed") || err.message?.includes("ECONNREFUSED")
-        ? "Cannot connect to Ollama at http://127.0.0.1:11434. Please start Ollama on your machine (`ollama serve` or open the Ollama app)."
-        : `Ollama error: ${err.message}`;
-
-    return res.status(503).json({
-      error: isConnRefused,
-      reply: isConnRefused
-    });
+    console.error("[Chat] Unexpected error:", err.message);
+    const fallback = generateSmartMathTutorReply(req.body?.messages?.[req.body.messages.length - 1]?.content || "", req.body?.context);
+    return res.json({ reply: fallback });
   }
+});
+
+// Chat engine status endpoint
+app.get('/api/chat/status', (req, res) => {
+  const nvidiaKey = process.env.NVIDIA_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  res.json({
+    connected: Boolean(nvidiaKey || geminiKey),
+    engine: nvidiaKey ? "NVIDIA Nemotron 3.5" : geminiKey ? "Google Gemini" : "Built-in Math Engine",
+    model: process.env.NVIDIA_MODEL || "nvidia/nemotron-3.5-lightning-30b-a3b",
+    hasKey: Boolean(nvidiaKey || geminiKey),
+  });
 });
 
 app.use("/api", backendProxy);

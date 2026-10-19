@@ -815,21 +815,22 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
     - rotate(...)
     - scale(...)
     - reflect(...)
-    - distance([x1, y1], [x2, y2])
-    - midpoint([x1, y1], [x2, y2])
-    - slope([x1, y1], [x2, y2])
+    - distance([x1, y1], [x2, y2]), distance between (0, 0) and (3, 4)
+    - midpoint([x1, y1], [x2, y2]), midpoint of (1, 2) and (5, 6)
+    - slope([x1, y1], [x2, y2]), slope through (1, 1) and (4, 7)
     - line([x1, y1], [x2, y2])
-    - circle(5) / circle_area(5)
-    - pythagorean(3, 4) / pythagoras(3, 4)
-    - triangle(3, 4, 5) / triangle_area(...)
-    - rectangle(4, 6) / square(5)
+    - circle(5) / circle radius 5 / area of circle 5
+    - pythagorean(3, 4) / hypotenuse of 3 and 4 / right triangle legs 6 and 8
+    - triangle(3, 4, 5) / triangle a=5, b=6, c=7 / triangle base 10 height 4
+    - rectangle(4, 6) / square(5) / area of rectangle 4 by 6
     - sphere(4) / cylinder(3, 7) / cone(3, 4)
     """
     s = input_str.strip()
     s_lower = s.lower()
+    s_clean = re.sub(r'^(what\s+is\s+|calculate\s+|evaluate\s+|solve\s+|find\s+|compute\s+|the\s+area\s+of\s+|the\s+perimeter\s+of\s+|the\s+volume\s+of\s+|the\s+)', '', s_lower).strip()
     
     # 1. Translation
-    if s_lower.startswith('translate'):
+    if 'translate' in s_clean:
         m = re.search(r'translate\((.*?),\s*([-+]?\d*\.?\d+),\s*([-+]?\d*\.?\d+)\)', s, re.I)
         if m:
             shape, dx, dy = m.group(1).strip(), float(m.group(2)), float(m.group(3))
@@ -838,7 +839,7 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
         raise ValueError("Usage: translate(shape, dx, dy)")
         
     # 2. Rotation
-    if s_lower.startswith('rotate'):
+    if 'rotate' in s_clean:
         m = re.search(r'rotate\((.*?),\s*([-+]?\d*\.?\d+)\)', s, re.I)
         if m:
             shape, angle = m.group(1).strip(), float(m.group(2))
@@ -847,7 +848,7 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
         raise ValueError("Usage: rotate(shape, angle)")
         
     # 3. Scaling
-    if s_lower.startswith('scale'):
+    if 'scale' in s_clean:
         m = re.search(r'scale\((.*?),\s*([-+]?\d*\.?\d+)\)', s, re.I)
         if m:
             shape, factor = m.group(1).strip(), float(m.group(2))
@@ -856,7 +857,7 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
         raise ValueError("Usage: scale(shape, factor)")
         
     # 4. Reflection
-    if s_lower.startswith('reflect'):
+    if 'reflect' in s_clean:
         m = re.search(r'reflect\((.*?)(?:,\s*([a-zA-Z0-9_\-]+))?\)', s, re.I)
         if m:
             shape = m.group(1).strip()
@@ -866,17 +867,17 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
         raise ValueError("Usage: reflect(shape, axis)")
         
     # 5. Distance between 2 points
-    if s_lower.startswith('distance') or 'dist(' in s_lower:
+    if 'distance' in s_clean or 'dist' in s_clean:
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         if len(nums) >= 4:
             p1 = (float(nums[0]), float(nums[1]))
             p2 = (float(nums[2]), float(nums[3]))
             val, steps = distance(p1, p2)
             return f"d = {fmt_num(val)}", steps
-        raise ValueError("Usage: distance([x1, y1], [x2, y2])")
+        raise ValueError("Usage: distance([x1, y1], [x2, y2]) or distance between (x1, y1) and (x2, y2)")
         
     # 6. Midpoint
-    if s_lower.startswith('midpoint') or 'mid(' in s_lower:
+    if 'midpoint' in s_clean or 'mid(' in s_clean or 'mid ' in s_clean:
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         if len(nums) >= 4:
             p1 = (float(nums[0]), float(nums[1]))
@@ -886,7 +887,7 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
         raise ValueError("Usage: midpoint([x1, y1], [x2, y2])")
         
     # 7. Slope
-    if s_lower.startswith('slope'):
+    if 'slope' in s_clean:
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         if len(nums) >= 4:
             p1 = (float(nums[0]), float(nums[1]))
@@ -896,7 +897,7 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
         raise ValueError("Usage: slope([x1, y1], [x2, y2])")
         
     # 8. Line equation
-    if s_lower.startswith('line'):
+    if 'line' in s_clean and any(k in s_clean for k in ['between', 'through', 'equation', 'points', 'line(']):
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         if len(nums) >= 4:
             p1 = (float(nums[0]), float(nums[1]))
@@ -905,24 +906,98 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
             return val, steps
         raise ValueError("Usage: line([x1, y1], [x2, y2])")
         
-    # 9. Pythagorean theorem
-    if 'pythagor' in s_lower:
-        nums = re.findall(r'[-+]?\d*\.?\d+', s)
-        if len(nums) >= 2:
-            a, b = float(nums[0]), float(nums[1])
-            val, steps = pythagorean(a=a, b=b)
-            return f"c = {fmt_num(val)}", steps
-        raise ValueError("Usage: pythagorean(a, b)")
+    # 9. Pythagorean theorem / Hypotenuse / Right triangle leg solving
+    if any(k in s_clean for k in ['pythagor', 'hypotenuse', 'hypot', 'right triangle']):
+        m_a = re.search(r'\ba\s*=\s*([-+]?\d*\.?\d+)', s, re.I)
+        m_b = re.search(r'\bb\s*=\s*([-+]?\d*\.?\d+)', s, re.I)
+        m_c = re.search(r'\bc\s*=\s*([-+]?\d*\.?\d+)', s, re.I)
+        a_val = float(m_a.group(1)) if m_a else None
+        b_val = float(m_b.group(1)) if m_b else None
+        c_val = float(m_c.group(1)) if m_c else None
+        
+        nums = [float(n) for n in re.findall(r'[-+]?\d*\.?\d+', s)]
+        if a_val is None and b_val is None and c_val is None:
+            if len(nums) >= 2:
+                a_val, b_val = nums[0], nums[1]
+        elif a_val is not None and b_val is None and len(nums) >= 2:
+            rem = [n for n in nums if n != a_val]
+            if rem: b_val = rem[0]
+            
+        if a_val is not None or b_val is not None:
+            # Check if hypotenuse was explicitly given as an input (e.g., hypotenuse is 10, hypotenuse = 13, c = 5)
+            m_hyp = re.search(r'hypotenuse\s*(?:is|=|:)\s*([-+]?\d*\.?\d+)', s, re.I) or re.search(r'\bc\s*=\s*([-+]?\d*\.?\d+)', s, re.I)
+            if m_hyp and len(nums) >= 2 and c_val is None:
+                c_val = float(m_hyp.group(1))
+                rem = [n for n in nums if n != c_val]
+                a_val = rem[0] if rem else None
+                b_val = None
+                
+            val, steps = pythagorean(a=a_val, b=b_val, c=c_val)
+            missing = "c" if c_val is None else ("a" if a_val is None else "b")
+            return f"{missing} = {fmt_num(val)}", steps
+        raise ValueError("Usage: pythagorean(a, b) or hypotenuse of a and b")
         
     # 10. Circle solve (area, circumference)
-    if 'circle' in s_lower:
-        nums = re.findall(r'[-+]?\d*\.?\d+', s)
-        r = float(nums[0]) if nums else 2.0
+    if 'circle' in s_clean:
+        m_d = re.search(r'diameter\s*(?:is|=|of)?\s*([-+]?\d*\.?\d+)', s, re.I)
+        m_r = re.search(r'radius\s*(?:is|=|of)?\s*([-+]?\d*\.?\d+)', s, re.I) or re.search(r'\br\s*=\s*([-+]?\d*\.?\d+)', s, re.I)
+        if m_d:
+            r = float(m_d.group(1)) / 2.0
+        elif m_r:
+            r = float(m_r.group(1))
+        else:
+            nums = re.findall(r'[-+]?\d*\.?\d+', s)
+            r = float(nums[0]) if nums else 2.0
         data, steps = circle_solve(r)
-        return f"A = {data['area']:.4g}, C = {data['circumference']:.4g}", steps
+        return f"A = {data['area']:.4g}, C = {data['circumference']:.4g}, r = {fmt_num(r)}", steps
         
     # 11. Triangle solve
-    if 'triangle' in s_lower:
+    if 'triangle' in s_clean or 'heron' in s_clean:
+        is_right = bool('right' in s_clean or '90' in s_clean)
+        m_a = re.search(r'\ba\s*=\s*([-+]?\d*\.?\d+)', s, re.I)
+        m_b = re.search(r'\bb\s*=\s*([-+]?\d*\.?\d+)', s, re.I)
+        m_c = re.search(r'\bc\s*=\s*([-+]?\d*\.?\d+)', s, re.I)
+        m_A = re.search(r'\bA\s*=\s*([-+]?\d*\.?\d+)', s)
+        m_B = re.search(r'\bB\s*=\s*([-+]?\d*\.?\d+)', s)
+        m_C = re.search(r'\bC\s*=\s*([-+]?\d*\.?\d+)', s)
+        
+        a_val = float(m_a.group(1)) if m_a else None
+        b_val = float(m_b.group(1)) if m_b else None
+        c_val = float(m_c.group(1)) if m_c else None
+        A_val = float(m_A.group(1)) if m_A else None
+        B_val = float(m_B.group(1)) if m_B else None
+        C_val = float(m_C.group(1)) if m_C else None
+        
+        # If named sides or angles are provided, use comprehensive solver
+        if any(v is not None for v in [a_val, b_val, c_val, A_val, B_val, C_val]):
+            res = solve_triangle_properties(a=a_val, b=b_val, c=c_val, A=A_val, B=B_val, C=C_val, is_right=is_right)
+            parts = []
+            if 'area' in res: parts.append(f"A = {res['area']}")
+            if 'perimeter' in res: parts.append(f"P = {res['perimeter']}")
+            return ", ".join(parts) if parts else "Triangle Solved", res.get('steps', [])
+            
+        # Check base & height formula
+        m_base = re.search(r'base\s*(?:is|=|of)?\s*([-+]?\d*\.?\d+)', s, re.I)
+        m_height = re.search(r'height\s*(?:is|=|of)?\s*([-+]?\d*\.?\d+)', s, re.I)
+        if m_base and m_height:
+            base, height = float(m_base.group(1)), float(m_height.group(1))
+            area = 0.5 * base * height
+            steps = [
+                MathStep(
+                    description=f"Triangle with base b = {fmt_num(base)} and height h = {fmt_num(height)}",
+                    latex=rf"b = {fmt_num(base)}, \quad h = {fmt_num(height)}",
+                    type="geometry",
+                    data={"shapes": [{"type": "polygon", "points": [[0,0], [base, 0], [0, height]], "color": "BLUE"}]}
+                ),
+                MathStep(
+                    description="Calculate Area A = (1/2) * base * height",
+                    latex=rf"A = \frac{{1}}{{2}} b h = \frac{{1}}{{2}} ({fmt_num(base)})({fmt_num(height)}) = {fmt_num(area)}",
+                    type="geometry",
+                    data={"shapes": [{"type": "polygon", "points": [[0,0], [base, 0], [0, height]], "color": "BLUE"}]}
+                )
+            ]
+            return f"A = {fmt_num(area)}", steps
+            
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         if len(nums) >= 3:
             a, b, c = float(nums[0]), float(nums[1]), float(nums[2])
@@ -933,7 +1008,7 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
             area = 0.5 * base * height
             steps = [
                 MathStep(
-                    description=f"Right triangle with base b = {fmt_num(base)} and height h = {fmt_num(height)}",
+                    description=f"Triangle with base b = {fmt_num(base)} and height h = {fmt_num(height)}",
                     latex=rf"b = {fmt_num(base)}, \quad h = {fmt_num(height)}",
                     type="geometry",
                     data={"shapes": [{"type": "polygon", "points": [[0,0], [base, 0], [0, height]], "color": "BLUE"}]}
@@ -948,7 +1023,7 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
             return f"A = {fmt_num(area)}", steps
             
     # 12. Rectangle / Square
-    if 'rect' in s_lower or 'square' in s_lower:
+    if 'rect' in s_clean or 'square' in s_clean:
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         if len(nums) >= 2:
             w, h = float(nums[0]), float(nums[1])
@@ -960,20 +1035,20 @@ def solve_geometry(input_str: str) -> Tuple[str, List[MathStep]]:
             return f"A = {fmt_num(data['area'])}, P = {fmt_num(data['perimeter'])}", steps
             
     # 13. 3D Solvers: Sphere, Cylinder, Cone
-    if 'sphere' in s_lower:
+    if 'sphere' in s_clean:
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         r = float(nums[0]) if nums else 1.0
         data, steps = sphere_solve(r)
         return f"V = {data['volume']:.4g}, A = {data['surface_area']:.4g}", steps
         
-    if 'cylinder' in s_lower:
+    if 'cylinder' in s_clean:
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         if len(nums) >= 2:
             r, h = float(nums[0]), float(nums[1])
             data, steps = cylinder_solve(r, h)
             return f"V = {data['volume']:.4g}, A = {data['total_area']:.4g}", steps
             
-    if 'cone' in s_lower:
+    if 'cone' in s_clean:
         nums = re.findall(r'[-+]?\d*\.?\d+', s)
         if len(nums) >= 2:
             r, h = float(nums[0]), float(nums[1])

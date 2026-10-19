@@ -359,12 +359,28 @@ def unit_circle(angle_input: str) -> Tuple[Dict[str, Any], List[MathStep]]:
 # 3. TRIGONOMETRIC EVALUATION ENGINE (PURE PYTHON)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def normalize_trig_str(s: str) -> str:
+    """Normalize conversational phrases, missing parentheses, and degree formats in trig queries."""
+    clean = s.strip()
+    clean = re.sub(r'^(what\s+is\s+|calculate\s+|evaluate\s+|solve\s+|find\s+|compute\s+|the\s+value\s+of\s+|the\s+)', '', clean, flags=re.I).strip()
+    clean = re.sub(r'\bdegrees?\b', 'deg', clean, flags=re.I).replace('°', ' deg')
+    
+    # Handle unit circle queries with spaces
+    clean = re.sub(r'\bunit\s+circle\s*\(?', 'unit_circle(', clean, flags=re.I)
+    if 'unit_circle(' in clean and not clean.endswith(')'):
+        clean += ')'
+        
+    # Auto-parenthesize functions if missing: sin 30 -> sin(30), cos 45 deg -> cos(45 deg)
+    for fn in ['arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan', 'sin', 'cos', 'tan', 'sec', 'csc', 'cot']:
+        clean = re.sub(rf'\b{fn}\s+([0-9\./\w]+(?:\s*deg)?)', rf'{fn}(\1)', clean, flags=re.I)
+    return clean.strip()
+
 def evaluate_trig(expr_str: str) -> Tuple[str, List[MathStep]]:
     """Evaluate trigonometric expressions with full step-by-step reasoning."""
-    s = expr_str.strip()
+    s = normalize_trig_str(expr_str)
     
     # 1. Inverse functions: arcsin, arccos, arctan
-    m_inv = re.match(r'^(arcsin|asin|arccos|acos|arctan|atan)\((.*?)\)$', s, re.I)
+    m_inv = re.match(r'^(arcsin|asin|arccos|acos|arctan|atan)\(([^()]+)\)$', s, re.I)
     if m_inv:
         func, arg_str = m_inv.group(1).lower(), m_inv.group(2).strip()
         val = parse_number_or_radical(arg_str)
@@ -429,7 +445,7 @@ def evaluate_trig(expr_str: str) -> Tuple[str, List[MathStep]]:
             return f"{rad_lat} ({deg_lat})", steps
 
     # 2. Forward trigonometric functions: sin, cos, tan, sec, csc, cot
-    m_fwd = re.match(r'^(sin|cos|tan|sec|csc|cot)\((.*?)\)$', s, re.I)
+    m_fwd = re.match(r'^(sin|cos|tan|sec|csc|cot)\(([^()]+)\)$', s, re.I)
     if m_fwd:
         func, arg_str = m_fwd.group(1).lower(), m_fwd.group(2).strip()
         rad, deg, angle_latex = parse_angle(arg_str)
@@ -494,6 +510,49 @@ def evaluate_trig(expr_str: str) -> Tuple[str, List[MathStep]]:
             )
         ]
         return val_lat, steps
+
+    # 3. Compound trigonometric expressions (e.g., sin(pi/6) + cos(pi/3))
+    trig_calls = list(re.finditer(r'(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan)\((.*?)\)', s, re.I))
+    if len(trig_calls) >= 1 and any(op in s for op in ['+', '-', '*', '/']):
+        steps = [MathStep(f"Evaluate compound trigonometric expression: {s}", rf"{s}", "equation")]
+        eval_expr = s
+        for match in trig_calls:
+            term = match.group(0)
+            try:
+                term_val_lat, _ = evaluate_trig(term)
+                func, arg = match.group(1).lower(), match.group(2).strip()
+                if func in ['arcsin', 'asin']: num_val = math.asin(float(arg))
+                elif func in ['arccos', 'acos']: num_val = math.acos(float(arg))
+                elif func in ['arctan', 'atan']: num_val = math.atan(float(arg))
+                else:
+                    rad_val, _, _ = parse_angle(arg)
+                    if func == 'sin': num_val = math.sin(rad_val)
+                    elif func == 'cos': num_val = math.cos(rad_val)
+                    elif func == 'tan': num_val = math.tan(rad_val)
+                    elif func == 'sec': num_val = 1.0 / math.cos(rad_val)
+                    elif func == 'csc': num_val = 1.0 / math.sin(rad_val)
+                    else: num_val = math.cos(rad_val) / math.sin(rad_val)
+                
+                steps.append(MathStep(
+                    description=f"Evaluate component {term} = {term_val_lat}",
+                    latex=rf"{term} = {term_val_lat}",
+                    type="equation"
+                ))
+                eval_expr = eval_expr.replace(term, f"({num_val})")
+            except Exception:
+                pass
+                
+        try:
+            total_val = float(eval(eval_expr.replace('^', '**'), {"__builtins__": None, "math": math}))
+            final_lat = format_radical_latex(total_val)
+            steps.append(MathStep(
+                description=f"Combine evaluated terms to obtain final result",
+                latex=rf"= {final_lat}",
+                type="equation"
+            ))
+            return final_lat, steps
+        except Exception:
+            pass
 
     raise ValueError(f"Cannot evaluate trigonometric expression: {expr_str}")
 
@@ -1415,17 +1474,19 @@ def solve_trigonometry(input_str: str) -> Tuple[str, List[MathStep]]:
     Intelligent pure-Python trigonometry parser and dispatcher.
     Zero external dependencies.
     Handles:
-    - Unit circle: unit_circle(pi/4), unit_circle(45)
+    - Unit circle: unit_circle(pi/4), unit_circle(45), unit circle 30
     - Trig equations: sin(x) = 1 - cos(x), 2*sin(x) - 1 = 0, sin(2x) = 1, sin(x) = cos(x)
-    - Evaluations: sin(pi/6), cos(45 deg), tan(pi/4), arcsin(0.5)
+    - Evaluations: sin(pi/6), cos(45 deg), tan(pi/4), arcsin(0.5), sin 30, what is cos(60)
     - Identities: sin(x)^2 + cos(x)^2, 1 + tan(x)^2, sin(2x)
     """
-    s = input_str.strip()
+    s = normalize_trig_str(input_str)
     s_lower = s.lower()
     
     # 1. Unit circle query
-    if s_lower.startswith('unit_circle') or s_lower.startswith('unitcircle'):
+    if 'unit_circle' in s_lower or 'unitcircle' in s_lower or 'unit circle' in s_lower:
         m = re.search(r'unit_?circle\((.*?)\)', s, re.I)
+        if not m:
+            m = re.search(r'unit\s+circle\s+(.*)', s, re.I)
         arg = m.group(1).strip() if m else "pi/4"
         data, steps = unit_circle(arg)
         return f"cos={data['cos_latex']}, sin={data['sin_latex']}", steps
