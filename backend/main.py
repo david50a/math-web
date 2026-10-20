@@ -20,8 +20,26 @@ import requests
 from PIL import Image
 from io import BytesIO
 import pytesseract
+import time
+import secrets
 from openai import OpenAI
 import dotenv
+
+import security
+from security import (
+    limiter,
+    get_client_ip,
+    validate_email_format,
+    validate_password_strength,
+    sanitize_input_text,
+    sanitize_base64_image,
+    verify_media_path,
+    sanitize_env_for_manim,
+    log_security_event,
+    get_security_telemetry,
+    constant_time_verify,
+    SESSION_EXPIRY_SECONDS,
+)
 
 # Load environment variables (.env)
 dotenv.load_dotenv()
@@ -41,9 +59,12 @@ try:
     import trigonometry
     import trigoemetry
     import eigenvalues_and_eigenvector as eigen
+    import function_analyzer
+    import proof_engine
     from math_models import Const, Var, Add, Mul, Pow, Sin, Cos, Exp, Ln, to_string, to_latex, simplify, Node, MathStep, parse_expr
 except ImportError as e:
     print(f"Import error: {e}")
+
 
 app = FastAPI()
 
@@ -87,9 +108,18 @@ def init_db():
             email TEXT UNIQUE,
             password TEXT,
             is_premium INTEGER DEFAULT 0,
-            session_token TEXT
+            session_token TEXT,
+            session_expires_at REAL DEFAULT 0
         )
     """)
+    # Automatically add session_expires_at column if updating existing database
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "session_expires_at" not in columns:
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN session_expires_at REAL DEFAULT 0")
+        except Exception:
+            pass
     conn.commit()
     conn.close()
     
@@ -117,24 +147,38 @@ def hash_password(password: str, salt: bytes = None) -> str:
     return salt.hex() + ":" + key.hex()
 
 def verify_password(stored_password: str, provided_password: str) -> bool:
-    try:
-        salt_hex, key_hex = stored_password.split(":")
-        salt = bytes.fromhex(salt_hex)
-        key = hashlib.pbkdf2_hmac('sha256', provided_password.encode('utf-8'), salt, 100000)
-        return key.hex() == key_hex
-    except Exception:
-        return False
+    return constant_time_verify(stored_password, provided_password)
 
 def get_user_by_token(token: str):
     if not token:
         return None
-    token = token.replace("Bearer ", "").strip()
-    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    clean_token = token.replace("Bearer ", "").strip()
+    if not clean_token:
+        return None
+    token_hash = hashlib.sha256(clean_token.encode('utf-8')).hexdigest()
     
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE session_token = ?", (token_hash,))
     user = cursor.fetchone()
+    
+    if not user:
+        conn.close()
+        return None
+        
+    # Check session expiration
+    now = time.time()
+    try:
+        expires_at = user["session_expires_at"] or 0
+    except (IndexError, KeyError):
+        expires_at = 0
+        
+    if expires_at and expires_at < now:
+        cursor.execute("UPDATE users SET session_token = NULL, session_expires_at = 0 WHERE id = ?", (user["id"],))
+        conn.commit()
+        conn.close()
+        return None
+        
     conn.close()
     return user
 
@@ -163,38 +207,77 @@ class QuestionRequest(BaseModel):
 
 class UpgradeRequest(BaseModel):
     token: str
+
 @app.get('/')
 async def root():
     return 'Hello World'
-# Auth & Payment Routes
+
+# Auth & Payment Routes with Security Hardening
 @app.post("/api/auth/signup", response_model=UserResponse)
-async def auth_signup(req: UserSignUp):
+async def auth_signup(req: UserSignUp, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
+    
+    # Rate limit signups: max 10 per minute per IP
+    is_limited, retry_after = limiter.check_rate_limit(f"signup:{client_ip}", max_requests=10, window_seconds=60)
+    if is_limited:
+        log_security_event("RATE_LIMIT_EXCEEDED", "WARNING", client_ip, "/api/auth/signup", {"retry_after": retry_after})
+        raise HTTPException(status_code=429, detail=f"Too many signup requests. Please wait {retry_after} seconds.")
+
     email = req.email.strip().lower()
-    if not email or not req.password:
-        raise HTTPException(status_code=400, detail="Email and password are required")
+    valid_email, email_err = validate_email_format(email)
+    if not valid_email:
+        raise HTTPException(status_code=400, detail=email_err)
+
+    valid_pw, pw_err = validate_password_strength(req.password)
+    if not valid_pw:
+        raise HTTPException(status_code=400, detail=pw_err)
     
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
     if cursor.fetchone():
         conn.close()
-        raise HTTPException(status_code=400, detail="A user with this email already exists")
+        log_security_event("SIGNUP_FAILED", "WARNING", client_ip, "/api/auth/signup", {"reason": "Duplicate email", "email": email})
+        raise HTTPException(status_code=400, detail="A user with this email already exists.")
     
     user_id = str(uuid.uuid4())
     pw_hash = hash_password(req.password)
+    session_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(session_token.encode('utf-8')).hexdigest()
+    expires_at = time.time() + SESSION_EXPIRY_SECONDS
     
     cursor.execute(
-        "INSERT INTO users (id, email, password, is_premium) VALUES (?, ?, ?, 0)",
-        (user_id, email, pw_hash)
+        "INSERT INTO users (id, email, password, is_premium, session_token, session_expires_at) VALUES (?, ?, ?, 0, ?, ?)",
+        (user_id, email, pw_hash, token_hash, expires_at)
     )
     conn.commit()
     conn.close()
     
-    return UserResponse(id=user_id, email=email, is_premium=False)
+    log_security_event("USER_REGISTERED", "INFO", client_ip, "/api/auth/signup", {"email": email, "user_id": user_id})
+    return UserResponse(id=user_id, email=email, is_premium=False, session_token=session_token)
 
 @app.post("/api/auth/signin", response_model=UserResponse)
-async def auth_signin(req: UserSignIn):
+async def auth_signin(req: UserSignIn, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
     email = req.email.strip().lower()
+    
+    # Check brute force lockouts on IP and Email
+    is_locked_ip, retry_ip = limiter.is_locked_out(f"lock:ip:{client_ip}", max_failures=5, lock_duration=600)
+    if is_locked_ip:
+        log_security_event("ACCOUNT_LOCKED", "ALERT", client_ip, "/api/auth/signin", {"reason": "IP locked out", "retry_in": retry_ip})
+        raise HTTPException(status_code=429, detail=f"Too many failed login attempts from this address. Try again in {retry_ip} seconds.")
+
+    is_locked_user, retry_user = limiter.is_locked_out(f"lock:email:{email}", max_failures=5, lock_duration=600)
+    if is_locked_user:
+        log_security_event("ACCOUNT_LOCKED", "ALERT", client_ip, "/api/auth/signin", {"reason": "Email locked out", "email": email, "retry_in": retry_user})
+        raise HTTPException(status_code=429, detail=f"Account temporarily locked due to repeated failed logins. Try again in {retry_user} seconds.")
+
+    # General rate limit for signin requests: 20 per minute
+    is_limited, retry_after = limiter.check_rate_limit(f"signin:{client_ip}", max_requests=20, window_seconds=60)
+    if is_limited:
+        log_security_event("RATE_LIMIT_EXCEEDED", "WARNING", client_ip, "/api/auth/signin", {"retry_after": retry_after})
+        raise HTTPException(status_code=429, detail=f"Rate limit exceeded. Please wait {retry_after} seconds.")
+
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
@@ -202,21 +285,45 @@ async def auth_signin(req: UserSignIn):
     
     if not user or not verify_password(user["password"], req.password):
         conn.close()
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        limiter.record_failure(f"lock:ip:{client_ip}")
+        limiter.record_failure(f"lock:email:{email}")
+        log_security_event("AUTH_FAILED", "WARNING", client_ip, "/api/auth/signin", {"email": email})
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
     
-    session_token = str(uuid.uuid4())
+    # Reset failure counters on successful signin
+    limiter.reset_failures(f"lock:ip:{client_ip}")
+    limiter.reset_failures(f"lock:email:{email}")
+
+    session_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(session_token.encode('utf-8')).hexdigest()
+    expires_at = time.time() + SESSION_EXPIRY_SECONDS
     
-    cursor.execute("UPDATE users SET session_token = ? WHERE id = ?", (token_hash, user["id"]))
+    cursor.execute("UPDATE users SET session_token = ?, session_expires_at = ? WHERE id = ?", (token_hash, expires_at, user["id"]))
     conn.commit()
     conn.close()
     
+    log_security_event("AUTH_SUCCESS", "INFO", client_ip, "/api/auth/signin", {"email": email, "user_id": user["id"]})
     return UserResponse(
         id=user["id"],
         email=user["email"],
         is_premium=bool(user["is_premium"]),
         session_token=session_token
     )
+
+@app.post("/api/auth/signout")
+async def auth_signout(raw_req: Request, authorization: Optional[str] = Header(None)):
+    client_ip = get_client_ip(raw_req)
+    if authorization:
+        clean_token = authorization.replace("Bearer ", "").strip()
+        if clean_token:
+            token_hash = hashlib.sha256(clean_token.encode('utf-8')).hexdigest()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET session_token = NULL, session_expires_at = 0 WHERE session_token = ?", (token_hash,))
+            conn.commit()
+            conn.close()
+            log_security_event("AUTH_SIGNOUT", "INFO", client_ip, "/api/auth/signout", {"status": "token_revoked"})
+    return {"success": True, "detail": "Session token successfully revoked."}
 
 @app.get("/api/auth/me", response_model=UserResponse)
 async def auth_me(authorization: Optional[str] = Header(None)):
@@ -253,45 +360,60 @@ async def payment_upgrade(req: UpgradeRequest):
         session_token=req.token
     )
 
+@app.get("/api/security/telemetry")
+async def security_telemetry_api(raw_req: Request):
+    client_ip = get_client_ip(raw_req)
+    is_limited, _ = limiter.check_rate_limit(f"telemetry:{client_ip}", max_requests=60, window_seconds=60)
+    if is_limited:
+        raise HTTPException(status_code=429, detail="Telemetry rate limit exceeded")
+    return get_security_telemetry()
+
 from fastapi.responses import FileResponse
 
 @app.get("/api/media/{file_path:path}")
 async def get_media(file_path: str, authorization: Optional[str] = Header(None)):
     user = get_user_by_token(authorization) if authorization else None
     
-    norm_media_dir = os.path.abspath(MEDIA_DIR)
-    full_path = os.path.abspath(os.path.join(norm_media_dir, file_path))
+    # Secure canonical path traversal check and extension validation
+    full_path = verify_media_path(MEDIA_DIR, file_path)
     
-    # Strict directory traversal check
-    try:
-        if os.path.commonpath([norm_media_dir, full_path]) != norm_media_dir:
-            raise HTTPException(status_code=403, detail="Access denied")
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
-        
-    if not os.path.exists(full_path) or not os.path.isfile(full_path):
-        raise HTTPException(status_code=404, detail="Media not found")
-        
     # Inspect canonical relative path components for quality tier
+    norm_media_dir = os.path.abspath(MEDIA_DIR)
     rel_path = os.path.relpath(full_path, norm_media_dir)
     path_parts = rel_path.split(os.sep)
     is_low_quality = any(part == "480p15" for part in path_parts)
+    is_image = any(full_path.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".svg"])
     
-    # Low quality (480p15) is accessible to guests; higher qualities require authentication
-    if not is_low_quality and not user:
+    # Low quality (480p15) and static image previews are accessible to guests; higher qualities require authentication
+    if not is_low_quality and not is_image and not user:
         raise HTTPException(status_code=401, detail="Authentication token required to view high quality media")
         
     return FileResponse(full_path)
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def security_and_logging_middleware(request: Request, call_next):
     try:
         log_path = os.path.join(BASE_DIR, "request_log.txt")
         log_entry = f"{request.method} {request.url.path}\n"
         await asyncio.to_thread(lambda: open(log_path, "a", encoding="utf-8").write(log_entry))
     except Exception:
         pass
+    
     response = await call_next(request)
+    
+    # Standard HTTP Security Headers & Content-Security-Policy
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:; "
+        "img-src 'self' data: blob: https:; "
+        "media-src 'self' blob: data: http: https:; "
+        "frame-ancestors 'self';"
+    )
+    
     return response
 
 class SolveRequest(BaseModel):
@@ -989,9 +1111,13 @@ def normalize_matrix_latex(text: str) -> str:
     return s
 
 @app.post("/api/ocr")
-async def ocr_api(request: OCRRequest):
-    if not request.imageBase64:
-        raise HTTPException(status_code=400, detail="No image provided")
+async def ocr_api(request: OCRRequest, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
+    is_limited, retry_after = limiter.check_rate_limit(f"ocr:{client_ip}", max_requests=20, window_seconds=60)
+    if is_limited:
+        raise HTTPException(status_code=429, detail=f"OCR rate limit reached. Please wait {retry_after} seconds.")
+
+    request.imageBase64 = sanitize_base64_image(request.imageBase64)
     try:
         base64_str = re.sub(r'^data:image/\w+;base64,', '', request.imageBase64)
         img_data = base64.b64decode(base64_str)
@@ -1066,9 +1192,13 @@ async def ocr_api(request: OCRRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/shape-ocr")
-async def shape_ocr_api(request: ShapeOCRRequest):
-    if not request.imageBase64:
-        raise HTTPException(status_code=400, detail="No image provided")
+async def shape_ocr_api(request: ShapeOCRRequest, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
+    is_limited, retry_after = limiter.check_rate_limit(f"ocr:{client_ip}", max_requests=20, window_seconds=60)
+    if is_limited:
+        raise HTTPException(status_code=429, detail=f"Shape OCR rate limit reached. Please wait {retry_after} seconds.")
+
+    request.imageBase64 = sanitize_base64_image(request.imageBase64)
     try:
         base64_str = re.sub(r'^data:image/\w+;base64,', '', request.imageBase64)
         img_data = base64.b64decode(base64_str)
@@ -1900,11 +2030,18 @@ def solve_algebra(input_str: str, allow_complex: bool = True):
 
 
 @app.post("/api/render")
-async def render_video(request: SolveRequest, authorization: Optional[str] = Header(None)):
+async def render_video(request: SolveRequest, raw_req: Request, authorization: Optional[str] = Header(None)):
+    client_ip = get_client_ip(raw_req)
+    
+    # Rate limit video rendering: max 6 requests per minute
+    is_limited, retry_after = limiter.check_rate_limit(f"render:{client_ip}", max_requests=6, window_seconds=60)
+    if is_limited:
+        raise HTTPException(status_code=429, detail=f"Rendering rate limit reached. Please wait {retry_after} seconds.")
+
     def run_manim(cmd,env):
         subprocess.run(cmd,env=env,cwd=BASE_DIR,capture_output=True,text=True,check=True)
 
-    input_str = request.equation.strip()
+    input_str = sanitize_input_text(request.equation, max_len=1500, field_name="Equation")
     quality = request.quality or "medium"
     
     # Tier limits enforcement
@@ -1965,12 +2102,15 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
         quality_flag = "-qh"
         quality_dir = "1080p60"
 
-    # Run Manim
+    # Run Manim with sanitized environment and strict process sandbox
     env = os.environ.copy()
-    env["MATH_EXPR"] = expr
-    env["MATH_OP"] = op
-    env["MATH_METHOD_ID"] = request.method_id or ""
-    env["MATH_METHOD_NAME"] = request.method_name or ""
+    sanitized_params = sanitize_env_for_manim(
+        math_expr=expr,
+        math_op=op,
+        method_id=request.method_id or "",
+        method_name=request.method_name or ""
+    )
+    env.update(sanitized_params)
     env["PYTHONPATH"] = f"{BASE_DIR};{os.path.join(BASE_DIR, 'engine')}"
     
     video_id = str(uuid.uuid4())
@@ -1978,7 +2118,7 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
         video_script = os.path.join(BASE_DIR, "video.py")
         cmd = ["python", "-m", "manim", quality_flag, "-o", f"{video_id}.mp4", "--disable_caching", "--media_dir", MEDIA_DIR, video_script, "UniversalMathAnimation"]
         def run_manim_safe(cmd, env):
-            subprocess.run(cmd, env=env, cwd=BASE_DIR, capture_output=True, text=True, check=True, timeout=120)
+            subprocess.run(cmd, env=env, cwd=BASE_DIR, capture_output=True, text=True, check=True, timeout=120, shell=False)
         await asyncio.to_thread(run_manim_safe, cmd, env)        
         expected_file = os.path.join(MEDIA_DIR, "videos", "video", quality_dir, f"{video_id}.mp4")
         default_file = os.path.join(MEDIA_DIR, "videos", "video", quality_dir, "UniversalMathAnimation.mp4")
@@ -1995,7 +2135,15 @@ async def render_video(request: SolveRequest, authorization: Optional[str] = Hea
 
 @app.post("/api/solve", response_model=EquationSolution)
 async def solve_api(request: SolveRequest, raw_req: Request, authorization: Optional[str] = Header(None)):
-    input_str = normalize_matrix_latex(request.equation.strip())
+    client_ip = get_client_ip(raw_req)
+    
+    # Rate limit solves: max 40 requests per minute
+    is_limited, retry_after = limiter.check_rate_limit(f"solve:{client_ip}", max_requests=40, window_seconds=60)
+    if is_limited:
+        raise HTTPException(status_code=429, detail=f"Too many solve requests. Please wait {retry_after} seconds.")
+
+    clean_eq = sanitize_input_text(request.equation, max_len=2000, field_name="Equation")
+    input_str = normalize_matrix_latex(clean_eq)
     equation_type = "Algebra"
     
     # Tier limits enforcement
@@ -2329,7 +2477,75 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
 def read_root():
     return {"status": "active", "engine": "Axiom v4.0"}
 
+class FunctionAnalysisRequest(BaseModel):
+    function: str
+    domain_min: Optional[float] = -10.0
+    domain_max: Optional[float] = 10.0
+
+@app.post("/api/function/analyze")
+async def analyze_function_api(request: FunctionAnalysisRequest):
+    if not request.function or not request.function.strip():
+        raise HTTPException(status_code=400, detail="Function expression cannot be empty.")
+    try:
+        domain_min = request.domain_min if request.domain_min is not None else -10.0
+        domain_max = request.domain_max if request.domain_max is not None else 10.0
+        res = function_analyzer.analyze_function(request.function.strip(), domain_min=domain_min, domain_max=domain_max)
+        return res
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"Function analysis error: {str(e)}")
+
+
+class ProofRequest(BaseModel):
+    statement: str
+    method: Optional[str] = "auto"
+    domain: Optional[str] = None
+
+@app.post("/api/proof/prove")
+def prove_statement_api(request: ProofRequest):
+    if not request.statement or not request.statement.strip():
+        raise HTTPException(status_code=400, detail="Proof statement cannot be empty.")
+    try:
+        res = proof_engine.prove_statement(
+            statement=request.statement.strip(),
+            method=request.method or "auto",
+            domain=request.domain
+        )
+        return res
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"Proof Engine error: {str(e)}")
+
+@app.get("/api/proof/library")
+def get_proof_library_api():
+    try:
+        return proof_engine.get_proof_library()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class VerifyProofStepRequest(BaseModel):
+    current_expr: str
+    next_step: str
+    target_expr: Optional[str] = None
+
+@app.post("/api/proof/verify-step")
+def verify_proof_step_api(request: VerifyProofStepRequest):
+    if not request.current_expr or not request.next_step:
+        raise HTTPException(status_code=400, detail="Expressions cannot be empty.")
+    try:
+        return proof_engine.verify_proof_step(
+            current_expr=request.current_expr.strip(),
+            user_next_step=request.next_step.strip(),
+            target_expr=request.target_expr.strip() if request.target_expr else None
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 class WordProblemRequest(BaseModel):
+
     question: str
 
 @app.post("/api/word-problem/solve")
@@ -2395,7 +2611,16 @@ class WordProblemVideoRenderRequest(BaseModel):
     scenes: List[Dict[str, Any]]
 
 @app.post("/api/word-problem/video/render-manim")
-async def render_word_problem_manim_api(request: WordProblemVideoRenderRequest):
+async def render_word_problem_manim_api(request: WordProblemVideoRenderRequest, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
+    is_limited, retry_after = limiter.check_rate_limit(f"wp_render:{client_ip}", max_requests=6, window_seconds=60)
+    if is_limited:
+        raise HTTPException(status_code=429, detail=f"Word problem rendering rate limit reached. Please wait {retry_after} seconds.")
+    
+    request.title = sanitize_input_text(request.title, max_len=200, field_name="Title")
+    if len(request.scenes) > 25:
+        raise HTTPException(status_code=400, detail="Maximum 25 scenes allowed per render.")
+
     try:
         from video import render_word_problem_manim
         filename = f"word_problem_{uuid.uuid4().hex[:8]}.mp4"
@@ -2414,16 +2639,6 @@ async def render_word_problem_manim_api(request: WordProblemVideoRenderRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Manim render error: {str(e)}")
-
-@app.get("/api/media/{file_path:path}")
-def serve_media_file(file_path: str):
-    full_path = os.path.normpath(os.path.join(MEDIA_DIR, file_path))
-    if not full_path.startswith(os.path.normpath(MEDIA_DIR)):
-        raise HTTPException(status_code=403, detail="Forbidden")
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="Media file not found")
-    from fastapi.responses import FileResponse
-    return FileResponse(full_path)
 
 if __name__ == "__main__":
     import uvicorn

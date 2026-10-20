@@ -1,0 +1,2 @@
+{"timestamp": 1792502633.1604917, "iso_time": "2026-10-20T13:23:53Z", "event_type": "USER_REGISTERED", "severity": "INFO", "client_ip": "127.0.0.1", "endpoint": "/api/auth/signup", "details": {"email": "cyber_test@academy.edu", "user_id": "812a7dfb-44f3-4cb9-a3f2-747cdc2819f7"}}
+{"timestamp": 1792502633.1821094, "iso_time": "2026-10-20T13:23:53Z", "event_type": "AUTH_SIGNOUT", "severity": "INFO", "client_ip": "127.0.0.1", "endpoint": "/api/auth/signout", "details": {"status": "token_revoked"}}

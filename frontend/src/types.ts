@@ -255,4 +255,165 @@ export interface WordProblemPreset {
   tag: string;
 }
 
+export interface FunctionExtremum {
+  x: number;
+  y: number;
+  type: "local_max" | "local_min" | "saddle";
+  label: string;
+  x_latex: string;
+  y_latex: string;
+  test_value: number;
+}
 
+export interface FunctionRoot {
+  x: number;
+  latex: string;
+  exact: string;
+}
+
+export interface FunctionInflection {
+  x: number;
+  y: number;
+  x_latex: string;
+  y_latex: string;
+}
+
+export interface FunctionAsymptotes {
+  vertical: Array<{ x: number; latex: string }>;
+  horizontal: Array<{ y: number; latex: string }>;
+  oblique: Array<{ m: number; b: number; latex: string; expr: string }>;
+}
+
+export interface FunctionStepItem {
+  description: string;
+  latex: string;
+}
+
+export interface FunctionAnalysisStep {
+  title: string;
+  latex: string;
+  explanation: string;
+  category?: "general" | "derivative" | "extrema" | "roots" | "inflection" | "integral" | string;
+}
+
+export interface FunctionAnalysisResult {
+  expression: string;
+  latex: string;
+  derivative_latex: string;
+  derivative_expr: string;
+  second_derivative_latex: string;
+  second_derivative_expr: string;
+  integral_latex: string;
+  integral_expr: string;
+  domain: string;
+  y_intercept?: { x: number; y: number; latex: string } | null;
+  roots: FunctionRoot[];
+  extrema: FunctionExtremum[];
+  inflection_points: FunctionInflection[];
+  asymptotes: FunctionAsymptotes;
+  symmetry: string;
+  monotonicity: {
+    increasing: string[];
+    decreasing: string[];
+  };
+  derivative_steps?: FunctionStepItem[];
+  critical_points_steps?: FunctionStepItem[];
+  roots_steps?: FunctionStepItem[];
+  extrema_steps?: FunctionStepItem[];
+  inflection_steps?: FunctionStepItem[];
+  integral_steps?: FunctionStepItem[];
+  step_by_step: FunctionAnalysisStep[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROOF ENGINE TYPES
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ProofStep {
+  step_number: number;
+  title: string;
+  latex: string;
+  justification: string;
+  rule_name?: string;
+  sub_steps?: string[];
+  status?: "valid" | "verified" | "assumption" | "conclusion" | "invalid";
+}
+
+export interface TruthTableRow {
+  variables: Record<string, boolean>;
+  intermediate: Record<string, boolean>;
+  lhs: boolean;
+  rhs: boolean;
+  equivalent: boolean;
+}
+
+export interface TruthTableData {
+  headers: string[];
+  rows: TruthTableRow[];
+  isTautology: boolean;
+}
+
+export interface InductionProofData {
+  base_case: {
+    n_val: number;
+    lhs_val: string;
+    rhs_val: string;
+    lhs_latex: string;
+    rhs_latex: string;
+    is_valid: boolean;
+    explanation: string;
+  };
+  hypothesis: {
+    k_statement: string;
+    k_latex: string;
+    explanation: string;
+  };
+  inductive_step: {
+    target_latex: string;
+    steps: ProofStep[];
+    conclusion_latex: string;
+  };
+  summary: string;
+}
+
+export interface ProofResult {
+  statement: string;
+  latex_statement: string;
+  is_valid: boolean;
+  proof_type: "induction" | "identity" | "trig_identity" | "algebraic_identity" | "contradiction" | "calculus" | "logic" | "inequality" | "custom" | string;
+  proof_type_label: string;
+  summary: string;
+  formal_steps: ProofStep[];
+  qed_symbol: string;
+  confidence: number;
+  induction_data?: InductionProofData;
+  truth_table?: TruthTableData;
+  alternate_proofs?: Array<{
+    name: string;
+    description: string;
+    steps: ProofStep[];
+  }>;
+  assumptions?: string[];
+  lemmas_used?: string[];
+  execution_time_ms: number;
+}
+
+export interface ProofPreset {
+  id: string;
+  category: "Induction" | "Identities" | "Contradiction" | "Calculus Theorems" | "Propositional Logic" | string;
+  title: string;
+  statement: string;
+  difficulty: "Beginner" | "Intermediate" | "Advanced" | "Olympiad" | string;
+  description: string;
+  tags: string[];
+}
+
+export interface StepVerificationResult {
+  is_valid: boolean;
+  rule_name: string;
+  latex_current?: string;
+  latex_next?: string;
+  difference_latex?: string;
+  target_reached?: boolean;
+  feedback: string;
+}

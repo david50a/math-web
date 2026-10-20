@@ -1087,7 +1087,7 @@ def solve_algebra_pure(input_str: str, allow_complex: bool = True) -> Tuple[str,
         c = float(poly.coeff(0))
         D = b**2 - 4*a*c
         
-        steps.append(MathStep(
+        
             description=f"Identify coefficients of quadratic equation a{var}^2 + b{var} + c = 0",
             latex=f"a = {a:g}, \\quad b = {b:g}, \\quad c = {c:g}",
             type="equation"

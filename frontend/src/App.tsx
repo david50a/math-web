@@ -35,13 +35,19 @@ import {
   Palette,
   ChevronDown,
   Grid,
-  Brain
+  Brain,
+  TrendingUp,
+  ShieldCheck
 } from "lucide-react";
+import FunctionAnalyzer from "./components/FunctionAnalyzer";
+import ProofEngine from "./components/ProofEngine";
 import MathGraph from "./components/MathGraph";
+
 import UnifiedBoardContainer from "./components/boards/UnifiedBoardContainer";
 import Whiteboard, { KatexMath } from "./components/Whiteboard";
 import { EquationSolution, VideoScene, ThemeType, NarratorType } from "./types";
 import AuthModal from "./components/AuthModal";
+import CyberShieldModal from "./components/CyberShieldModal";
 import PaymentModal from "./components/PaymentModal";
 import AIChat from "./components/AIChat";
 import Explanation from "./components/Explanation";
@@ -88,20 +94,23 @@ interface ThemeInfo {
   border: string;
   accent: string;
   text: string;
+  muted: string;
   dot: string;
   label: string;
   subtitle?: string;
   bestFor?: string;
   vibe?: string;
   isFlagship?: boolean;
+  isLight?: boolean;
 }
 
 const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
   blueprint: {
-    bg: "bg-blueprint-canvas",
+    bg: "bg-blueprint-canvas bg-[#0b1329]",
     border: "border-cyan-500/40",
     accent: "text-cyan-400",
     text: "text-cyan-100",
+    muted: "text-cyan-300/70",
     dot: "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]",
     label: "The Architect's Blueprint",
     subtitle: "Technical & Analytical",
@@ -110,10 +119,11 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     isFlagship: true
   },
   chalkboard: {
-    bg: "bg-blackboard-canvas",
+    bg: "bg-blackboard-canvas bg-[#111813]",
     border: "border-amber-900/40",
     accent: "text-amber-300",
     text: "text-[#f5f5ed]",
+    muted: "text-amber-200/70",
     dot: "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]",
     label: "Chalk & Scholar",
     subtitle: "Classic Academic / Modern Blackboard",
@@ -122,10 +132,11 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     isFlagship: true
   },
   cosmos: {
-    bg: "bg-cosmos-canvas",
+    bg: "bg-cosmos-canvas bg-[#120a2a]",
     border: "border-purple-500/40",
     accent: "text-purple-300",
     text: "text-purple-100",
+    muted: "text-purple-300/70",
     dot: "bg-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.8)]",
     label: "Generative Cosmos / Sacred Geometry",
     subtitle: "Visual & Exploratory",
@@ -134,22 +145,25 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     isFlagship: true
   },
   lightAcademic: {
-    bg: "bg-light-academic-canvas",
-    border: "border-[#E2E8F0]",
+    bg: "bg-light-academic-canvas bg-[#ffffff]",
+    border: "border-[#CBD5E1]",
     accent: "text-[#2563EB]",
     text: "text-[#0F172A]",
+    muted: "text-[#475569]",
     dot: "bg-[#2563EB] shadow-[0_0_8px_rgba(37,99,235,0.4)]",
     label: "Light Academic",
     subtitle: "Clean & Trustworthy",
     bestFor: "Clean, high-trust environment for rigorous math solving, textbook problem exploration, and paper proof verification.",
     vibe: "Pure white cards (#FFFFFF), crisp slate text (#0F172A), cobalt blue primary (#2563EB), and vivid purple accents (#7C3AED).",
-    isFlagship: true
+    isFlagship: true,
+    isLight: true
   },
   darkAI: {
-    bg: "bg-dark-ai-canvas",
+    bg: "bg-dark-ai-canvas bg-[#0b1020]",
     border: "border-[#273449]",
     accent: "text-[#6366F1]",
     text: "text-[#F8FAFC]",
+    muted: "text-[#94A3B8]",
     dot: "bg-[#6366F1] shadow-[0_0_8px_rgba(99,102,241,0.7)]",
     label: "Dark AI",
     subtitle: "Next-Gen AI Core",
@@ -158,22 +172,25 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     isFlagship: true
   },
   notebook: {
-    bg: "bg-notebook-canvas",
-    border: "border-[#E2DAC7]",
+    bg: "bg-notebook-canvas bg-[#FAF8F3]",
+    border: "border-[#D1C7B7]",
     accent: "text-[#1E40AF]",
     text: "text-[#242018]",
+    muted: "text-[#574E3F]",
     dot: "bg-[#1E40AF] shadow-[0_0_8px_rgba(30,64,175,0.4)]",
     label: "Notebook",
     subtitle: "Digital Math Notebook",
     bestFor: "Simulating a mathematician's authentic personal lab notebook, scratchpad algebra, and study notes.",
     vibe: "Warm ivory paper (#FAF8F3), quadrille graph lines, Parker fountain pen blue (#1E40AF), and red margin indicators.",
-    isFlagship: true
+    isFlagship: true,
+    isLight: true
   },
   glassmorphic: {
     bg: "bg-[#120826]",
     border: "border-purple-500/30",
     accent: "text-fuchsia-400",
     text: "text-purple-100",
+    muted: "text-purple-300/70",
     dot: "bg-fuchsia-500",
     label: "Glass Space"
   },
@@ -182,6 +199,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     border: "border-zinc-800",
     accent: "text-red-400",
     text: "text-zinc-100",
+    muted: "text-zinc-400",
     dot: "bg-red-500",
     label: "Laser Dark"
   },
@@ -190,6 +208,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     border: "border-yellow-500/40",
     accent: "text-yellow-400",
     text: "text-yellow-100",
+    muted: "text-yellow-300/70",
     dot: "bg-yellow-400",
     label: "Cyber Neon"
   },
@@ -198,6 +217,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     border: "border-amber-800/40",
     accent: "text-amber-400",
     text: "text-amber-100",
+    muted: "text-amber-300/70",
     dot: "bg-amber-500",
     label: "Amber Sunset"
   },
@@ -206,6 +226,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     border: "border-pink-500/40",
     accent: "text-pink-400",
     text: "text-pink-100",
+    muted: "text-pink-300/70",
     dot: "bg-pink-500",
     label: "Synthwave"
   },
@@ -214,6 +235,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     border: "border-slate-700/50",
     accent: "text-sky-300",
     text: "text-slate-100",
+    muted: "text-slate-400",
     dot: "bg-sky-400",
     label: "Nordic Clean"
   },
@@ -222,6 +244,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     border: "border-green-600/40",
     accent: "text-green-400",
     text: "text-green-100",
+    muted: "text-green-300/70",
     dot: "bg-green-500",
     label: "Matrix Terminal"
   },
@@ -230,6 +253,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
     border: "border-amber-500/30",
     accent: "text-amber-300",
     text: "text-amber-100",
+    muted: "text-amber-200/70",
     dot: "bg-amber-400",
     label: "Royal Velvet"
   }
@@ -252,8 +276,9 @@ export default function App() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [renderingVideo, setRenderingVideo] = useState<boolean>(false);
   const [videoQuality, setVideoQuality] = useState<string>("medium");
-  const [currentView, setCurrentView] = useState<"dashboard" | "methods" | "matrix" | "aichat" | "word_problems">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "methods" | "matrix" | "aichat" | "word_problems" | "functions" | "proofs">("dashboard");
   const [showMatrixBackground, setShowMatrixBackground] = useState<boolean>(true);
+
 
   // Auth & Session States
   const [userToken, setUserToken] = useState<string | null>(localStorage.getItem("math_token"));
@@ -264,6 +289,7 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<"signin" | "signup">("signin");
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isCyberModalOpen, setIsCyberModalOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const handleTheme = (newTheme: ThemeType) => {
     setTheme(newTheme);
@@ -298,6 +324,12 @@ export default function App() {
   }, [userToken]);
 
   const handleSignOut = () => {
+    if (userToken) {
+      fetch("/api/auth/signout", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${userToken}` }
+      }).catch(() => {});
+    }
     setUserToken(null);
     setUserEmail(null);
     setIsPremium(false);
@@ -335,7 +367,7 @@ export default function App() {
   const formatOcrPreviewToLatex = (input: string): string => {
     if (!input) return "";
     let res = input.trim();
-    
+
     // Convert determinant of matrix: det([[...], [...]])
     res = res.replace(/det\(\s*\[\s*\[(.*?)\]\s*,\s*\[(.*?)\]\s*\]\s*\)/gi, (_m, r1, r2) => {
       const c1 = r1.split(',').map((x: string) => x.trim()).join(' & ');
@@ -762,9 +794,8 @@ export default function App() {
   const isLight = isLightAcademic || isNotebook;
 
   return (
-    <div className={`w-full min-h-screen ${THEME_CLASSES[theme].bg} ${isLight ? THEME_CLASSES[theme].text : "text-white"} font-sans flex flex-col overflow-x-hidden antialiased ${
-      isChalkboard ? "selection:bg-amber-400/30 selection:text-white" : isBlueprint ? "selection:bg-cyan-400/30 selection:text-cyan-100" : isCosmos ? "selection:bg-purple-400/30 selection:text-purple-100" : isLightAcademic ? "selection:bg-blue-600/20 selection:text-blue-900" : isNotebook ? "selection:bg-amber-200 selection:text-stone-900" : isDarkAI ? "selection:bg-indigo-500/30 selection:text-indigo-100" : "selection:bg-blue-600/30"
-    }`}>
+    <div className={`w-full min-h-screen ${THEME_CLASSES[theme].bg} ${isLight ? THEME_CLASSES[theme].text : "text-white"} font-sans flex flex-col overflow-x-hidden antialiased ${isChalkboard ? "selection:bg-amber-400/30 selection:text-white" : isBlueprint ? "selection:bg-cyan-400/30 selection:text-cyan-100" : isCosmos ? "selection:bg-purple-400/30 selection:text-purple-100" : isLightAcademic ? "selection:bg-blue-600/20 selection:text-blue-900" : isNotebook ? "selection:bg-amber-200 selection:text-stone-900" : isDarkAI ? "selection:bg-indigo-500/30 selection:text-indigo-100" : "selection:bg-blue-600/30"
+      }`}>
 
       {/* Video Modal Overlay */}
       {videoUrl && (
@@ -964,50 +995,46 @@ export default function App() {
       />
 
       {/* Executive Top Navigation Bar */}
-      <header className={`flex flex-col md:flex-row justify-between items-center px-5 sm:px-7 py-3 border-b gap-3 transition-colors ${
-        isChalkboard 
-          ? "border-amber-900/40 bg-[#09130f]/95 backdrop-blur-xl" 
-          : isBlueprint
+      <header className={`flex flex-col md:flex-row justify-between items-center px-5 sm:px-7 py-3 border-b gap-3 transition-colors ${isChalkboard
+        ? "border-amber-900/40 bg-[#09130f]/95 backdrop-blur-xl"
+        : isBlueprint
           ? "border-cyan-500/30 bg-[#041224]/95 backdrop-blur-xl"
           : isCosmos
-          ? "border-purple-500/30 bg-[#060412]/95 backdrop-blur-xl"
-          : isLightAcademic
-          ? "border-slate-200 bg-white/95 backdrop-blur-xl shadow-xs"
-          : isDarkAI
-          ? "border-slate-800/80 bg-[#080d1a]/95 backdrop-blur-xl"
-          : isNotebook
-          ? "border-[#E2DAC7] bg-[#FAF8F3]/95 backdrop-blur-xl"
-          : "border-white/10 bg-black/40 backdrop-blur-xl"
-      }`}>
+            ? "border-purple-500/30 bg-[#060412]/95 backdrop-blur-xl"
+            : isLightAcademic
+              ? "border-slate-200 bg-white/95 backdrop-blur-xl shadow-xs"
+              : isDarkAI
+                ? "border-slate-800/80 bg-[#080d1a]/95 backdrop-blur-xl"
+                : isNotebook
+                  ? "border-[#E2DAC7] bg-[#FAF8F3]/95 backdrop-blur-xl"
+                  : "border-white/10 bg-black/40 backdrop-blur-xl"
+        }`}>
         {/* Brand Lockup */}
         <div className="flex items-center gap-3">
           <label htmlFor="equation-bar-input" className="flex items-center gap-2.5 cursor-pointer select-none group">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-base shadow-md transition-all group-hover:scale-105 ${
-              isChalkboard 
-                ? "bg-[#182c21] border border-amber-500/50 text-amber-300 font-scholar-title shadow-amber-900/30" 
-                : isBlueprint
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-base shadow-md transition-all group-hover:scale-105 ${isChalkboard
+              ? "bg-[#182c21] border border-amber-500/50 text-amber-300 font-scholar-title shadow-amber-900/30"
+              : isBlueprint
                 ? "bg-[#051e3c] border border-cyan-500/50 text-cyan-300 font-mono shadow-cyan-950/40"
                 : isCosmos
-                ? "bg-[#150a30] border border-purple-500/50 text-purple-300 shadow-purple-950/40"
-                : isLightAcademic
-                ? "bg-blue-600 text-white shadow-blue-500/20"
-                : "bg-gradient-to-br from-indigo-500 to-cyan-500 text-white shadow-indigo-500/25"
-            }`}>
+                  ? "bg-[#150a30] border border-purple-500/50 text-purple-300 shadow-purple-950/40"
+                  : isLightAcademic
+                    ? "bg-blue-600 text-white shadow-blue-500/20"
+                    : "bg-gradient-to-br from-indigo-500 to-cyan-500 text-white shadow-indigo-500/25"
+              }`}>
               {isChalkboard ? "Σ" : isBlueprint ? "⌖" : isCosmos ? "✦" : "Σ"}
             </div>
             <div className="flex items-center gap-2">
-              <span className={`text-lg font-bold tracking-tight ${
-                isLightAcademic ? "text-slate-900" : isNotebook ? "text-stone-900 font-academic" : "text-white"
-              }`}>
+              <span className={`text-lg font-bold tracking-tight ${isLightAcademic ? "text-slate-900" : isNotebook ? "text-stone-900 font-academic" : "text-white"
+                }`}>
                 MathMotion
               </span>
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border uppercase tracking-wider font-semibold ${
-                isChalkboard
-                  ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                  : isLightAcademic
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border uppercase tracking-wider font-semibold ${isChalkboard
+                ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                : isLightAcademic
                   ? "bg-blue-50 text-blue-700 border-blue-200"
                   : "bg-white/10 text-white/80 border-white/15"
-              }`}>
+                }`}>
                 Studio
               </span>
             </div>
@@ -1015,67 +1042,82 @@ export default function App() {
         </div>
 
         {/* Center: Segmented Navigation Pill Bar */}
-        <nav className={`flex items-center p-1 rounded-xl border text-xs font-medium backdrop-blur-md transition-all ${
-          isLightAcademic
-            ? "bg-slate-100/80 border-slate-200 text-slate-600"
-            : "bg-black/40 border-white/10 text-white/70"
-        }`}>
+        <nav className={`flex items-center p-1 rounded-xl border text-xs font-medium backdrop-blur-md transition-all ${isLightAcademic
+          ? "bg-slate-100/80 border-slate-200 text-slate-600"
+          : "bg-black/40 border-white/10 text-white/70"
+          }`}>
           <button
             onClick={() => setCurrentView("dashboard")}
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentView === "dashboard"
-                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
-                : "hover:text-white hover:bg-white/5"
-            }`}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "dashboard"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             Studio
           </button>
           <button
             onClick={() => setCurrentView("methods")}
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentView === "methods"
-                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
-                : "hover:text-white hover:bg-white/5"
-            }`}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "methods"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
           >
             <BookOpen className="w-3.5 h-3.5 text-blue-400" />
             Methods
           </button>
           <button
             onClick={() => setCurrentView("matrix")}
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentView === "matrix"
-                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
-                : "hover:text-white hover:bg-white/5"
-            }`}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "matrix"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
           >
             <Layers className="w-3.5 h-3.5 text-emerald-400" />
             Matrix Lab
           </button>
           <button
             onClick={() => setCurrentView("aichat")}
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentView === "aichat"
-                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
-                : "hover:text-white hover:bg-white/5"
-            }`}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "aichat"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
           >
             <MessageSquare className="w-3.5 h-3.5 text-purple-400" />
             AI Chat
           </button>
           <button
             onClick={() => setCurrentView("word_problems")}
-            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              currentView === "word_problems"
-                ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
-                : "hover:text-white hover:bg-white/5"
-            }`}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "word_problems"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
           >
             <Brain className="w-3.5 h-3.5 text-pink-400" />
             Word Problems
           </button>
+          <button
+            onClick={() => setCurrentView("functions")}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "functions"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-cyan-400" />
+            Function Studio
+          </button>
+          <button
+            onClick={() => setCurrentView("proofs")}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "proofs"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5 text-amber-400" />
+            Proof Engine
+          </button>
         </nav>
+
 
         {/* Right Action Toolbar */}
         <div className="flex items-center gap-2">
@@ -1083,11 +1125,10 @@ export default function App() {
           <div className="relative">
             <button
               onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-              className={`px-2.5 py-1.5 rounded-lg border text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer ${
-                isLightAcademic
-                  ? "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-xs"
-                  : "bg-white/5 hover:bg-white/10 text-white/80 border-white/10"
-              }`}
+              className={`px-2.5 py-1.5 rounded-lg border text-xs font-mono flex items-center gap-1.5 transition-all cursor-pointer ${isLightAcademic
+                ? "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 shadow-xs"
+                : "bg-white/5 hover:bg-white/10 text-white/80 border-white/10"
+                }`}
               title="Switch Studio Palette Theme"
             >
               <Palette className="w-3.5 h-3.5 text-amber-400" />
@@ -1096,9 +1137,8 @@ export default function App() {
             </button>
 
             {isThemeMenuOpen && (
-              <div className={`absolute right-0 top-full mt-2 w-56 rounded-xl border p-1.5 shadow-2xl backdrop-blur-xl z-50 text-xs ${
-                isLightAcademic ? "bg-white/95 border-slate-200 text-slate-800" : "bg-black/95 border-white/15 text-white"
-              }`}>
+              <div className={`absolute right-0 top-full mt-2 w-56 rounded-xl border p-1.5 shadow-2xl backdrop-blur-xl z-50 text-xs ${isLightAcademic ? "bg-white/95 border-slate-200 text-slate-800" : "bg-black/95 border-white/15 text-white"
+                }`}>
                 <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider opacity-50 border-b border-current/10 mb-1">
                   Studio Themes
                 </div>
@@ -1112,11 +1152,10 @@ export default function App() {
                         handleTheme(key as ThemeType);
                         setIsThemeMenuOpen(false);
                       }}
-                      className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left transition-all cursor-pointer ${
-                        isSel
-                          ? (isLightAcademic ? "bg-blue-50 text-blue-700 font-bold" : "bg-white/15 text-white font-bold")
-                          : "opacity-80 hover:opacity-100 hover:bg-white/5"
-                      }`}
+                      className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left transition-all cursor-pointer ${isSel
+                        ? (isLightAcademic ? "bg-blue-50 text-blue-700 font-bold" : "bg-white/15 text-white font-bold")
+                        : "opacity-80 hover:opacity-100 hover:bg-white/5"
+                        }`}
                     >
                       <span className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${t.dot}`} />
@@ -1133,11 +1172,10 @@ export default function App() {
           {/* Shape Vision & Solver Trigger */}
           <button
             onClick={() => setIsShapeModalOpen(true)}
-            className={`px-2.5 sm:px-3 py-1.5 border text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              isLightAcademic
-                ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
-                : "bg-indigo-600/15 hover:bg-indigo-600/25 border-indigo-500/30 text-indigo-300"
-            }`}
+            className={`px-2.5 sm:px-3 py-1.5 border text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${isLightAcademic
+              ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+              : "bg-indigo-600/15 hover:bg-indigo-600/25 border-indigo-500/30 text-indigo-300"
+              }`}
             title="Geometric Shape Solver & Diagram OCR"
           >
             <Shapes className="w-3.5 h-3.5" />
@@ -1151,11 +1189,10 @@ export default function App() {
               setEquationInput(randomPreset.expr);
               handleSolve(randomPreset.expr);
             }}
-            className={`px-2.5 py-1.5 border text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-              isLightAcademic
-                ? "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                : "bg-white/5 hover:bg-white/10 text-white/80 border-white/10"
-            }`}
+            className={`px-2.5 py-1.5 border text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${isLightAcademic
+              ? "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+              : "bg-white/5 hover:bg-white/10 text-white/80 border-white/10"
+              }`}
             title="Randomize Math Problem"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -1163,13 +1200,25 @@ export default function App() {
           </button>
 
           {/* Upgrade Modal Trigger */}
+          {/* Cyber Guard Shield Button */}
+          <button
+            onClick={() => setIsCyberModalOpen(true)}
+            title="Cyber Defense Matrix & Real-time Telemetry"
+            className={`px-2.5 sm:px-3 py-1.5 border text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${isLightAcademic
+              ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200 shadow-xs"
+              : "bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/30 text-emerald-300"
+              }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Cyber Guard</span>
+          </button>
+
           <button
             onClick={() => setIsPaymentModalOpen(true)}
-            className={`px-2.5 sm:px-3 py-1.5 border text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-              isLightAcademic
-                ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 shadow-xs"
-                : "bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300"
-            }`}
+            className={`px-2.5 sm:px-3 py-1.5 border text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${isLightAcademic
+              ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 shadow-xs"
+              : "bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-300"
+              }`}
           >
             <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
             <span>Pro</span>
@@ -1177,9 +1226,8 @@ export default function App() {
 
           {/* User Session */}
           {userToken ? (
-            <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs ${
-              isChalkboard ? "bg-[#101d16] border-amber-900/40" : "bg-white/5 border-white/10"
-            }`}>
+            <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs ${isChalkboard ? "bg-[#101d16] border-amber-900/40" : "bg-white/5 border-white/10"
+              }`}>
               <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[11px]">
                 {userEmail?.slice(0, 1) || "U"}
               </div>
@@ -1194,9 +1242,8 @@ export default function App() {
           ) : (
             <button
               onClick={() => { setAuthModalMode("signin"); setIsAuthModalOpen(true); }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                isLightAcademic ? "bg-blue-600 text-white hover:bg-blue-500 border-blue-600" : "bg-white/10 hover:bg-white/20 text-white border-white/15"
-              }`}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${isLightAcademic ? "bg-blue-600 text-white hover:bg-blue-500 border-blue-600" : "bg-white/10 hover:bg-white/20 text-white border-white/15"
+                }`}
             >
               Sign In
             </button>
@@ -1258,29 +1305,47 @@ export default function App() {
             setCurrentView("dashboard");
           }}
         />
+      ) : currentView === "functions" ? (
+        <FunctionAnalyzer
+          theme={theme}
+          initialFunction={equationInput || "x^3 - 3*x^2 + 2"}
+          onSendToStudio={(expr) => {
+            setEquationInput(expr);
+            handleSolve(expr);
+            setCurrentView("dashboard");
+          }}
+        />
+      ) : currentView === "proofs" ? (
+        <ProofEngine
+          theme={theme}
+          initialStatement="sum(i, 1, n) = n*(n+1)/2"
+          onSendToStudio={(formula) => {
+            setEquationInput(formula);
+            handleSolve(formula);
+            setCurrentView("dashboard");
+          }}
+        />
       ) : (
+
         /* Main interactive grid dashboard layouts */
         <main className="flex-1 flex flex-col lg:flex-row h-full">
 
           {/* Left Interactive Editor and Video Slate Section (70% width) */}
-          <section className={`flex-1 border-r flex flex-col p-4 sm:p-8 transition-colors ${
-            isChalkboard ? "border-amber-900/30" : "border-white/10"
-          }`} id="left-editor-section">
+          <section className={`flex-1 border-r flex flex-col p-4 sm:p-8 transition-colors ${isChalkboard ? "border-amber-900/30" : "border-white/10"
+            }`} id="left-editor-section">
 
             {/* Elegant Mathematical Proposition Card */}
             <div className="flex-1 space-y-6">
-              <div className={`p-5 sm:p-6 rounded-2xl border transition-all ${
-                isChalkboard 
-                  ? "bg-[#0b1712] border-amber-900/40 text-amber-100" 
-                  : isLightAcademic
+              <div className={`p-5 sm:p-6 rounded-2xl border transition-all ${isChalkboard
+                ? "bg-[#0b1712] border-amber-900/40 text-amber-100"
+                : isLight
                   ? "bg-white border-slate-200 text-slate-900 shadow-sm"
                   : "bg-white/[0.03] border-white/10 text-white backdrop-blur-md"
-              }`}>
+                }`}>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
-                      isChalkboard ? "bg-amber-500/10 text-amber-300 border-amber-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                    }`}>
+                    <span className={`text-[10px] font-mono uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${isChalkboard ? "bg-amber-500/10 text-amber-300 border-amber-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                      }`}>
                       {solution?.equationType || "Mathematical Equation"}
                     </span>
                     {currentScene && (
@@ -1290,14 +1355,13 @@ export default function App() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
-                      loading 
-                        ? "bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse" 
-                        : isChalkboard
+                  <div className={`flex items-center gap-2`}>
+                    <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${loading
+                      ? "bg-amber-500/15 border-amber-500/30 text-amber-300 animate-pulse"
+                      : isChalkboard
                         ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
                         : "bg-blue-500/15 border-blue-500/30 text-blue-300"
-                    }`}>
+                      }`}>
                       <span className="w-1.5 h-1.5 rounded-full bg-current animate-ping" />
                       {loading ? "Deriving Solution..." : "Axiom Rigor: Verified"}
                     </span>
@@ -1329,11 +1393,10 @@ export default function App() {
               )}
 
               {statusMessage && (
-                <div className={`rounded-xl p-3 text-xs flex items-center gap-2 animate-pulse font-mono ${
-                  isChalkboard 
-                    ? "bg-[#12231b] border border-amber-500/30 text-amber-200" 
-                    : "bg-blue-950/30 border border-blue-500/20 text-blue-300"
-                }`}>
+                <div className={`rounded-xl p-3 text-xs flex items-center gap-2 animate-pulse font-mono ${isChalkboard
+                  ? "bg-[#12231b] border border-amber-500/30 text-amber-200"
+                  : "bg-blue-950/30 border border-blue-500/20 text-blue-300"
+                  }`}>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   {statusMessage}
                 </div>
@@ -1352,9 +1415,8 @@ export default function App() {
                       typingProgress={typingProgress}
                     />
                   ) : (
-                    <div className={`h-[360px] border border-dashed rounded-2xl flex flex-col items-center justify-center p-6 text-center ${
-                      isChalkboard ? "bg-[#0e1a14] border-amber-900/40 text-amber-200/50" : "bg-white/5 border-white/10 text-white/40"
-                    }`}>
+                    <div className={`h-[360px] border border-dashed rounded-2xl flex flex-col items-center justify-center p-6 text-center ${isChalkboard ? "bg-[#0e1a14] border-amber-900/40 text-amber-200/50" : "bg-white/5 border-white/10 text-white/40"
+                      }`}>
                       <Sparkles className="w-8 h-8 mb-2 text-amber-400 animate-pulse" />
                       <span>No active math whiteboard. Write an equation below to start.</span>
                     </div>
@@ -1377,25 +1439,22 @@ export default function App() {
 
                   {/* Visual coordinate context info cards beneath Graph */}
                   <div className="grid grid-cols-2 gap-3 mt-1.5">
-                    <div className={`p-3 rounded-xl ${
-                      isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : isLightAcademic ? "bg-white border border-[#E2E8F0] academic-light-frame" : isDarkAI ? "bg-[#111827] border border-[#273449] dark-ai-frame" : isNotebook ? "bg-[#FFFDF8] border border-[#E2DAC7] notebook-frame" : "bg-white/5 border border-white/10"
-                    }`}>
+                    <div className={`p-3 rounded-xl ${isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : isLightAcademic ? "bg-white border border-[#E2E8F0] academic-light-frame" : isDarkAI ? "bg-[#111827] border border-[#273449] dark-ai-frame" : isNotebook ? "bg-[#FFFDF8] border border-[#E2DAC7] notebook-frame" : "bg-white/5 border border-white/10"
+                      }`}>
                       <p className={`text-[9px] uppercase font-bold tracking-widest ${isChalkboard ? "text-amber-200/60 font-scholar-title" : isLightAcademic ? "text-slate-500 font-sans" : isDarkAI ? "text-slate-400 font-mono" : isNotebook ? "text-stone-600 font-academic" : "text-white/40"}`}>
-                        {isChalkboard ? "Curriculum Rigor Level" : isLightAcademic ? "Academic Domain" : isDarkAI ? "Tensor Classification" : isNotebook ? "Notebook Topic" : "Calculus Level"}
+                        {isChalkboard ? "Curriculum Rigor Level" : isLightAcademic ? "Academic Domain" : isDarkAI ? "Tensor Classification" : isNotebook ? "Notebook ToCalculuspic" : " Level"}
                       </p>
                       <p className={`text-base font-bold mt-1 ${isChalkboard ? "text-amber-100 font-scholar-title" : isLight ? "text-slate-900" : "text-white"}`}>
                         {solution?.equationType || "Pre-Algebra"}
                       </p>
                     </div>
-                    <div className={`p-3 rounded-xl ${
-                      isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : isLightAcademic ? "bg-white border border-[#E2E8F0] academic-light-frame" : isDarkAI ? "bg-[#111827] border border-[#273449] dark-ai-frame" : isNotebook ? "bg-[#FFFDF8] border border-[#E2DAC7] notebook-frame" : "bg-white/5 border border-white/10"
-                    }`}>
+                    <div className={`p-3 rounded-xl ${isChalkboard ? "bg-[#0e1a14] border border-amber-900/40 academic-frame" : isLightAcademic ? "bg-white border border-[#E2E8F0] academic-light-frame" : isDarkAI ? "bg-[#111827] border border-[#273449] dark-ai-frame" : isNotebook ? "bg-[#FFFDF8] border border-[#E2DAC7] notebook-frame" : "bg-white/5 border border-white/10"
+                      }`}>
                       <p className={`text-[9px] uppercase font-bold tracking-widest ${isChalkboard ? "text-amber-200/60 font-scholar-title" : isLightAcademic ? "text-slate-500 font-sans" : isDarkAI ? "text-slate-400 font-mono" : isNotebook ? "text-stone-600 font-academic" : "text-white/40"}`}>
                         {isChalkboard ? "Analytical Solution (Q.E.D.)" : isLightAcademic ? "Rigorous Resolution" : isDarkAI ? "Calculated Root Vector" : isNotebook ? "Derived Solution" : "Final Solution"}
                       </p>
-                      <div className={`text-sm font-bold mt-1 font-mono truncate overflow-x-auto whitespace-normal scrollbar-none ${
-                        isChalkboard ? "text-amber-300 font-academic" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-blue-900 font-academic" : "text-blue-400"
-                      }`}>
+                      <div className={`text-sm font-bold mt-1 font-mono truncate overflow-x-auto whitespace-normal scrollbar-none ${isChalkboard ? "text-amber-300 font-academic" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-blue-900 font-academic" : "text-blue-400"
+                        }`}>
                         {solution ? (
                           <span className="inline-flex items-center gap-1">
                             Ans: <KatexMath math={solution.finalAnswer} block={false} />
@@ -1416,9 +1475,8 @@ export default function App() {
             <div className={`mt-8 pt-6 border-t ${isChalkboard ? "border-amber-900/30" : isLight ? "border-slate-200" : "border-white/10"}`} id="equation-entry-panel">
               {/* Quick Math & LaTeX Symbols Toolbar */}
               <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-                <span className={`text-[9px] font-bold uppercase tracking-wider mr-1 ${
-                  isChalkboard ? "text-amber-300 font-scholar-title" : isLightAcademic ? "text-blue-700 font-sans" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-700 font-academic font-bold" : "text-blue-400 font-mono"
-                }`}>
+                <span className={`text-[9px] font-bold uppercase tracking-wider mr-1 ${isChalkboard ? "text-amber-300 font-scholar-title" : isLightAcademic ? "text-blue-700 font-sans" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-700 font-academic font-bold" : "text-blue-400 font-mono"
+                  }`}>
                   {isChalkboard ? "Scholar's Chalk Keys:" : isNotebook ? "Notebook Math Keys:" : isLightAcademic ? "Academic Notation:" : isDarkAI ? "Neural Math Tokens:" : "Insert Symbol:"}
                 </span>
                 {[
@@ -1437,17 +1495,16 @@ export default function App() {
                   <button
                     key={idx}
                     onClick={() => setEquationInput((prev) => prev ? `${prev} ${sym.insert}` : sym.insert)}
-                    className={`px-2 py-1 text-[10px] font-mono rounded border transition-colors cursor-pointer ${
-                      isChalkboard 
-                        ? "bg-[#13221a] hover:bg-[#1c3829] hover:border-amber-500/50 text-amber-200/90 hover:text-amber-100 border-amber-900/40 shadow-xs" 
-                        : isLightAcademic
+                    className={`px-2 py-1 text-[10px] font-mono rounded border transition-colors cursor-pointer ${isChalkboard
+                      ? "bg-[#13221a] hover:bg-[#1c3829] hover:border-amber-500/50 text-amber-200/90 hover:text-amber-100 border-amber-900/40 shadow-xs"
+                      : isLightAcademic
                         ? "bg-white hover:bg-blue-50 hover:border-blue-300 text-slate-700 hover:text-blue-700 border-slate-200 shadow-xs"
                         : isDarkAI
-                        ? "bg-[#111827] hover:bg-[#1f2937] hover:border-indigo-500/50 text-cyan-300 hover:text-cyan-200 border-[#273449]"
-                        : isNotebook
-                        ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] hover:border-blue-400 text-stone-800 hover:text-blue-900 border-[#E2DAC7] shadow-xs"
-                        : "bg-white/5 hover:bg-blue-600/30 hover:border-blue-500/50 text-white/80 hover:text-white border-white/10"
-                    }`}
+                          ? "bg-[#111827] hover:bg-[#1f2937] hover:border-indigo-500/50 text-cyan-300 hover:text-cyan-200 border-[#273449]"
+                          : isNotebook
+                            ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] hover:border-blue-400 text-stone-800 hover:text-blue-900 border-[#E2DAC7] shadow-xs"
+                            : "bg-white/5 hover:bg-blue-600/30 hover:border-blue-500/50 text-white/80 hover:text-white border-white/10"
+                      }`}
                   >
                     {sym.label}
                   </button>
@@ -1461,17 +1518,16 @@ export default function App() {
                     id="equation-bar-input"
                     name="equation-bar-input"
                     placeholder="Enter mathematical equation (e.g. x^2 - 5x + 6, det([[1, 2], [3, 4]]), sin(x) = 0.5)..."
-                    className={`w-full border px-4 py-3.5 font-mono text-sm sm:text-base focus:outline-none transition-all rounded-xl ${
-                      isChalkboard 
-                        ? "bg-[#0a1510] border-amber-900/50 focus:border-amber-400 text-[#faf8f2] placeholder:text-amber-200/30" 
-                        : isLightAcademic
+                    className={`w-full border px-4 py-3.5 font-mono text-sm sm:text-base focus:outline-none transition-all rounded-xl ${isChalkboard
+                      ? "bg-[#0a1510] border-amber-900/50 focus:border-amber-400 text-[#faf8f2] placeholder:text-amber-200/30"
+                      : isLightAcademic
                         ? "bg-white border-slate-200 focus:border-blue-600 text-slate-900 placeholder:text-slate-400 shadow-xs"
                         : isDarkAI
-                        ? "bg-[#0b1020] border-slate-800 focus:border-indigo-500 text-white placeholder:text-slate-500"
-                        : isNotebook
-                        ? "bg-[#FFFDF8] border-[#E2DAC7] focus:border-[#1E40AF] text-[#242018] placeholder:text-stone-400 shadow-xs"
-                        : "bg-white/5 border-white/15 focus:border-blue-500 placeholder:text-white/30"
-                    }`}
+                          ? "bg-[#0b1020] border-slate-800 focus:border-indigo-500 text-white placeholder:text-slate-500"
+                          : isNotebook
+                            ? "bg-[#FFFDF8] border-[#E2DAC7] focus:border-[#1E40AF] text-[#242018] placeholder:text-stone-400 shadow-xs"
+                            : "bg-white/5 border-white/15 focus:border-blue-500 placeholder:text-white/30"
+                      }`}
                     value={equationInput}
                     onChange={(e) => setEquationInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -1482,15 +1538,14 @@ export default function App() {
                   />
                   <button
                     onClick={() => setEquationInput("")}
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
-                      isChalkboard 
-                        ? "text-amber-200/60 hover:text-amber-100 bg-[#16291e]" 
-                        : isLightAcademic
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2.5 py-1 rounded-lg cursor-pointer transition-all ${isChalkboard
+                      ? "text-amber-200/60 hover:text-amber-100 bg-[#16291e]"
+                      : isLightAcademic
                         ? "text-slate-400 hover:text-slate-700 bg-slate-100"
                         : isNotebook
-                        ? "text-stone-400 hover:text-stone-700 bg-stone-100"
-                        : "text-white/50 hover:text-white bg-white/10"
-                    }`}
+                          ? "text-stone-400 hover:text-stone-700 bg-stone-100"
+                          : "text-white/50 hover:text-white bg-white/10"
+                      }`}
                   >
                     Clear
                   </button>
@@ -1523,17 +1578,16 @@ export default function App() {
                   onClick={() => setIsOcrModalOpen(true)}
                   disabled={isOcrLoading}
                   title="Math Image OCR Scanner"
-                  className={`p-3.5 transition-colors cursor-pointer rounded-xl flex items-center justify-center border disabled:opacity-40 ${
-                    isChalkboard 
-                      ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40" 
-                      : isLightAcademic
+                  className={`p-3.5 transition-colors cursor-pointer rounded-xl flex items-center justify-center border disabled:opacity-40 ${isChalkboard
+                    ? "bg-[#13221a] hover:bg-[#1b3427] text-amber-300 border-amber-900/40"
+                    : isLightAcademic
                       ? "bg-white hover:bg-slate-50 text-blue-600 border-slate-200 shadow-xs"
                       : isNotebook
-                      ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] text-stone-700 border-[#E2DAC7] shadow-xs"
-                      : isDarkAI
-                      ? "bg-[#111827] hover:bg-[#1a2336] text-cyan-300 border-[#273449]"
-                      : "bg-white/10 hover:bg-white/20 text-white border-white/20"
-                  }`}
+                        ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] text-stone-700 border-[#E2DAC7] shadow-xs"
+                        : isDarkAI
+                          ? "bg-[#111827] hover:bg-[#1a2336] text-cyan-300 border-[#273449]"
+                          : "bg-white/10 hover:bg-white/20 text-white border-white/20"
+                    }`}
                 >
                   {isOcrLoading ? (
                     <RefreshCw className={`w-5 h-5 animate-spin ${isChalkboard ? "text-amber-400" : "text-blue-400"}`} />
@@ -1546,17 +1600,16 @@ export default function App() {
                 <button
                   onClick={() => setIsShapeModalOpen(true)}
                   title="Shape Vision & Geometric Solver (Find Angles, Sides, Area)"
-                  className={`p-3.5 transition-colors cursor-pointer rounded-xl flex items-center justify-center border ${
-                    isChalkboard 
-                      ? "bg-[#183626] hover:bg-[#234d37] text-amber-200 border-amber-500/40 shadow-sm" 
-                      : isLightAcademic
+                  className={`p-3.5 transition-colors cursor-pointer rounded-xl flex items-center justify-center border ${isChalkboard
+                    ? "bg-[#183626] hover:bg-[#234d37] text-amber-200 border-amber-500/40 shadow-sm"
+                    : isLightAcademic
                       ? "bg-white hover:bg-slate-50 text-indigo-600 border-indigo-200 shadow-xs"
                       : isNotebook
-                      ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] text-blue-900 border-[#E2DAC7] shadow-xs"
-                      : isDarkAI
-                      ? "bg-[#111827] hover:bg-[#1a2336] text-indigo-400 border-[#273449]"
-                      : "bg-white/10 hover:bg-white/20 text-indigo-400 border-white/20"
-                  }`}
+                        ? "bg-[#FFFDF8] hover:bg-[#F5EFE0] text-blue-900 border-[#E2DAC7] shadow-xs"
+                        : isDarkAI
+                          ? "bg-[#111827] hover:bg-[#1a2336] text-indigo-400 border-[#273449]"
+                          : "bg-white/10 hover:bg-white/20 text-indigo-400 border-white/20"
+                    }`}
                 >
                   <Shapes className={`w-5 h-5 ${isChalkboard ? "text-amber-300" : isLightAcademic ? "text-indigo-600" : isDarkAI ? "text-indigo-400" : isNotebook ? "text-blue-900" : "text-indigo-400"}`} />
                 </button>
@@ -1564,17 +1617,16 @@ export default function App() {
                 <button
                   onClick={() => handleSolve(equationInput)}
                   disabled={loading}
-                  className={`font-bold px-7 py-3.5 transition-all cursor-pointer rounded-xl flex items-center justify-center gap-2 text-sm shadow-md active:scale-95 ${
-                    isChalkboard 
-                      ? "bg-[#1a3829] hover:bg-[#254f3a] disabled:opacity-50 text-amber-200 border border-amber-500/40 font-scholar-title shadow-black/50" 
-                      : isLightAcademic
+                  className={`font-bold px-7 py-3.5 transition-all cursor-pointer rounded-xl flex items-center justify-center gap-2 text-sm shadow-md active:scale-95 ${isChalkboard
+                    ? "bg-[#1a3829] hover:bg-[#254f3a] disabled:opacity-50 text-amber-200 border border-amber-500/40 font-scholar-title shadow-black/50"
+                    : isLightAcademic
                       ? "bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-sans shadow-blue-500/20"
                       : isDarkAI
-                      ? "bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 disabled:opacity-50 text-white font-mono shadow-indigo-500/25"
-                      : isNotebook
-                      ? "bg-[#1E40AF] hover:bg-blue-900 disabled:opacity-50 text-[#FAF8F3] font-academic shadow-stone-400/40"
-                      : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white"
-                  }`}
+                        ? "bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 disabled:opacity-50 text-white font-mono shadow-indigo-500/25"
+                        : isNotebook
+                          ? "bg-[#1E40AF] hover:bg-blue-900 disabled:opacity-50 text-[#FAF8F3] font-academic shadow-stone-400/40"
+                          : "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 text-white"
+                    }`}
                   id="parse_equation_btn"
                 >
                   {loading ? (
@@ -1593,48 +1645,44 @@ export default function App() {
 
               {/* Live KaTeX Equation Preview Card */}
               {equationInput.trim() && (
-                <div className={`mt-3 px-4 py-2.5 rounded-lg flex items-center justify-between border ${
-                  isChalkboard 
-                    ? "bg-[#0e1a14] border-amber-900/40" 
-                    : isLightAcademic
+                <div className={`mt-3 px-4 py-2.5 rounded-lg flex items-center justify-between border ${isChalkboard
+                  ? "bg-[#0e1a14] border-amber-900/40"
+                  : isLightAcademic
                     ? "bg-blue-50/60 border-blue-200"
                     : isDarkAI
-                    ? "bg-[#111827] border-[#273449]"
-                    : isNotebook
-                    ? "bg-[#FAF5EA] border-[#E2DAC7]"
-                    : "bg-blue-950/20 border-blue-500/30"
-                }`}>
-                  <span className={`text-[10px] uppercase font-bold tracking-wider ${
-                    isChalkboard ? "text-amber-300 font-scholar-title" : isLightAcademic ? "text-blue-700 font-sans font-semibold" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-700 font-academic font-semibold" : "font-mono text-blue-400"
+                      ? "bg-[#111827] border-[#273449]"
+                      : isNotebook
+                        ? "bg-[#FAF5EA] border-[#E2DAC7]"
+                        : "bg-blue-950/20 border-blue-500/30"
                   }`}>
+                  <span className={`text-[10px] uppercase font-bold tracking-wider ${isChalkboard ? "text-amber-300 font-scholar-title" : isLightAcademic ? "text-blue-700 font-sans font-semibold" : isDarkAI ? "text-cyan-400 font-mono" : isNotebook ? "text-stone-700 font-academic font-semibold" : "font-mono text-blue-400"
+                    }`}>
                     Live LaTeX Preview:
                   </span>
                   <div className="flex items-center gap-2">
                     {extractedMatrix && (
                       <button
                         onClick={() => setCurrentView("matrix")}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold transition-all cursor-pointer border shadow-xs ${
-                          isChalkboard
-                            ? "bg-[#183626] hover:bg-[#234e37] text-amber-200 border-amber-500/40"
-                            : "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30"
-                        }`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold transition-all cursor-pointer border shadow-xs ${isChalkboard
+                          ? "bg-[#183626] hover:bg-[#234e37] text-amber-200 border-amber-500/40"
+                          : "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30"
+                          }`}
                         title="Explore and visualize this matrix in the interactive 2D/3D Matrix Lab"
                       >
                         <Grid className="w-3.5 h-3.5 text-emerald-400" />
                         Open in Matrix Lab ({extractedMatrix.dim}×{extractedMatrix.dim})
                       </button>
                     )}
-                    <div className={`text-sm font-medium px-2 py-0.5 rounded border ${
-                      isChalkboard 
-                        ? "bg-black/50 text-amber-200 border-amber-500/20" 
-                        : isLightAcademic
+                    <div className={`text-sm font-medium px-2 py-0.5 rounded border ${isChalkboard
+                      ? "bg-black/50 text-amber-200 border-amber-500/20"
+                      : isLightAcademic
                         ? "bg-white text-blue-700 border-blue-200 shadow-xs"
                         : isDarkAI
-                        ? "bg-[#0B1020] text-cyan-300 border-[#273449]"
-                        : isNotebook
-                        ? "bg-[#FFFDF8] text-stone-900 border-[#E2DAC7] shadow-xs"
-                        : "bg-black/40 text-white border-white/5"
-                    }`}>
+                          ? "bg-[#0B1020] text-cyan-300 border-[#273449]"
+                          : isNotebook
+                            ? "bg-[#FFFDF8] text-stone-900 border-[#E2DAC7] shadow-xs"
+                            : "bg-black/40 text-white border-white/5"
+                      }`}>
                       <KatexMath math={equationInput} block={false} />
                     </div>
                   </div>
@@ -1643,9 +1691,8 @@ export default function App() {
 
               {/* Quick Math Tool Palette: Trigonometry & Geometry */}
               <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-2 border-t border-white/5">
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                  isChalkboard ? "text-amber-300/70 font-scholar-title" : "text-white/40 font-mono"
-                }`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${isChalkboard ? "text-amber-300/70 font-scholar-title" : "text-white/40 font-mono"
+                  }`}>
                   Trig &amp; Geo Tools:
                 </span>
                 {[
@@ -1666,11 +1713,10 @@ export default function App() {
                       setEquationInput(item.val);
                       handleSolve(item.val);
                     }}
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
-                      isChalkboard
-                        ? "bg-[#14261d] hover:bg-[#1d392b] text-emerald-200 border-emerald-900/40 hover:text-white"
-                        : "bg-blue-900/20 hover:bg-blue-900/40 text-cyan-200 border-cyan-500/20 hover:text-white"
-                    }`}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${isChalkboard
+                      ? "bg-[#14261d] hover:bg-[#1d392b] text-emerald-200 border-emerald-900/40 hover:text-white"
+                      : "bg-blue-900/20 hover:bg-blue-900/40 text-cyan-200 border-cyan-500/20 hover:text-white"
+                      }`}
                   >
                     {item.label}
                   </button>
@@ -1689,11 +1735,10 @@ export default function App() {
                       setEquationInput(preset.expr);
                       handleSolve(preset.expr);
                     }}
-                    className={`px-2.5 py-1 rounded font-mono border transition-all text-[11px] cursor-pointer ${
-                      isChalkboard 
-                        ? "bg-[#111f18] hover:bg-[#1a3326] text-amber-200/80 hover:text-amber-100 border-amber-900/30" 
-                        : "bg-white/5 hover:bg-white/15 hover:text-white text-white/70 border-white/5"
-                    }`}
+                    className={`px-2.5 py-1 rounded font-mono border transition-all text-[11px] cursor-pointer ${isChalkboard
+                      ? "bg-[#111f18] hover:bg-[#1a3326] text-amber-200/80 hover:text-amber-100 border-amber-900/30"
+                      : "bg-white/5 hover:bg-white/15 hover:text-white text-white/70 border-white/5"
+                      }`}
                   >
                     {preset.name}
                   </button>
@@ -1704,9 +1749,8 @@ export default function App() {
           </section>
 
           {/* Right Settings and Configuration Sidebar (w-80 sidebar) */}
-          <aside className={`w-full lg:w-80 flex flex-col border-t lg:border-t-0 transition-colors ${
-            isChalkboard ? "border-amber-900/30 bg-[#09130f]" : "border-white/10"
-          }`} id="right-aside-settings">
+          <aside className={`w-full lg:w-80 flex flex-col border-t lg:border-t-0 transition-colors ${isChalkboard ? "border-amber-900/30 bg-[#09130f]" : "border-white/10"
+            }`} id="right-aside-settings">
 
             {/* Dynamic settings options box */}
             <div className={`p-6 border-b ${isChalkboard ? "border-amber-900/30" : "border-white/10"}`}>
@@ -1722,14 +1766,12 @@ export default function App() {
                 {/* Board Skins & Layout Styles selector */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className={`text-[10px] uppercase font-bold tracking-wider ${
-                      isChalkboard ? "text-amber-200/80 font-scholar-title" : isBlueprint ? "text-cyan-300 font-mono" : isCosmos ? "text-purple-300 font-sans" : isLight ? "text-slate-800 font-sans font-bold" : "text-white/70"
-                    }`}>
+                    <label className={`text-[10px] uppercase font-bold tracking-wider ${isChalkboard ? "text-amber-200/80 font-scholar-title" : isBlueprint ? "text-cyan-300 font-mono" : isCosmos ? "text-purple-300 font-sans" : isLight ? "text-slate-800 font-sans font-bold" : "text-white/70"
+                      }`}>
                       Flagship Math Themes (6 Editions)
                     </label>
-                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${
-                      isChalkboard ? "border-amber-500/30 text-amber-300 bg-amber-500/10" : isBlueprint ? "border-cyan-500/30 text-cyan-300 bg-cyan-500/10" : isCosmos ? "border-purple-500/30 text-purple-300 bg-purple-500/10" : isLight ? "border-blue-300 text-blue-700 bg-blue-50" : "border-white/20 text-white/50"
-                    }`}>
+                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded border ${isChalkboard ? "border-amber-500/30 text-amber-300 bg-amber-500/10" : isBlueprint ? "border-cyan-500/30 text-cyan-300 bg-cyan-500/10" : isCosmos ? "border-purple-500/30 text-purple-300 bg-purple-500/10" : isLight ? "border-blue-300 text-blue-700 bg-blue-50" : "border-white/20 text-white/50"
+                      }`}>
                       Curated
                     </span>
                   </div>
@@ -1743,51 +1785,48 @@ export default function App() {
                         <div
                           key={tKey}
                           onClick={() => handleTheme(tKey)}
-                          className={`p-2.5 rounded-lg border transition-all cursor-pointer relative group ${
-                            isSelected
-                              ? tKey === "lightAcademic"
-                                ? "bg-white border-[#2563EB] ring-2 ring-[#2563EB]/40 shadow-md shadow-blue-500/20"
-                                : tKey === "darkAI"
+                          className={`p-2.5 rounded-lg border transition-all cursor-pointer relative group ${isSelected
+                            ? tKey === "lightAcademic"
+                              ? "bg-white border-[#2563EB] ring-2 ring-[#2563EB]/40 shadow-md shadow-blue-500/20"
+                              : tKey === "darkAI"
                                 ? "bg-[#111827] border-[#6366F1] ring-2 ring-[#6366F1]/40 shadow-md shadow-indigo-950/60"
                                 : tKey === "notebook"
-                                ? "bg-[#FFFDF8] border-[#1E40AF] ring-2 ring-[#1E40AF]/40 shadow-md shadow-amber-900/20"
-                                : tKey === "blueprint"
-                                ? "bg-[#061d3b] border-cyan-400 ring-1 ring-cyan-400 shadow-md shadow-cyan-950/60"
-                                : tKey === "chalkboard"
-                                ? "bg-[#183626] border-amber-400 ring-1 ring-amber-400 shadow-md shadow-amber-950/60"
-                                : "bg-[#170c36] border-purple-400 ring-1 ring-purple-400 shadow-md shadow-purple-950/60"
-                              : isLightAcademic
+                                  ? "bg-[#FFFDF8] border-[#1E40AF] ring-2 ring-[#1E40AF]/40 shadow-md shadow-amber-900/20"
+                                  : tKey === "blueprint"
+                                    ? "bg-[#061d3b] border-cyan-400 ring-1 ring-cyan-400 shadow-md shadow-cyan-950/60"
+                                    : tKey === "chalkboard"
+                                      ? "bg-[#183626] border-amber-400 ring-1 ring-amber-400 shadow-md shadow-amber-950/60"
+                                      : "bg-[#170c36] border-purple-400 ring-1 ring-purple-400 shadow-md shadow-purple-950/60"
+                            : isLightAcademic
                               ? "bg-slate-50/70 hover:bg-slate-100 border-slate-200"
                               : isNotebook
-                              ? "bg-[#FAF8F3]/70 hover:bg-[#F3EFE6] border-[#E2DAC7]"
-                              : isDarkAI
-                              ? "bg-[#111827]/70 hover:bg-[#1a2336] border-[#273449]"
-                              : isChalkboard
-                              ? "bg-[#0c1813]/60 hover:bg-[#12241b] border-amber-900/30 hover:border-amber-500/30"
-                              : isBlueprint
-                              ? "bg-[#03152b]/60 hover:bg-[#061e3d] border-cyan-500/20 hover:border-cyan-500/40"
-                              : "bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20"
-                          }`}
+                                ? "bg-[#FAF8F3]/70 hover:bg-[#F3EFE6] border-[#E2DAC7]"
+                                : isDarkAI
+                                  ? "bg-[#111827]/70 hover:bg-[#1a2336] border-[#273449]"
+                                  : isChalkboard
+                                    ? "bg-[#0c1813]/60 hover:bg-[#12241b] border-amber-900/30 hover:border-amber-500/30"
+                                    : isBlueprint
+                                      ? "bg-[#03152b]/60 hover:bg-[#061e3d] border-cyan-500/20 hover:border-cyan-500/40"
+                                      : "bg-white/5 hover:bg-white/10 border-white/10 hover:border-white/20"
+                            }`}
                         >
                           <div className="flex items-center justify-between gap-1 mb-1">
                             <div className="flex items-center gap-1.5">
                               <span className={`text-[10px] font-mono ${isSelected ? "text-amber-300 font-bold" : isLight ? "text-slate-500" : "opacity-40"}`}>
                                 0{idx + 1}.
                               </span>
-                              <span className={`text-[11px] font-bold tracking-tight ${
-                                isSelected 
-                                  ? (tKey === "lightAcademic" ? "text-blue-600" : tKey === "darkAI" ? "text-cyan-300" : tKey === "notebook" ? "text-blue-900" : tKey === "blueprint" ? "text-cyan-200" : tKey === "chalkboard" ? "text-amber-200" : "text-purple-200") 
-                                  : isLight ? "text-slate-800" : "text-white/90"
-                              }`}>
+                              <span className={`text-[11px] font-bold tracking-tight ${isSelected
+                                ? (tKey === "lightAcademic" ? "text-blue-600" : tKey === "darkAI" ? "text-cyan-300" : tKey === "notebook" ? "text-blue-900" : tKey === "blueprint" ? "text-cyan-200" : tKey === "chalkboard" ? "text-amber-200" : "text-purple-200")
+                                : isLight ? "text-slate-800" : "text-white/90"
+                                }`}>
                                 {tInfo.label}
                               </span>
                             </div>
                             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${tInfo.dot} ${isSelected ? "ring-2 ring-white/60" : ""}`} />
                           </div>
 
-                          <div className={`text-[9px] uppercase tracking-wider font-semibold mb-1 flex items-center gap-1 ${
-                            isSelected ? (tKey === "lightAcademic" ? "text-blue-600" : tKey === "darkAI" ? "text-indigo-400" : tKey === "notebook" ? "text-stone-700 font-academic" : tKey === "blueprint" ? "text-cyan-400" : tKey === "chalkboard" ? "text-amber-300" : "text-purple-300") : (isLight ? "text-slate-500" : "text-white/50")
-                          }`}>
+                          <div className={`text-[9px] uppercase tracking-wider font-semibold mb-1 flex items-center gap-1 ${isSelected ? (tKey === "lightAcademic" ? "text-blue-600" : tKey === "darkAI" ? "text-indigo-400" : tKey === "notebook" ? "text-stone-700 font-academic" : tKey === "blueprint" ? "text-cyan-400" : tKey === "chalkboard" ? "text-amber-300" : "text-purple-300") : (isLight ? "text-slate-500" : "text-white/50")
+                            }`}>
                             <span>({tInfo.subtitle})</span>
                           </div>
 
@@ -1808,9 +1847,8 @@ export default function App() {
 
                   {/* Alternative Palettes */}
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className={`text-[9px] uppercase font-bold tracking-wider opacity-60 ${
-                      isChalkboard ? "text-amber-200/60 font-scholar-title" : isBlueprint ? "text-cyan-300/60 font-mono" : isLight ? "text-slate-700 font-sans" : "text-white/60"
-                    }`}>
+                    <label className={`text-[9px] uppercase font-bold tracking-wider opacity-60 ${isChalkboard ? "text-amber-200/60 font-scholar-title" : isBlueprint ? "text-cyan-300/60 font-mono" : isLight ? "text-slate-700 font-sans" : "text-white/60"
+                      }`}>
                       Alternative Studio Palettes ({Object.keys(THEME_CLASSES).length - 6})
                     </label>
                   </div>
@@ -1824,17 +1862,16 @@ export default function App() {
                           <button
                             key={tKey}
                             onClick={() => handleTheme(tKey)}
-                            className={`py-1.5 px-2 text-[10px] font-bold uppercase border tracking-tight transition-all rounded flex items-center justify-between gap-1 cursor-pointer ${
-                              isSelected
-                                ? "bg-white text-black border-white shadow-md shadow-white/20"
-                                : isChalkboard
+                            className={`py-1.5 px-2 text-[10px] font-bold uppercase border tracking-tight transition-all rounded flex items-center justify-between gap-1 cursor-pointer ${isSelected
+                              ? "bg-white text-black border-white shadow-md shadow-white/20"
+                              : isChalkboard
                                 ? "border-amber-900/30 text-amber-200/60 hover:bg-[#12241b]"
                                 : isBlueprint
-                                ? "border-cyan-500/20 text-cyan-200/60 hover:bg-[#051c38]"
-                                : isLight
-                                ? "border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
-                                : "border-white/10 text-white/70 hover:bg-white/5 hover:border-white/30"
-                            }`}
+                                  ? "border-cyan-500/20 text-cyan-200/60 hover:bg-[#051c38]"
+                                  : isLight
+                                    ? "border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                                    : "border-white/10 text-white/70 hover:bg-white/5 hover:border-white/30"
+                              }`}
                           >
                             <span className="truncate">{tInfo.label}</span>
                             <span className={`w-2 h-2 rounded-full shrink-0 ${tInfo.dot}`} />
@@ -1847,13 +1884,12 @@ export default function App() {
                 {/* Synthesized voice setting */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className={`text-[10px] uppercase font-bold block tracking-wider ${
-                      isChalkboard ? "text-amber-200/70 font-scholar-title" :
+                    <label className={`text-[10px] uppercase font-bold block tracking-wider ${isChalkboard ? "text-amber-200/70 font-scholar-title" :
                       isLightAcademic ? "text-slate-700 font-sans" :
-                      isNotebook ? "text-stone-800 font-academic" :
-                      isDarkAI ? "text-slate-300 font-mono" :
-                      "text-white/60"
-                    }`}>
+                        isNotebook ? "text-stone-800 font-academic" :
+                          isDarkAI ? "text-slate-300 font-mono" :
+                            "text-white/60"
+                      }`}>
                       {isChalkboard ? "Lecturer Persona" : "Auto Audio Narrator"}
                     </label>
                     <div className="flex items-center gap-1.5">
@@ -1862,19 +1898,18 @@ export default function App() {
                           const testText = isChalkboard
                             ? "Step one: we apply the fundamental theorem of calculus to evaluate the definite integral."
                             : narrator === "assistant"
-                            ? "Step one: let us analyze the discriminant to determine the nature of the roots."
-                            : narrator === "cyborg"
-                            ? "Step one: plotting the quadratic curve and identifying the vertex coordinates."
-                            : "Step one: let us factor the quadratic polynomial into linear binomial factors.";
+                              ? "Step one: let us analyze the discriminant to determine the nature of the roots."
+                              : narrator === "cyborg"
+                                ? "Step one: plotting the quadratic curve and identifying the vertex coordinates."
+                                : "Step one: let us factor the quadratic polynomial into linear binomial factors.";
                           triggerAudioNarration(testText);
                         }}
-                        className={`text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1 font-mono transition-colors cursor-pointer ${
-                          isChalkboard ? "bg-amber-900/40 text-amber-300 hover:bg-amber-800/60" :
+                        className={`text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1 font-mono transition-colors cursor-pointer ${isChalkboard ? "bg-amber-900/40 text-amber-300 hover:bg-amber-800/60" :
                           isLightAcademic ? "bg-blue-100 text-blue-700 hover:bg-blue-200" :
-                          isNotebook ? "bg-stone-200 text-stone-800 hover:bg-stone-300" :
-                          isDarkAI ? "bg-indigo-950/80 text-cyan-300 border border-indigo-800/40 hover:bg-indigo-900" :
-                          "bg-white/10 text-white/80 hover:bg-white/20"
-                        }`}
+                            isNotebook ? "bg-stone-200 text-stone-800 hover:bg-stone-300" :
+                              isDarkAI ? "bg-indigo-950/80 text-cyan-300 border border-indigo-800/40 hover:bg-indigo-900" :
+                                "bg-white/10 text-white/80 hover:bg-white/20"
+                          }`}
                         title="Preview Narrator Voice"
                       >
                         <Volume2 className="w-3 h-3" />
@@ -1882,11 +1917,10 @@ export default function App() {
                       </button>
                       <button
                         onClick={() => setIsMuted(!isMuted)}
-                        className={`p-1 rounded transition-colors cursor-pointer ${
-                          isLightAcademic ? "text-slate-500 hover:text-slate-800" :
+                        className={`p-1 rounded transition-colors cursor-pointer ${isLightAcademic ? "text-slate-500 hover:text-slate-800" :
                           isNotebook ? "text-stone-600 hover:text-stone-900" :
-                          "text-white/60 hover:text-white"
-                        }`}
+                            "text-white/60 hover:text-white"
+                          }`}
                         title={isMuted ? "Unmute Voice" : "Mute Voice"}
                       >
                         {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className={`w-4 h-4 ${isChalkboard ? "text-amber-400" : isLightAcademic ? "text-blue-600" : isDarkAI ? "text-cyan-400" : "text-emerald-400"}`} />}
@@ -1897,72 +1931,68 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-2" id="narrator-type-deck">
                     <button
                       onClick={() => { setNarrator("natural"); setIsMuted(false); }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
-                        narrator === "natural" && !isMuted 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" 
-                            : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${narrator === "natural" && !isMuted
+                        ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40"
+                          : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                             : isDarkAI ? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
-                            : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
-                            : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" 
-                            : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
+                              : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
+                                : "bg-blue-600 text-white border-blue-500"
+                        : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5"
+                          : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
                             : isDarkAI ? "border-[#273449] text-slate-300 bg-[#111827] hover:bg-[#1a2336]"
-                            : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
-                            : "border-white/10 text-white/60 hover:bg-white/5"
+                              : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
+                                : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       {isChalkboard ? "Prof. Emeritus (Male)" : "Professor AI (Male)"}
                     </button>
                     <button
                       onClick={() => { setNarrator("assistant"); setIsMuted(false); }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
-                        narrator === "assistant" && !isMuted 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" 
-                            : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${narrator === "assistant" && !isMuted
+                        ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40"
+                          : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                             : isDarkAI ? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
-                            : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
-                            : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" 
-                            : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
+                              : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
+                                : "bg-blue-600 text-white border-blue-500"
+                        : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5"
+                          : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
                             : isDarkAI ? "border-[#273449] text-slate-300 bg-[#111827] hover:bg-[#1a2336]"
-                            : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
-                            : "border-white/10 text-white/60 hover:bg-white/5"
+                              : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
+                                : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       {isChalkboard ? "Oxford Fellow (Female)" : "Scholar AI (Female)"}
                     </button>
                     <button
                       onClick={() => { setNarrator("cyborg"); setIsMuted(false); }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
-                        narrator === "cyborg" && !isMuted 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" 
-                            : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${narrator === "cyborg" && !isMuted
+                        ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40"
+                          : isLightAcademic ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                             : isDarkAI ? "bg-indigo-600 text-white border-indigo-500 shadow-sm"
-                            : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
-                            : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" 
-                            : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
+                              : isNotebook ? "bg-blue-900 text-white border-blue-900 shadow-sm"
+                                : "bg-blue-600 text-white border-blue-500"
+                        : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5"
+                          : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
                             : isDarkAI ? "border-[#273449] text-slate-300 bg-[#111827] hover:bg-[#1a2336]"
-                            : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
-                            : "border-white/10 text-white/60 hover:bg-white/5"
+                              : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
+                                : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       {isChalkboard ? "Cambridge Fellow" : "Conversational"}
                     </button>
                     <button
                       onClick={() => { setNarrator("mute"); }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
-                        narrator === "mute" || isMuted 
-                          ? isChalkboard ? "bg-[#14231b] text-amber-200/70 border-amber-900/50" 
-                            : isLightAcademic ? "bg-slate-200 text-slate-800 border-slate-300"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${narrator === "mute" || isMuted
+                        ? isChalkboard ? "bg-[#14231b] text-amber-200/70 border-amber-900/50"
+                          : isLightAcademic ? "bg-slate-200 text-slate-800 border-slate-300"
                             : isDarkAI ? "bg-zinc-800 text-white border-zinc-700"
-                            : isNotebook ? "bg-stone-300 text-stone-800 border-stone-400"
-                            : "bg-zinc-800 text-white border-zinc-700" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" 
-                            : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
+                              : isNotebook ? "bg-stone-300 text-stone-800 border-stone-400"
+                                : "bg-zinc-800 text-white border-zinc-700"
+                        : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5"
+                          : isLightAcademic ? "border-slate-200 text-slate-700 bg-white hover:bg-slate-100"
                             : isDarkAI ? "border-[#273449] text-slate-300 bg-[#111827] hover:bg-[#1a2336]"
-                            : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
-                            : "border-white/10 text-white/60 hover:bg-white/5"
+                              : isNotebook ? "border-[#E2DAC7] text-stone-700 bg-[#FFFDF8] hover:bg-[#F5EFE0]"
+                                : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       Muted
@@ -1970,13 +2000,12 @@ export default function App() {
                   </div>
 
                   {/* Active Voice Indicator Badge */}
-                  <div className={`mt-2 px-2 py-1 rounded text-[9px] flex items-center justify-between font-mono ${
-                    isChalkboard ? "bg-[#111f18] text-amber-300/80 border border-amber-900/30" :
+                  <div className={`mt-2 px-2 py-1 rounded text-[9px] flex items-center justify-between font-mono ${isChalkboard ? "bg-[#111f18] text-amber-300/80 border border-amber-900/30" :
                     isLightAcademic ? "bg-slate-100 text-slate-600 border border-slate-200" :
-                    isNotebook ? "bg-[#F5EFE0] text-stone-600 border border-[#E2DAC7]" :
-                    isDarkAI ? "bg-[#111827] text-slate-400 border border-[#273449]" :
-                    "bg-white/5 text-white/50 border border-white/5"
-                  }`}>
+                      isNotebook ? "bg-[#F5EFE0] text-stone-600 border border-[#E2DAC7]" :
+                        isDarkAI ? "bg-[#111827] text-slate-400 border border-[#273449]" :
+                          "bg-white/5 text-white/50 border border-white/5"
+                    }`}>
                     <span className="truncate">
                       Voice: {getVoiceDisplayName(getBestHumanVoice({ persona: narrator === "assistant" ? "scholar" : narrator === "cyborg" ? "friendly" : "natural" }))}
                     </span>
@@ -1999,10 +2028,9 @@ export default function App() {
                       <button
                         key={sVal}
                         onClick={() => setSpeed(sVal)}
-                        className={`flex-1 text-[10px] py-1 px-1 text-center font-mono rounded transition-colors ${
-                          speed === sVal 
-                            ? isChalkboard ? "bg-[#1b3829] text-amber-200 font-bold border border-amber-500/30" : "bg-blue-600 text-white font-bold" 
-                            : isChalkboard ? "text-amber-200/50 hover:text-amber-100" : "text-white/50 hover:text-white"
+                        className={`flex-1 text-[10px] py-1 px-1 text-center font-mono rounded transition-colors ${speed === sVal
+                          ? isChalkboard ? "bg-[#1b3829] text-amber-200 font-bold border border-amber-500/30" : "bg-blue-600 text-white font-bold"
+                          : isChalkboard ? "text-amber-200/50 hover:text-amber-100" : "text-white/50 hover:text-white"
                           }`}
                       >
                         {sVal}x
@@ -2024,10 +2052,9 @@ export default function App() {
                   <div className="grid grid-cols-3 gap-2" id="video-quality-deck">
                     <button
                       onClick={() => setVideoQuality("low")}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${
-                        videoQuality === "low" 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded ${videoQuality === "low"
+                        ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500"
+                        : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       Low
@@ -2040,10 +2067,9 @@ export default function App() {
                           setVideoQuality("medium");
                         }
                       }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded relative ${
-                        videoQuality === "medium" 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded relative ${videoQuality === "medium"
+                        ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500"
+                        : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       Medium
@@ -2057,10 +2083,9 @@ export default function App() {
                           setVideoQuality("high");
                         }
                       }}
-                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded relative ${
-                        videoQuality === "high" 
-                          ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500" 
-                          : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
+                      className={`py-2 px-1 text-[10px] font-mono border tracking-tight transition-all rounded relative ${videoQuality === "high"
+                        ? isChalkboard ? "bg-[#183626] text-amber-200 border-amber-500/40" : "bg-blue-600 text-white border-blue-500"
+                        : isChalkboard ? "border-amber-900/30 text-amber-200/60 hover:bg-white/5" : "border-white/10 text-white/60 hover:bg-white/5"
                         }`}
                     >
                       High
@@ -2089,17 +2114,15 @@ export default function App() {
                       setEquationInput(item.equation);
                       handleSolve(item.equation);
                     }}
-                    className={`group flex items-center gap-3 p-3 border transition-all cursor-pointer rounded-lg ${
-                      solution?.equation.toLowerCase() === item.equation.toLowerCase() 
-                        ? isChalkboard ? "border-amber-500/60 bg-[#16291e]" : "border-blue-500 bg-blue-950/20" 
-                        : isChalkboard ? "border-amber-900/30 bg-[#0e1a14] hover:bg-[#14261d]" : "border-white/5 bg-white/5 hover:bg-white/10"
+                    className={`group flex items-center gap-3 p-3 border transition-all cursor-pointer rounded-lg ${solution?.equation.toLowerCase() === item.equation.toLowerCase()
+                      ? isChalkboard ? "border-amber-500/60 bg-[#16291e]" : "border-blue-500 bg-blue-950/20"
+                      : isChalkboard ? "border-amber-900/30 bg-[#0e1a14] hover:bg-[#14261d]" : "border-white/5 bg-white/5 hover:bg-white/10"
                       }`}
                   >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs transition-all border ${
-                      isChalkboard 
-                        ? "bg-[#182a20] border-amber-900/40 text-amber-300" 
-                        : "bg-black/40 text-white/60 group-hover:bg-blue-600/20 group-hover:text-blue-400 border-white/5"
-                    }`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-xs transition-all border ${isChalkboard
+                      ? "bg-[#182a20] border-amber-900/40 text-amber-300"
+                      : "bg-black/40 text-white/60 group-hover:bg-blue-600/20 group-hover:text-blue-400 border-white/5"
+                      }`}>
                       §0{historyList.length - index}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -2108,9 +2131,8 @@ export default function App() {
                       </div>
                       <div className="flex items-center justify-between mt-1">
                         <span className={`text-[9px] tracking-wider font-medium ${isChalkboard ? "text-amber-200/50" : "text-white/40"}`}>{item.type}</span>
-                        <span className={`text-[8px] px-1 py-0.2 rounded font-mono ${
-                          isChalkboard ? "bg-amber-500/15 text-amber-300 border border-amber-500/30" : "bg-emerald-500/10 text-emerald-400"
-                        }`}>
+                        <span className={`text-[8px] px-1 py-0.2 rounded font-mono ${isChalkboard ? "bg-amber-500/15 text-amber-300 border border-amber-500/30" : "bg-emerald-500/10 text-emerald-400"
+                          }`}>
                           {item.date}
                         </span>
                       </div>
@@ -2124,11 +2146,10 @@ export default function App() {
               <button
                 onClick={handleExportVideo}
                 disabled={renderingVideo || !solution}
-                className={`mt-4 w-full py-4 transition-colors font-black uppercase text-xs tracking-wider cursor-pointer rounded-sm transform active:scale-95 flex items-center justify-center gap-2 ${
-                  isChalkboard 
-                    ? "bg-[#1a3829] hover:bg-[#254f3a] disabled:opacity-40 text-amber-200 border border-amber-500/40 font-scholar-title shadow-lg shadow-black/40" 
-                    : "bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white tracking-tighter"
-                }`}
+                className={`mt-4 w-full py-4 transition-colors font-black uppercase text-xs tracking-wider cursor-pointer rounded-sm transform active:scale-95 flex items-center justify-center gap-2 ${isChalkboard
+                  ? "bg-[#1a3829] hover:bg-[#254f3a] disabled:opacity-40 text-amber-200 border border-amber-500/40 font-scholar-title shadow-lg shadow-black/40"
+                  : "bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white tracking-tighter"
+                  }`}
                 id="render_sequence_bar"
               >
                 {renderingVideo ? (
@@ -2144,126 +2165,120 @@ export default function App() {
         </main>
       )}
 
-      {/* Synchronized Live Video Timeline Overlay Footer matching Academic Slate */}
-      <footer className={`border-t flex flex-col md:flex-row items-center px-6 sm:px-8 py-4 md:h-28 gap-4 md:gap-8 transition-colors ${
-        isChalkboard ? "bg-[#09130f] border-amber-900/40" : "bg-[#0F0F0F] border-white/10"
-      }`}>
+      {/* Synchronized Live Video Timeline Overlay Footer matching Academic Slate (Studio view only) */}
+      {currentView === "dashboard" && (
+        <footer className={`border-t flex flex-col md:flex-row items-center px-6 sm:px-8 py-4 md:h-28 gap-4 md:gap-8 transition-colors ${isChalkboard ? "bg-[#09130f] border-amber-900/40" : "bg-[#0F0F0F] border-white/10"
+          }`}>
 
-        {/* Playback absolute timestamp block */}
-        <div className={`flex flex-row md:flex-col gap-2 md:gap-1 justify-between w-full md:w-28 shrink-0 border-b md:border-b-0 pb-2 md:pb-0 ${
-          isChalkboard ? "border-amber-900/30" : "border-white/10"
-        }`}>
-          <div className={`text-sm font-black uppercase font-mono tracking-tight flex items-center gap-1.5 ${
-            isChalkboard ? "text-amber-300 font-scholar-title" : ""
-          }`} id="total_time_tracker">
-            <Clock className={`w-3.5 h-3.5 ${isChalkboard ? "text-amber-400" : "text-blue-500"}`} />
-            00:0{solution?.scenes.length ? activeSceneIndex + 1 : 0}:00
-          </div>
-          <div className={`text-[9px] font-bold uppercase tracking-widest ${isChalkboard ? "text-amber-200/50 font-scholar-title" : "text-white/30"}`}>
-            {solution?.scenes.length ? (isChalkboard ? `Lemma §0${activeSceneIndex + 1}/${solution.scenes.length}` : `Scene ${activeSceneIndex + 1}/${solution.scenes.length}`) : "No Board"}
-          </div>
-        </div>
-
-        {/* High-fidelity Video deck triggers (Backward, Play/Pause, Forward) placed prominently on the left */}
-        <div className="flex gap-2.5 items-center justify-center shrink-0">
-          <button
-            onClick={() => {
-              if (solution) {
-                const prev = Math.max(0, activeSceneIndex - 1);
-                setActiveSceneIndex(prev);
-                setIsPlaying(false);
-              }
-            }}
-            disabled={!solution || activeSceneIndex === 0}
-            className={`w-10 h-10 border flex items-center justify-center transition-colors disabled:opacity-30 cursor-pointer rounded-sm ${
-              isChalkboard 
-                ? "border-amber-900/40 text-amber-200 hover:bg-[#14261d]" 
-                : "border-white/20 text-white hover:bg-white/5 active:bg-white/10"
-            }`}
-            title="Backward Step"
-          >
-            <SkipBack className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => {
-              if (!solution) return;
-              setIsPlaying(!isPlaying);
-            }}
-            disabled={!solution}
-            className={`w-12 h-12 flex items-center justify-center transition-all transform active:scale-90 font-bold disabled:opacity-30 cursor-pointer rounded-sm ${
-              isChalkboard 
-                ? "bg-amber-400 hover:bg-amber-300 text-black shadow-lg shadow-amber-400/20" 
-                : "bg-white text-black hover:bg-blue-600 hover:text-white"
-            }`}
-            title={isPlaying ? "Pause Scene Presentation" : "Play Scene Presentation"}
-          >
-            {isPlaying ? (
-              <Pause className="w-5 h-5 fill-current" />
-            ) : (
-              <Play className="w-5 h-5 fill-current ml-0.5" />
-            )}
-          </button>
-
-          <button
-            onClick={() => {
-              if (solution) {
-                const next = Math.min(solution.scenes.length - 1, activeSceneIndex + 1);
-                setActiveSceneIndex(next);
-                setIsPlaying(false);
-              }
-            }}
-            disabled={!solution || activeSceneIndex === (solution?.scenes.length || 1) - 1}
-            className={`w-10 h-10 border flex items-center justify-center transition-colors disabled:opacity-30 cursor-pointer rounded-sm ${
-              isChalkboard 
-                ? "border-amber-900/40 text-amber-200 hover:bg-[#14261d]" 
-                : "border-white/20 text-white hover:bg-white/5 active:bg-white/10"
-            }`}
-            title="Forward Step"
-          >
-            <SkipForward className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Horizontal step segment tracks highlighting in real time based on selection with right padding for floating widgets */}
-        <div className="flex-1 flex gap-2 w-full h-12 items-center overflow-x-auto py-1 scrollbar-none pr-56 sm:pr-72" id="timeline-tracks-deck">
-          {solution && solution.scenes.length > 0 ? (
-            solution.scenes.map((scene, idx) => {
-              const isActive = idx === activeSceneIndex;
-              return (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setActiveSceneIndex(idx);
-                    setIsPlaying(false); // Pause auto playback when manually stepping
-                  }}
-                  className={`h-full flex-1 min-w-[120px] border-l border-r px-3 flex flex-col justify-center transition-all duration-300 text-left rounded-[3px] cursor-pointer ${
-                    isActive
-                      ? isChalkboard 
-                        ? "bg-[#183626] border-amber-500/60 text-amber-200 shadow-md" 
-                        : "bg-blue-600/30 border-blue-500 text-white"
-                      : isChalkboard 
-                        ? "bg-[#0e1a14] hover:bg-[#14261d] border-amber-900/30 text-amber-200/50" 
-                        : "bg-white/5 hover:bg-white/10 border-white/10 text-white/40"
-                    }`}
-                >
-                  <span className={`text-[8px] font-bold uppercase block opacity-60 ${isChalkboard ? "font-scholar-title" : ""}`}>
-                    {isChalkboard ? `Lemma §0${scene.sceneNumber}` : `Step 0${scene.sceneNumber}`}
-                  </span>
-                  <span className={`text-[10px] font-bold truncate block ${isChalkboard ? "font-academic text-[11px]" : ""}`}>{scene.title}</span>
-                </button>
-              );
-            })
-          ) : (
-            <div className={`flex-1 flex items-center justify-center text-[10px] uppercase tracking-widest font-mono ${
-              isChalkboard ? "text-amber-200/30 font-scholar-title" : "text-white/20"
+          {/* Playback absolute timestamp block */}
+          <div className={`flex flex-row md:flex-col gap-2 md:gap-1 justify-between w-full md:w-28 shrink-0 border-b md:border-b-0 pb-2 md:pb-0 ${isChalkboard ? "border-amber-900/30" : "border-white/10"
             }`}>
-              Waiting for equation parsing to map derivation timeline...
+            <div className={`text-sm font-black uppercase font-mono tracking-tight flex items-center gap-1.5 ${isChalkboard ? "text-amber-300 font-scholar-title" : ""
+              }`} id="total_time_tracker">
+              <Clock className={`w-3.5 h-3.5 ${isChalkboard ? "text-amber-400" : "text-blue-500"}`} />
+              00:0{solution?.scenes.length ? activeSceneIndex + 1 : 0}:00
             </div>
-          )}
-        </div>
+            <div className={`text-[9px] font-bold uppercase tracking-widest ${isChalkboard ? "text-amber-200/50 font-scholar-title" : "text-white/30"}`}>
+              {solution?.scenes.length ? (isChalkboard ? `Lemma §0${activeSceneIndex + 1}/${solution.scenes.length}` : `Scene ${activeSceneIndex + 1}/${solution.scenes.length}`) : "No Board"}
+            </div>
+          </div>
 
-      </footer>
+          {/* High-fidelity Video deck triggers (Backward, Play/Pause, Forward) placed prominently on the left */}
+          <div className="flex gap-2.5 items-center justify-center shrink-0">
+            <button
+              onClick={() => {
+                if (solution) {
+                  const prev = Math.max(0, activeSceneIndex - 1);
+                  setActiveSceneIndex(prev);
+                  setIsPlaying(false);
+                }
+              }}
+              disabled={!solution || activeSceneIndex === 0}
+              className={`w-10 h-10 border flex items-center justify-center transition-colors disabled:opacity-30 cursor-pointer rounded-sm ${isChalkboard
+                ? "border-amber-900/40 text-amber-200 hover:bg-[#14261d]"
+                : "border-white/20 text-white hover:bg-white/5 active:bg-white/10"
+                }`}
+              title="Backward Step"
+            >
+              <SkipBack className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => {
+                if (!solution) return;
+                setIsPlaying(!isPlaying);
+              }}
+              disabled={!solution}
+              className={`w-12 h-12 flex items-center justify-center transition-all transform active:scale-90 font-bold disabled:opacity-30 cursor-pointer rounded-sm ${isChalkboard
+                ? "bg-amber-400 hover:bg-amber-300 text-black shadow-lg shadow-amber-400/20"
+                : "bg-white text-black hover:bg-blue-600 hover:text-white"
+                }`}
+              title={isPlaying ? "Pause Scene Presentation" : "Play Scene Presentation"}
+            >
+              {isPlaying ? (
+                <Pause className="w-5 h-5 fill-current" />
+              ) : (
+                <Play className="w-5 h-5 fill-current ml-0.5" />
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                if (solution) {
+                  const next = Math.min(solution.scenes.length - 1, activeSceneIndex + 1);
+                  setActiveSceneIndex(next);
+                  setIsPlaying(false);
+                }
+              }}
+              disabled={!solution || activeSceneIndex === (solution?.scenes.length || 1) - 1}
+              className={`w-10 h-10 border flex items-center justify-center transition-colors disabled:opacity-30 cursor-pointer rounded-sm ${isChalkboard
+                ? "border-amber-900/40 text-amber-200 hover:bg-[#14261d]"
+                : "border-white/20 text-white hover:bg-white/5 active:bg-white/10"
+                }`}
+              title="Forward Step"
+            >
+              <SkipForward className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Horizontal step segment tracks highlighting in real time based on selection with right padding for floating widgets */}
+          <div className="flex-1 flex gap-2 w-full h-12 items-center overflow-x-auto py-1 scrollbar-none pr-56 sm:pr-72" id="timeline-tracks-deck">
+            {solution && solution.scenes.length > 0 ? (
+              solution.scenes.map((scene, idx) => {
+                const isActive = idx === activeSceneIndex;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setActiveSceneIndex(idx);
+                      setIsPlaying(false); // Pause auto playback when manually stepping
+                    }}
+                    className={`h-full flex-1 min-w-[120px] border-l border-r px-3 flex flex-col justify-center transition-all duration-300 text-left rounded-[3px] cursor-pointer ${isActive
+                      ? isChalkboard
+                        ? "bg-[#183626] border-amber-500/60 text-amber-200 shadow-md"
+                        : "bg-blue-600/30 border-blue-500 text-white"
+                      : isChalkboard
+                        ? "bg-[#0e1a14] hover:bg-[#14261d] border-amber-900/30 text-amber-200/50"
+                        : "bg-white/5 hover:bg-white/10 border-white/10 text-white/40"
+                      }`}
+                  >
+                    <span className={`text-[8px] font-bold uppercase block opacity-60 ${isChalkboard ? "font-scholar-title" : ""}`}>
+                      {isChalkboard ? `Lemma §0${scene.sceneNumber}` : `Step 0${scene.sceneNumber}`}
+                    </span>
+                    <span className={`text-[10px] font-bold truncate block ${isChalkboard ? "font-academic text-[11px]" : ""}`}>{scene.title}</span>
+                  </button>
+                );
+              })
+            ) : (
+              <div className={`flex-1 flex items-center justify-center text-[10px] uppercase tracking-widest font-mono ${isChalkboard ? "text-amber-200/30 font-scholar-title" : "text-white/20"
+                }`}>
+                Waiting for equation parsing to map derivation timeline...
+              </div>
+            )}
+          </div>
+
+        </footer>
+      )}
 
       {/* Auth Modal popup */}
       <AuthModal
@@ -2282,6 +2297,12 @@ export default function App() {
           setIsPremium(true);
           localStorage.setItem("math_premium", "true");
         }}
+      />
+
+      {/* Cyber Defense Matrix Modal popup */}
+      <CyberShieldModal
+        isOpen={isCyberModalOpen}
+        onClose={() => setIsCyberModalOpen(false)}
       />
 
       {/* AI Chat assistant */}

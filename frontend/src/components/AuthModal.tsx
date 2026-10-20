@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { X, Lock, Mail, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { X, Lock, Mail, ArrowRight, Loader2, Sparkles, ShieldCheck, ShieldAlert, Check, AlertCircle } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -15,19 +15,64 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Real-time password security evaluation
+  const passwordSecurity = useMemo(() => {
+    const hasMinLength = password.length >= 8;
+    const hasLetter = /[a-zA-Z]/.test(password);
+    const hasNumberOrSymbol = /[0-9!@#$%^&*(),.?":{}|<>]/.test(password);
+    const isVeryLong = password.length >= 12;
+
+    let score = 0;
+    if (hasMinLength) score += 1;
+    if (hasLetter) score += 1;
+    if (hasNumberOrSymbol) score += 1;
+    if (isVeryLong) score += 1;
+
+    let label = "Unprotected";
+    let color = "bg-red-500";
+    let textColor = "text-red-400";
+
+    if (score === 1 || score === 2) {
+      label = "Moderate";
+      color = "bg-amber-500";
+      textColor = "text-amber-400";
+    } else if (score >= 3) {
+      label = "Strong Shield";
+      color = "bg-emerald-500";
+      textColor = "text-emerald-400";
+    }
+
+    const isValid = hasMinLength && hasLetter && hasNumberOrSymbol;
+
+    return {
+      hasMinLength,
+      hasLetter,
+      hasNumberOrSymbol,
+      score,
+      label,
+      color,
+      textColor,
+      isValid,
+    };
+  }, [password]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
     if (!email || !password) {
-      setError("Please fill in all fields.");
-      setLoading(false);
+      setError("Please fill in all credentials.");
       return;
     }
 
+    if (mode === "signup" && !passwordSecurity.isValid) {
+      setError("Password must be at least 8 characters long and contain both letters and numbers/symbols.");
+      return;
+    }
+
+    setLoading(true);
     const endpoint = mode === "signin" ? "/api/auth/signin" : "/api/auth/signup";
 
     try {
@@ -40,26 +85,31 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || "Authentication failed. Please check your credentials.");
+        throw new Error(data.detail || "Authentication failed. Please verify your credentials.");
       }
 
       if (mode === "signin") {
         onAuthSuccess(data.session_token, data.email, data.is_premium);
         onClose();
       } else {
-        // Automatically sign in after signup
-        const signinRes = await fetch("/api/auth/signin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        });
-        const signinData = await signinRes.json();
-        if (signinRes.ok) {
-          onAuthSuccess(signinData.session_token, signinData.email, signinData.is_premium);
+        // Automatically sign in or use the session_token returned by signup
+        if (data.session_token) {
+          onAuthSuccess(data.session_token, data.email, data.is_premium);
           onClose();
         } else {
-          setMode("signin");
-          setError("Account created! Please sign in.");
+          const signinRes = await fetch("/api/auth/signin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          const signinData = await signinRes.json();
+          if (signinRes.ok) {
+            onAuthSuccess(signinData.session_token, signinData.email, signinData.is_premium);
+            onClose();
+          } else {
+            setMode("signin");
+            setError("Account created! Please sign in.");
+          }
         }
       }
     } catch (err: any) {
@@ -68,6 +118,8 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
       setLoading(false);
     }
   };
+
+  const isRateLimited = error && (error.toLowerCase().includes("too many") || error.toLowerCase().includes("locked") || error.toLowerCase().includes("rate limit"));
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -93,21 +145,37 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
         {/* Title & Header */}
         <div className="flex flex-col items-center mb-6">
           <div className="w-10 h-10 bg-[#14261d] border border-amber-500/40 rounded-lg flex items-center justify-center font-bold text-lg mb-3 shadow-md">
-            <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
+            {mode === "signin" ? (
+              <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
+            ) : (
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            )}
           </div>
           <h2 className="text-2xl font-scholar-title font-bold tracking-tight text-amber-100">
             {mode === "signin" ? "Scholar Sign In" : "Academy Registry"}
           </h2>
           <p className="text-xs text-amber-200/60 font-academic italic mt-1">
-            {mode === "signin" ? "Welcome back to the Scholar's Studio" : "Begin rendering rigorous math animations"}
+            {mode === "signin" ? "Welcome back to the Scholar's Studio" : "Begin rendering rigorous math animations with secure credentials"}
           </p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-4 py-3 rounded-lg flex items-start gap-2">
-              <span className="font-bold">Error:</span> {error}
+            <div className={`border text-xs px-4 py-3 rounded-lg flex items-start gap-2.5 ${
+              isRateLimited 
+                ? "bg-amber-500/10 border-amber-500/40 text-amber-300" 
+                : "bg-red-500/10 border-red-500/30 text-red-400"
+            }`}>
+              {isRateLimited ? (
+                <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+              ) : (
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+              )}
+              <div>
+                <span className="font-bold">{isRateLimited ? "Security Throttling: " : "Authentication Notice: "}</span>
+                {error}
+              </div>
             </div>
           )}
 
@@ -133,9 +201,16 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
 
           {/* Password Input */}
           <div className="space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-amber-200/60 font-scholar-title" htmlFor="auth-password">
-              Password Cipher
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-amber-200/60 font-scholar-title" htmlFor="auth-password">
+                Password Cipher
+              </label>
+              {mode === "signup" && password.length > 0 && (
+                <span className={`text-[10px] font-mono font-medium ${passwordSecurity.textColor}`}>
+                  {passwordSecurity.label}
+                </span>
+              )}
+            </div>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-amber-200/40 pointer-events-none">
                 <Lock className="w-4 h-4" />
@@ -149,12 +224,35 @@ export default function AuthModal({ isOpen, onClose, initialMode, onAuthSuccess 
                 className="w-full bg-[#111f18] border border-amber-900/40 rounded-lg pl-10 pr-4 py-2.5 text-sm text-amber-100 placeholder:text-amber-200/30 focus:outline-none focus:border-amber-400 focus:bg-[#14261d] transition-all"
               />
             </div>
+
+            {/* Password Strength Meter & Requirement Checklist for Signup */}
+            {mode === "signup" && (
+              <div className="pt-2 space-y-2">
+                {/* Visual bar */}
+                <div className="grid grid-cols-3 gap-1.5 h-1.5 w-full">
+                  <div className={`rounded-full transition-all duration-300 ${passwordSecurity.score >= 1 ? passwordSecurity.color : "bg-white/10"}`} />
+                  <div className={`rounded-full transition-all duration-300 ${passwordSecurity.score >= 2 ? passwordSecurity.color : "bg-white/10"}`} />
+                  <div className={`rounded-full transition-all duration-300 ${passwordSecurity.score >= 3 ? passwordSecurity.color : "bg-white/10"}`} />
+                </div>
+                {/* Checklist */}
+                <div className="flex flex-col gap-1 text-[11px] text-amber-200/60">
+                  <div className="flex items-center gap-1.5">
+                    <Check className={`w-3.5 h-3.5 ${passwordSecurity.hasMinLength ? "text-emerald-400" : "text-white/20"}`} />
+                    <span className={passwordSecurity.hasMinLength ? "text-amber-200/90" : ""}>At least 8 characters</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check className={`w-3.5 h-3.5 ${passwordSecurity.hasLetter && passwordSecurity.hasNumberOrSymbol ? "text-emerald-400" : "text-white/20"}`} />
+                    <span className={passwordSecurity.hasLetter && passwordSecurity.hasNumberOrSymbol ? "text-amber-200/90" : ""}>Includes letters and numbers or symbols</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (mode === "signup" && password.length > 0 && !passwordSecurity.isValid)}
             className="w-full bg-[#193626] hover:bg-[#234d37] border border-amber-500/40 disabled:opacity-40 text-amber-200 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-lg active:scale-[0.98] transform font-scholar-title"
           >
             {loading ? (
