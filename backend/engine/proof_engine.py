@@ -1177,6 +1177,382 @@ def _prove_mean_value_theorem(start_time: float) -> Dict[str, Any]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 4.1 COMPLEX NUMBERS THEOREM PROOFS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _prove_euler_formula(start_time: float) -> Dict[str, Any]:
+    statement_latex = r"e^{i\theta} = \cos\theta + i\sin\theta"
+    steps = [
+        {
+            "step_number": 1,
+            "title": "Taylor Series Expansion for Exponential Function e^z",
+            "latex": r"e^z = \sum_{n=0}^{\infty} \frac{z^n}{n!} = 1 + z + \frac{z^2}{2!} + \frac{z^3}{3!} + \frac{z^4}{4!} + \frac{z^5}{5!} + \dots",
+            "justification": "The Maclaurin series expansion of the exponential function converges for all complex numbers z in C.",
+            "rule_name": "Exponential Maclaurin Series",
+            "status": "assumption"
+        },
+        {
+            "step_number": 2,
+            "title": "Substitute Pure Imaginary Argument z = i*theta",
+            "latex": r"e^{i\theta} = 1 + (i\theta) + \frac{(i\theta)^2}{2!} + \frac{(i\theta)^3}{3!} + \frac{(i\theta)^4}{4!} + \frac{(i\theta)^5}{5!} + \dots",
+            "justification": "Direct evaluation with z = i*theta.",
+            "rule_name": "Argument Substitution",
+            "status": "verified"
+        },
+        {
+            "step_number": 3,
+            "title": "Evaluate Powers of the Imaginary Unit i (i^2 = -1, i^3 = -i, i^4 = 1)",
+            "latex": r"e^{i\theta} = 1 + i\theta - \frac{\theta^2}{2!} - i\frac{\theta^3}{3!} + \frac{\theta^4}{4!} + i\frac{\theta^5}{5!} - \dots",
+            "justification": "Cyclic powers of i: i^0 = 1, i^1 = i, i^2 = -1, i^3 = -i, i^4 = 1.",
+            "rule_name": "Powers of i Cyclic Reduction",
+            "status": "verified"
+        },
+        {
+            "step_number": 4,
+            "title": "Separate into Real and Purely Imaginary Series",
+            "latex": r"e^{i\theta} = \left( 1 - \frac{\theta^2}{2!} + \frac{\theta^4}{4!} - \dots \right) + i \left( \theta - \frac{\theta^3}{3!} + \frac{\theta^5}{5!} - \dots \right)",
+            "justification": "Absolute convergence allows arbitrary rearrangement of terms into even and odd powers.",
+            "rule_name": "Series Rearrangement",
+            "status": "verified"
+        },
+        {
+            "step_number": 5,
+            "title": "Recognize Maclaurin Expansions of cos(theta) and sin(theta)",
+            "latex": r"\cos\theta = \sum_{k=0}^{\infty} (-1)^k \frac{\theta^{2k}}{(2k)!}, \quad \sin\theta = \sum_{k=0}^{\infty} (-1)^k \frac{\theta^{2k+1}}{(2k+1)!}",
+            "justification": "Identifies the standard power series for cosine and sine.",
+            "rule_name": "Trigonometric Maclaurin Series",
+            "status": "verified"
+        },
+        {
+            "step_number": 6,
+            "title": "Substitute and Conclude Euler's Formula",
+            "latex": r"e^{i\theta} = \cos\theta + i\sin\theta \quad \implies \quad e^{i\pi} + 1 = 0 \text{ (Euler's Identity)}",
+            "justification": "Substituting the series definitions yields Euler's foundational formula.",
+            "rule_name": "Conclusion Q.E.D.",
+            "status": "conclusion"
+        }
+    ]
+    return {
+        "statement": "Euler's Formula: e^(i*theta) = cos(theta) + i*sin(theta)",
+        "latex_statement": statement_latex,
+        "is_valid": True,
+        "proof_type": "complex",
+        "proof_type_label": "Complex Analysis Theorem (Euler's Formula)",
+        "summary": "Rigorous proof of Euler's formula e^(i*theta) = cos(theta) + i*sin(theta) via Maclaurin power series expansion and powers of i.",
+        "formal_steps": steps,
+        "qed_symbol": r"\blacksquare \quad \text{Q.E.D.}",
+        "confidence": 1.0,
+        "execution_time_ms": int((time.time() - start_time) * 1000)
+    }
+
+def _prove_de_moivre_theorem(start_time: float) -> Dict[str, Any]:
+    statement_latex = r"(\cos\theta + i\sin\theta)^n = \cos(n\theta) + i\sin(n\theta) \quad \forall n \in \mathbb{N}"
+    steps = [
+        {
+            "step_number": 1,
+            "title": "Base Case n = 1",
+            "latex": r"(\cos\theta + i\sin\theta)^1 = \cos(1\cdot\theta) + i\sin(1\cdot\theta)",
+            "justification": "Trivially true for the base integer n = 1.",
+            "rule_name": "Induction Base Case",
+            "status": "verified"
+        },
+        {
+            "step_number": 2,
+            "title": "Induction Hypothesis (Assume True for n = k)",
+            "latex": r"(\cos\theta + i\sin\theta)^k = \cos(k\theta) + i\sin(k\theta)",
+            "justification": "Assume statement holds for an arbitrary positive integer k >= 1.",
+            "rule_name": "Inductive Hypothesis",
+            "status": "assumption"
+        },
+        {
+            "step_number": 3,
+            "title": "Induction Step: Evaluate for n = k + 1",
+            "latex": r"(\cos\theta + i\sin\theta)^{k+1} = (\cos\theta + i\sin\theta)^k \cdot (\cos\theta + i\sin\theta)",
+            "justification": "Law of exponents: a^(k+1) = a^k * a.",
+            "rule_name": "Exponent Decomposition",
+            "status": "verified"
+        },
+        {
+            "step_number": 4,
+            "title": "Substitute Inductive Hypothesis",
+            "latex": r"= [\cos(k\theta) + i\sin(k\theta)] \cdot [\cos\theta + i\sin\theta]",
+            "justification": "Replace the k-th power by its hypothesis expansion.",
+            "rule_name": "Hypothesis Substitution",
+            "status": "verified"
+        },
+        {
+            "step_number": 5,
+            "title": "Multiply and Use i^2 = -1",
+            "latex": r"= [\cos(k\theta)\cos\theta - \sin(k\theta)\sin\theta] + i[\sin(k\theta)\cos\theta + \cos(k\theta)\sin\theta]",
+            "justification": "FOIL expansion: (a + bi)(c + di) = (ac - bd) + i(ad + bc).",
+            "rule_name": "Complex Multiplication",
+            "status": "verified"
+        },
+        {
+            "step_number": 6,
+            "title": "Apply Angle Addition Trigonometric Identities",
+            "latex": r"\cos(k\theta + \theta) + i\sin(k\theta + \theta) = \cos((k+1)\theta) + i\sin((k+1)\theta)",
+            "justification": "Sum-of-angles identities: cos(A+B) = cos A cos B - sin A sin B, sin(A+B) = sin A cos B + cos A sin B.",
+            "rule_name": "Trig Addition Identities",
+            "status": "verified"
+        },
+        {
+            "step_number": 7,
+            "title": "Inductive Conclusion",
+            "latex": r"(\cos\theta + i\sin\theta)^n = \cos(n\theta) + i\sin(n\theta) \quad \forall n \in \mathbb{N}",
+            "justification": "By the Principle of Mathematical Induction, De Moivre's formula holds for all positive integers n.",
+            "rule_name": "Conclusion Q.E.D.",
+            "status": "conclusion"
+        }
+    ]
+    return {
+        "statement": "De Moivre's Theorem: (cos(theta) + i*sin(theta))^n = cos(n*theta) + i*sin(n*theta)",
+        "latex_statement": statement_latex,
+        "is_valid": True,
+        "proof_type": "complex",
+        "proof_type_label": "Complex Theorem (De Moivre by Induction)",
+        "summary": "Formal proof of De Moivre's theorem via mathematical induction using trigonometric sum-of-angles formulas.",
+        "formal_steps": steps,
+        "qed_symbol": r"\blacksquare \quad \text{Q.E.D.}",
+        "confidence": 1.0,
+        "execution_time_ms": int((time.time() - start_time) * 1000)
+    }
+
+def _prove_modulus_product(start_time: float) -> Dict[str, Any]:
+    statement_latex = r"|z_1 \cdot z_2| = |z_1| \cdot |z_2| \quad \forall z_1, z_2 \in \mathbb{C}"
+    steps = [
+        {
+            "step_number": 1,
+            "title": "Polar Form Representation",
+            "latex": r"z_1 = r_1 e^{i\theta_1}, \quad z_2 = r_2 e^{i\theta_2} \quad \text{where } r_1 = |z_1|, \; r_2 = |z_2|",
+            "justification": "Every non-zero complex number can be expressed in polar form with r = |z| >= 0.",
+            "rule_name": "Polar Decomposition",
+            "status": "assumption"
+        },
+        {
+            "step_number": 2,
+            "title": "Product of the Two Complex Numbers",
+            "latex": r"z_1 \cdot z_2 = (r_1 e^{i\theta_1}) \cdot (r_2 e^{i\theta_2}) = (r_1 r_2) e^{i(\theta_1 + \theta_2)}",
+            "justification": "Exponents add under multiplication for powers of the same base e.",
+            "rule_name": "Exponential Product Rule",
+            "status": "verified"
+        },
+        {
+            "step_number": 3,
+            "title": "Modulus of Product",
+            "latex": r"|z_1 \cdot z_2| = |(r_1 r_2) e^{i(\theta_1 + \theta_2)}| = (r_1 r_2) |e^{i(\theta_1 + \theta_2)}|",
+            "justification": "Factor out positive real scalar r1 * r2.",
+            "rule_name": "Scalar Extraction",
+            "status": "verified"
+        },
+        {
+            "step_number": 4,
+            "title": "Unit Circle Property of Complex Exponential",
+            "latex": r"|e^{i\phi}| = \sqrt{\cos^2\phi + \sin^2\phi} = \sqrt{1} = 1",
+            "justification": "The complex exponential e^(i*phi) lies on the unit circle for all real phi.",
+            "rule_name": "Pythagorean Unit Modulus",
+            "status": "verified"
+        },
+        {
+            "step_number": 5,
+            "title": "Conclusion",
+            "latex": r"|z_1 \cdot z_2| = r_1 r_2 \cdot 1 = |z_1| \cdot |z_2|",
+            "justification": "Completes the proof that modulus is completely multiplicative.",
+            "rule_name": "Conclusion Q.E.D.",
+            "status": "conclusion"
+        }
+    ]
+    return {
+        "statement": "|z1 * z2| = |z1| * |z2|",
+        "latex_statement": statement_latex,
+        "is_valid": True,
+        "proof_type": "complex",
+        "proof_type_label": "Complex Modulus Multiplicative Property",
+        "summary": "Proof that the absolute value of the product of two complex numbers equals the product of their absolute values.",
+        "formal_steps": steps,
+        "qed_symbol": r"\blacksquare \quad \text{Q.E.D.}",
+        "confidence": 1.0,
+        "execution_time_ms": int((time.time() - start_time) * 1000)
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4.2 VECTOR THEOREM PROOFS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _prove_cauchy_schwarz_vectors(start_time: float) -> Dict[str, Any]:
+    statement_latex = r"|\vec{u} \cdot \vec{v}| \le \|\vec{u}\| \|\vec{v}\| \quad \forall \vec{u}, \vec{v} \in \mathbb{R}^n"
+    steps = [
+        {
+            "step_number": 1,
+            "title": "Construct Quadratic Function in Real Parameter t",
+            "latex": r"P(t) = \|t \vec{u} + \vec{v}\|^2 = (t\vec{u} + \vec{v}) \cdot (t\vec{u} + \vec{v}) \ge 0 \quad \forall t \in \mathbb{R}",
+            "justification": "The squared norm of any real vector is strictly non-negative by definition of the inner product.",
+            "rule_name": "Non-Negativity of Inner Product Norm",
+            "status": "assumption"
+        },
+        {
+            "step_number": 2,
+            "title": "Expand Inner Product via Bilinearity and Symmetry",
+            "latex": r"P(t) = t^2 (\vec{u} \cdot \vec{u}) + 2t (\vec{u} \cdot \vec{v}) + (\vec{v} \cdot \vec{v}) = A t^2 + B t + C \ge 0",
+            "justification": "Expanding dot product terms where A = ||u||^2, B = 2(u · v), C = ||v||^2.",
+            "rule_name": "Bilinear Expansion",
+            "status": "verified"
+        },
+        {
+            "step_number": 3,
+            "title": "Discriminant Condition for Non-Negative Quadratic",
+            "latex": r"P(t) \ge 0 \quad \forall t \in \mathbb{R} \implies \Delta = B^2 - 4AC \le 0",
+            "justification": "A quadratic polynomial with A > 0 that never becomes negative cannot have two distinct real roots, so its discriminant Delta <= 0.",
+            "rule_name": "Quadratic Non-Negativity Discriminant Rule",
+            "status": "verified"
+        },
+        {
+            "step_number": 4,
+            "title": "Substitute Coefficients into Discriminant",
+            "latex": r"\Delta = [2(\vec{u} \cdot \vec{v})]^2 - 4 \|\vec{u}\|^2 \|\vec{v}\|^2 = 4 (\vec{u} \cdot \vec{v})^2 - 4 \|\vec{u}\|^2 \|\vec{v}\|^2 \le 0",
+            "justification": "Substitute A = ||u||^2, B = 2(u · v), C = ||v||^2.",
+            "rule_name": "Discriminant Substitution",
+            "status": "verified"
+        },
+        {
+            "step_number": 5,
+            "title": "Divide by 4 and Rearrange",
+            "latex": r"(\vec{u} \cdot \vec{v})^2 \le \|\vec{u}\|^2 \|\vec{v}\|^2",
+            "justification": "Divide both sides by positive scalar 4.",
+            "rule_name": "Algebraic Rearrangement",
+            "status": "verified"
+        },
+        {
+            "step_number": 6,
+            "title": "Take Square Root to Conclude Cauchy-Schwarz Inequality",
+            "latex": r"|\vec{u} \cdot \vec{v}| \le \|\vec{u}\| \|\vec{v}\|",
+            "justification": "Taking the principal square root on both sides completes the proof. Equality holds if and only if u and v are linearly dependent.",
+            "rule_name": "Conclusion Q.E.D.",
+            "status": "conclusion"
+        }
+    ]
+    return {
+        "statement": "Cauchy-Schwarz Inequality for Vectors: |u · v| <= ||u|| ||v||",
+        "latex_statement": statement_latex,
+        "is_valid": True,
+        "proof_type": "vectors",
+        "proof_type_label": "Vector Theorem (Cauchy-Schwarz Inequality)",
+        "summary": "Elegant proof of the vector Cauchy-Schwarz inequality via discriminant of the non-negative quadratic norm function P(t) = ||t u + v||^2 >= 0.",
+        "formal_steps": steps,
+        "qed_symbol": r"\blacksquare \quad \text{Q.E.D.}",
+        "confidence": 1.0,
+        "execution_time_ms": int((time.time() - start_time) * 1000)
+    }
+
+def _prove_vector_triangle_inequality(start_time: float) -> Dict[str, Any]:
+    statement_latex = r"\|\vec{u} + \vec{v}\| \le \|\vec{u}\| + \|\vec{v}\| \quad \forall \vec{u}, \vec{v} \in \mathbb{R}^n"
+    steps = [
+        {
+            "step_number": 1,
+            "title": "Square of the Norm ||u + v||",
+            "latex": r"\|\vec{u} + \vec{v}\|^2 = (\vec{u} + \vec{v}) \cdot (\vec{u} + \vec{v}) = \|\vec{u}\|^2 + 2(\vec{u} \cdot \vec{v}) + \|\vec{v}\|^2",
+            "justification": "Definition of norm squared in terms of inner product.",
+            "rule_name": "Norm Squared Expansion",
+            "status": "assumption"
+        },
+        {
+            "step_number": 2,
+            "title": "Apply Cauchy-Schwarz Inequality: u · v <= |u · v| <= ||u|| ||v||",
+            "latex": r"\vec{u} \cdot \vec{v} \le |\vec{u} \cdot \vec{v}| \le \|\vec{u}\| \|\vec{v}\| \implies 2(\vec{u} \cdot \vec{v}) \le 2 \|\vec{u}\| \|\vec{v}\|",
+            "justification": "Every real number is bounded above by its absolute value, and by Cauchy-Schwarz |u · v| <= ||u|| ||v||.",
+            "rule_name": "Cauchy-Schwarz Application",
+            "status": "verified"
+        },
+        {
+            "step_number": 3,
+            "title": "Substitute Upper Bound into Norm Expansion",
+            "latex": r"\|\vec{u} + \vec{v}\|^2 \le \|\vec{u}\|^2 + 2\|\vec{u}\|\|\vec{v}\| + \|\vec{v}\|^2 = (\|\vec{u}\| + \|\vec{v}\|)^2",
+            "justification": "Recognize perfect square trinomial (||u|| + ||v||)^2.",
+            "rule_name": "Binomial Trinomial Factoring",
+            "status": "verified"
+        },
+        {
+            "step_number": 4,
+            "title": "Take Non-Negative Square Root",
+            "latex": r"\|\vec{u} + \vec{v}\| \le \|\vec{u}\| + \|\vec{v}\|",
+            "justification": "Since norms are strictly non-negative, taking the positive square root preserves inequality.",
+            "rule_name": "Conclusion Q.E.D.",
+            "status": "conclusion"
+        }
+    ]
+    return {
+        "statement": "Vector Triangle Inequality: ||u + v|| <= ||u|| + ||v||",
+        "latex_statement": statement_latex,
+        "is_valid": True,
+        "proof_type": "vectors",
+        "proof_type_label": "Vector Triangle Inequality",
+        "summary": "Proof that the length of the vector sum cannot exceed the sum of individual lengths, derived directly from Cauchy-Schwarz.",
+        "formal_steps": steps,
+        "qed_symbol": r"\blacksquare \quad \text{Q.E.D.}",
+        "confidence": 1.0,
+        "execution_time_ms": int((time.time() - start_time) * 1000)
+    }
+
+def _prove_cross_product_orthogonality(start_time: float) -> Dict[str, Any]:
+    statement_latex = r"(\vec{u} \times \vec{v}) \cdot \vec{u} = 0 \quad \land \quad (\vec{u} \times \vec{v}) \cdot \vec{v} = 0"
+    steps = [
+        {
+            "step_number": 1,
+            "title": "Cross Product in Determinant Form",
+            "latex": r"\vec{u} \times \vec{v} = (u_2 v_3 - u_3 v_2)\hat{i} + (u_3 v_1 - u_1 v_3)\hat{j} + (u_1 v_2 - u_2 v_1)\hat{k}",
+            "justification": "Standard definition of the cross product in R^3.",
+            "rule_name": "Cross Product Definition",
+            "status": "assumption"
+        },
+        {
+            "step_number": 2,
+            "title": "Compute Dot Product with u",
+            "latex": r"(\vec{u} \times \vec{v}) \cdot \vec{u} = u_1(u_2 v_3 - u_3 v_2) + u_2(u_3 v_1 - u_1 v_3) + u_3(u_1 v_2 - u_2 v_1)",
+            "justification": "Dot product with vector u = <u1, u2, u3>.",
+            "rule_name": "Dot Product Computation",
+            "status": "verified"
+        },
+        {
+            "step_number": 3,
+            "title": "Expand and Cancel Identical Opposite Terms",
+            "latex": r"= u_1 u_2 v_3 - u_1 u_3 v_2 + u_2 u_3 v_1 - u_1 u_2 v_3 + u_1 u_3 v_2 - u_2 u_3 v_1 = 0",
+            "justification": "All six terms pairwise cancel out: (u1 u2 v3 - u1 u2 v3) + (-u1 u3 v2 + u1 u3 v2) + (u2 u3 v1 - u2 u3 v1) = 0.",
+            "rule_name": "Pairwise Cancellation",
+            "status": "verified"
+        },
+        {
+            "step_number": 4,
+            "title": "Geometric Determinant Interpretation",
+            "latex": r"(\vec{u} \times \vec{v}) \cdot \vec{u} = \det \begin{pmatrix} u_1 & u_2 & u_3 \\ u_1 & u_2 & u_3 \\ v_1 & v_2 & v_3 \end{pmatrix} = 0",
+            "justification": "A determinant with two identical rows is identically zero.",
+            "rule_name": "Zero Determinant with Identical Rows",
+            "status": "verified"
+        },
+        {
+            "step_number": 5,
+            "title": "Conclusion",
+            "latex": r"(\vec{u} \times \vec{v}) \perp \vec{u} \quad \text{and similarly} \quad (\vec{u} \times \vec{v}) \perp \vec{v}",
+            "justification": "Because inner product is 0, cross product vector is perpendicular to both original vectors.",
+            "rule_name": "Conclusion Q.E.D.",
+            "status": "conclusion"
+        }
+    ]
+    return {
+        "statement": "Orthogonality of Cross Product: (u x v) · u = 0 and (u x v) · v = 0",
+        "latex_statement": statement_latex,
+        "is_valid": True,
+        "proof_type": "vectors",
+        "proof_type_label": "Vector Theorem (Cross Product Orthogonality)",
+        "summary": "Proof that the cross product of two vectors is orthogonal to both vectors, shown algebraically and via determinant with duplicate rows.",
+        "formal_steps": steps,
+        "qed_symbol": r"\blacksquare \quad \text{Q.E.D.}",
+        "confidence": 1.0,
+        "execution_time_ms": int((time.time() - start_time) * 1000)
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 5. PROPOSITIONAL LOGIC & BOOLEAN EQUIVALENCE ENGINE
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1363,9 +1739,44 @@ def prove_statement(
         except Exception:
             pass
 
+    # Check for Vector Theorems
+    if method == "vectors" or (method == "auto" and (
+        "cauchy" in s_lower or "triangle inequality" in s_lower or
+        "cross product" in s_lower or r"\times" in s or "u x v" in s_lower or
+        "u · v" in s or "u \\cdot v" in s or "u.v" in s or
+        ("\\|u" in s or "||u" in s or "\\|\\vec{u}\\|" in s)
+    )):
+        try:
+            start_time = time.time()
+            if "triangle" in s_lower or ("+" in s and ("||u + v||" in s or "||u+v||" in s)):
+                return _prove_vector_triangle_inequality(start_time)
+            elif "cross" in s_lower or r"\times" in s or "u x v" in s_lower:
+                return _prove_cross_product_orthogonality(start_time)
+            else:
+                return _prove_cauchy_schwarz_vectors(start_time)
+        except Exception:
+            pass
+
+    # Check for Complex Numbers Theorems
+    if method == "complex" or (method == "auto" and (
+        "euler" in s_lower or "de moivre" in s_lower or "demoivre" in s_lower or
+        "e^(i*" in s_lower or "e^{i" in s_lower or "|z_1" in s or "|z1" in s_lower
+    )):
+        try:
+            start_time = time.time()
+            if "de moivre" in s_lower or "demoivre" in s_lower or "cos(n" in s_lower:
+                return _prove_de_moivre_theorem(start_time)
+            elif "|z" in s_lower:
+                return _prove_modulus_product(start_time)
+            else:
+                return _prove_euler_formula(start_time)
+        except Exception:
+            pass
+
+    # Check for Propositional Logic
     if method == "logic" or (method == "auto" and (
         "<=>" in s or "<->" in s or "\\iff" in s or
-        "&&" in s or "||" in s or "\\land" in s or "\\lor" in s or
+        "&&" in s or ("||" in s and not ("||u" in s or "||v" in s)) or "\\land" in s or "\\lor" in s or
         ("not " in s_lower and " or " in s_lower)
     )):
         try:
@@ -1633,5 +2044,59 @@ def get_proof_library() -> List[Dict[str, Any]]:
             "difficulty": "Intermediate",
             "description": "8-row truth table proof of logical distributivity across three propositions.",
             "tags": ["Logic", "Distributivity"]
+        },
+        {
+            "id": "eulers_formula_proof",
+            "category": "Complex Numbers",
+            "title": "Euler's Formula & Identity",
+            "statement": "e^(i*theta) = cos(theta) + i*sin(theta)",
+            "difficulty": "Advanced",
+            "description": "Taylor/Maclaurin series expansion demonstrating e^(i*theta) = cos(theta) + i*sin(theta) and e^(i*pi) + 1 = 0.",
+            "tags": ["Complex Numbers", "Euler", "Analysis"]
+        },
+        {
+            "id": "de_moivre_proof",
+            "category": "Complex Numbers",
+            "title": "De Moivre's Theorem",
+            "statement": "(cos(theta) + i*sin(theta))^n = cos(n*theta) + i*sin(n*theta)",
+            "difficulty": "Intermediate",
+            "description": "Proof by mathematical induction for integer powers of complex numbers in polar form.",
+            "tags": ["Complex Numbers", "Induction", "De Moivre"]
+        },
+        {
+            "id": "modulus_product_proof",
+            "category": "Complex Numbers",
+            "title": "Multiplicativity of Complex Modulus",
+            "statement": "|z_1 * z_2| = |z_1| * |z_2|",
+            "difficulty": "Beginner",
+            "description": "Direct polar form proof that the absolute value of a complex product equals the product of absolute values.",
+            "tags": ["Complex Numbers", "Modulus", "Polar Form"]
+        },
+        {
+            "id": "cauchy_schwarz_vectors_proof",
+            "category": "Vectors",
+            "title": "Cauchy-Schwarz Inequality for Vectors",
+            "statement": "|u · v| <= ||u|| ||v||",
+            "difficulty": "Advanced",
+            "description": "Rigorous derivation via discriminant of the non-negative quadratic norm polynomial P(t) = ||t u + v||^2 >= 0.",
+            "tags": ["Vectors", "Inequality", "Cauchy-Schwarz"]
+        },
+        {
+            "id": "vector_triangle_inequality_proof",
+            "category": "Vectors",
+            "title": "Vector Triangle Inequality",
+            "statement": "||u + v|| <= ||u|| + ||v||",
+            "difficulty": "Intermediate",
+            "description": "Derivation of the foundational triangle inequality for vectors in R^n from Cauchy-Schwarz.",
+            "tags": ["Vectors", "Triangle Inequality"]
+        },
+        {
+            "id": "cross_product_orthogonality_proof",
+            "category": "Vectors",
+            "title": "Orthogonality of Vector Cross Product",
+            "statement": "(u x v) · u = 0",
+            "difficulty": "Intermediate",
+            "description": "Algebraic and determinant proof that the cross product of two vectors is perpendicular to both original vectors.",
+            "tags": ["Vectors", "Cross Product", "Orthogonality"]
         }
     ]

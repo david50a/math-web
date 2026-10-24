@@ -12,7 +12,8 @@ import json
 import subprocess
 import hashlib
 import uuid
-import sqlite3
+import db
+from db import repository
 import asyncio
 import httpx
 import base64
@@ -39,6 +40,17 @@ from security import (
     get_security_telemetry,
     constant_time_verify,
     SESSION_EXPIRY_SECONDS,
+    detect_prompt_injection,
+    sanitize_ai_api_key,
+    mask_api_key,
+    check_ai_rate_limit,
+    validate_and_sanitize_ai_messages,
+    sanitize_ai_response,
+    is_query_on_subject,
+    record_off_topic_blocked,
+    AI_MAX_MESSAGE_CHARS,
+    AI_MAX_CONTEXT_CHARS,
+    AI_RATE_LIMIT_WINDOW,
 )
 
 # Load environment variables (.env)
@@ -96,46 +108,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_PATH = os.path.join(BASE_DIR, "math_web.db")
-
-# SQLite Database Setup
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            email TEXT UNIQUE,
-            password TEXT,
-            is_premium INTEGER DEFAULT 0,
-            session_token TEXT,
-            session_expires_at REAL DEFAULT 0
-        )
-    """)
-    # Automatically add session_expires_at column if updating existing database
-    cursor.execute("PRAGMA table_info(users)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if "session_expires_at" not in columns:
-        try:
-            cursor.execute("ALTER TABLE users ADD COLUMN session_expires_at REAL DEFAULT 0")
-        except Exception:
-            pass
-    conn.commit()
-    conn.close()
-    
-    # Restrict file permissions to owner read/write
-    import stat
-    try:
-        os.chmod(DB_PATH, stat.S_IREAD | stat.S_IWRITE)
-    except Exception:
-        pass
-
-init_db()
-
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Database Initialization
+db.init_db()
 
 # Password Hashing Helpers
 def hash_password(password: str, salt: bytes = None) -> str:
@@ -157,35 +131,24 @@ def get_user_by_token(token: str):
         return None
     token_hash = hashlib.sha256(clean_token.encode('utf-8')).hexdigest()
     
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE session_token = ?", (token_hash,))
-    user = cursor.fetchone()
-    
-    if not user:
-        conn.close()
-        return None
+    with db.get_db_context() as session:
+        user = repository.get_user_by_token_hash(session, token_hash)
+        if not user:
+            return None
         
-    # Check session expiration
-    now = time.time()
-    try:
-        expires_at = user["session_expires_at"] or 0
-    except (IndexError, KeyError):
-        expires_at = 0
-        
-    if expires_at and expires_at < now:
-        cursor.execute("UPDATE users SET session_token = NULL, session_expires_at = 0 WHERE id = ?", (user["id"],))
-        conn.commit()
-        conn.close()
-        return None
-        
-    conn.close()
-    return user
+        # Check session expiration
+        now = time.time()
+        expires_at = user.session_expires_at or 0.0
+        if expires_at and expires_at < now:
+            repository.revoke_session(session, token_hash)
+            return None
+            
+        return user
 
 # Solve counts in-memory for limiting free tier
 solve_counts = {}
 
-# Pydantic Schemas for Auth/Payment
+# Pydantic Schemas for Auth/Payment & Database
 class UserSignUp(BaseModel):
     email: str
     password: str
@@ -208,11 +171,47 @@ class QuestionRequest(BaseModel):
 class UpgradeRequest(BaseModel):
     token: str
 
+class HistoryItemCreate(BaseModel):
+    equation: str
+    problem_type: Optional[str] = "general"
+    result_latex: Optional[str] = None
+    steps: Optional[Any] = None
+
+class NotebookCreate(BaseModel):
+    title: Optional[str] = "Untitled Notebook"
+    content: Optional[str] = ""
+    tags: Optional[str] = ""
+    is_pinned: Optional[bool] = False
+
+class NotebookUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    tags: Optional[str] = None
+    is_pinned: Optional[bool] = None
+
+class FormulaCreate(BaseModel):
+    name: str
+    latex: str
+    category: Optional[str] = "general"
+    expression: Optional[str] = ""
+    description: Optional[str] = ""
+    variables: Optional[str] = ""
+    is_favorite: Optional[bool] = False
+
+class ChatSessionCreate(BaseModel):
+    title: Optional[str] = "Math Discussion"
+    subject: Optional[str] = "General"
+
+class ChatMessageCreate(BaseModel):
+    role: str
+    content: str
+    latex: Optional[str] = ""
+
 @app.get('/')
 async def root():
     return 'Hello World'
 
-# Auth & Payment Routes with Security Hardening
+# Auth & Payment Routes with Security Hardening & Database Repository
 @app.post("/api/auth/signup", response_model=UserResponse)
 async def auth_signup(req: UserSignUp, raw_req: Request):
     client_ip = get_client_ip(raw_req)
@@ -232,26 +231,26 @@ async def auth_signup(req: UserSignUp, raw_req: Request):
     if not valid_pw:
         raise HTTPException(status_code=400, detail=pw_err)
     
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
-    if cursor.fetchone():
-        conn.close()
-        log_security_event("SIGNUP_FAILED", "WARNING", client_ip, "/api/auth/signup", {"reason": "Duplicate email", "email": email})
-        raise HTTPException(status_code=400, detail="A user with this email already exists.")
-    
     user_id = str(uuid.uuid4())
     pw_hash = hash_password(req.password)
     session_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(session_token.encode('utf-8')).hexdigest()
     expires_at = time.time() + SESSION_EXPIRY_SECONDS
     
-    cursor.execute(
-        "INSERT INTO users (id, email, password, is_premium, session_token, session_expires_at) VALUES (?, ?, ?, 0, ?, ?)",
-        (user_id, email, pw_hash, token_hash, expires_at)
-    )
-    conn.commit()
-    conn.close()
+    with db.get_db_context() as session:
+        existing = repository.get_user_by_email(session, email)
+        if existing:
+            log_security_event("SIGNUP_FAILED", "WARNING", client_ip, "/api/auth/signup", {"reason": "Duplicate email", "email": email})
+            raise HTTPException(status_code=400, detail="A user with this email already exists.")
+        
+        repository.create_user(
+            db=session,
+            user_id=user_id,
+            email=email,
+            password_hash=pw_hash,
+            session_token_hash=token_hash,
+            session_expires_at=expires_at
+        )
     
     log_security_event("USER_REGISTERED", "INFO", client_ip, "/api/auth/signup", {"email": email, "user_id": user_id})
     return UserResponse(id=user_id, email=email, is_premium=False, session_token=session_token)
@@ -278,35 +277,32 @@ async def auth_signin(req: UserSignIn, raw_req: Request):
         log_security_event("RATE_LIMIT_EXCEEDED", "WARNING", client_ip, "/api/auth/signin", {"retry_after": retry_after})
         raise HTTPException(status_code=429, detail=f"Rate limit exceeded. Please wait {retry_after} seconds.")
 
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
-    user = cursor.fetchone()
-    
-    if not user or not verify_password(user["password"], req.password):
-        conn.close()
-        limiter.record_failure(f"lock:ip:{client_ip}")
-        limiter.record_failure(f"lock:email:{email}")
-        log_security_event("AUTH_FAILED", "WARNING", client_ip, "/api/auth/signin", {"email": email})
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
-    
-    # Reset failure counters on successful signin
-    limiter.reset_failures(f"lock:ip:{client_ip}")
-    limiter.reset_failures(f"lock:email:{email}")
-
     session_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(session_token.encode('utf-8')).hexdigest()
     expires_at = time.time() + SESSION_EXPIRY_SECONDS
+
+    with db.get_db_context() as session:
+        user = repository.get_user_by_email(session, email)
+        if not user or not verify_password(user.password, req.password):
+            limiter.record_failure(f"lock:ip:{client_ip}")
+            limiter.record_failure(f"lock:email:{email}")
+            log_security_event("AUTH_FAILED", "WARNING", client_ip, "/api/auth/signin", {"email": email})
+            raise HTTPException(status_code=401, detail="Invalid email or password.")
+        
+        # Reset failure counters on successful signin
+        limiter.reset_failures(f"lock:ip:{client_ip}")
+        limiter.reset_failures(f"lock:email:{email}")
+
+        repository.update_session(session, user, token_hash, expires_at)
+        user_id = user.id
+        user_email = user.email
+        is_premium = bool(user.is_premium)
     
-    cursor.execute("UPDATE users SET session_token = ?, session_expires_at = ? WHERE id = ?", (token_hash, expires_at, user["id"]))
-    conn.commit()
-    conn.close()
-    
-    log_security_event("AUTH_SUCCESS", "INFO", client_ip, "/api/auth/signin", {"email": email, "user_id": user["id"]})
+    log_security_event("AUTH_SUCCESS", "INFO", client_ip, "/api/auth/signin", {"email": email, "user_id": user_id})
     return UserResponse(
-        id=user["id"],
-        email=user["email"],
-        is_premium=bool(user["is_premium"]),
+        id=user_id,
+        email=user_email,
+        is_premium=is_premium,
         session_token=session_token
     )
 
@@ -317,11 +313,8 @@ async def auth_signout(raw_req: Request, authorization: Optional[str] = Header(N
         clean_token = authorization.replace("Bearer ", "").strip()
         if clean_token:
             token_hash = hashlib.sha256(clean_token.encode('utf-8')).hexdigest()
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET session_token = NULL, session_expires_at = 0 WHERE session_token = ?", (token_hash,))
-            conn.commit()
-            conn.close()
+            with db.get_db_context() as session:
+                repository.revoke_session(session, token_hash)
             log_security_event("AUTH_SIGNOUT", "INFO", client_ip, "/api/auth/signout", {"status": "token_revoked"})
     return {"success": True, "detail": "Session token successfully revoked."}
 
@@ -335,9 +328,9 @@ async def auth_me(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid or expired session token")
     
     return UserResponse(
-        id=user["id"],
-        email=user["email"],
-        is_premium=bool(user["is_premium"]),
+        id=user.id,
+        email=user.email,
+        is_premium=bool(user.is_premium),
         session_token=authorization.replace("Bearer ", "").strip()
     )
 
@@ -347,18 +340,288 @@ async def payment_upgrade(req: UpgradeRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid session token for payment upgrade")
     
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET is_premium = 1 WHERE id = ?", (user["id"],))
-    conn.commit()
-    conn.close()
+    with db.get_db_context() as session:
+        db_user = repository.get_user_by_id(session, user.id)
+        if db_user:
+            repository.set_premium_status(session, db_user, is_premium=True)
     
     return UserResponse(
-        id=user["id"],
-        email=user["email"],
+        id=user.id,
+        email=user.email,
         is_premium=True,
         session_token=req.token
     )
+
+# --- Problem History & Video Database Endpoints ---
+@app.get("/api/history")
+async def get_history_api(authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        return {"items": []}
+    
+    with db.get_db_context() as session:
+        items = repository.get_user_history(session, user.id, limit=50)
+        return {"items": [item.to_dict() for item in items]}
+
+@app.post("/api/history")
+async def save_history_api(req: HistoryItemCreate, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        return {"success": False, "detail": "Guest calculation not persisted to account"}
+    
+    with db.get_db_context() as session:
+        item = repository.add_problem_history(
+            session,
+            equation=req.equation,
+            problem_type=req.problem_type,
+            result_latex=req.result_latex,
+            steps=req.steps,
+            user_id=user.id,
+            completed=True
+        )
+        return {"success": True, "item": item.to_dict()}
+
+@app.delete("/api/history/{history_id}")
+async def delete_history_api(history_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    with db.get_db_context() as session:
+        success = repository.delete_history_item(session, user.id, history_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="History entry not found")
+        return {"success": True}
+
+@app.delete("/api/history")
+async def clear_history_api(authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    with db.get_db_context() as session:
+        count = repository.clear_user_history(session, user.id)
+        return {"success": True, "deleted_count": count}
+
+@app.get("/api/videos/history")
+async def get_video_history_api(authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        return {"videos": []}
+    
+    with db.get_db_context() as session:
+        videos = repository.get_user_videos(session, user.id, limit=50)
+        return {"videos": [v.to_dict() for v in videos]}
+
+
+# --- Notebooks Database Endpoints ---
+@app.get("/api/notebooks")
+async def list_notebooks_api(authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        return {"notebooks": []}
+    with db.get_db_context() as session:
+        notebooks = repository.list_notebooks(session, user.id)
+        return {"notebooks": [nb.to_dict() for nb in notebooks]}
+
+@app.post("/api/notebooks")
+async def create_notebook_api(req: NotebookCreate, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required to create a notebook")
+    with db.get_db_context() as session:
+        notebook = repository.create_notebook(
+            session,
+            user_id=user.id,
+            title=req.title or "Untitled Notebook",
+            content=req.content or "",
+            tags=req.tags or "",
+            is_pinned=bool(req.is_pinned)
+        )
+        return {"success": True, "notebook": notebook.to_dict()}
+
+@app.get("/api/notebooks/{notebook_id}")
+async def get_notebook_api(notebook_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        notebook = repository.get_notebook(session, user.id, notebook_id)
+        if not notebook:
+            raise HTTPException(status_code=404, detail="Notebook not found")
+        return {"success": True, "notebook": notebook.to_dict()}
+
+@app.put("/api/notebooks/{notebook_id}")
+async def update_notebook_api(notebook_id: str, req: NotebookUpdate, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        updated = repository.update_notebook(
+            session,
+            user_id=user.id,
+            notebook_id=notebook_id,
+            title=req.title,
+            content=req.content,
+            tags=req.tags,
+            is_pinned=req.is_pinned
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Notebook not found")
+        return {"success": True, "notebook": updated.to_dict()}
+
+@app.delete("/api/notebooks/{notebook_id}")
+async def delete_notebook_api(notebook_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        success = repository.delete_notebook(session, user.id, notebook_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Notebook not found")
+        return {"success": True}
+
+
+# --- Custom Formulas Database Endpoints ---
+@app.get("/api/formulas")
+async def list_formulas_api(category: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        return {"formulas": []}
+    with db.get_db_context() as session:
+        formulas = repository.list_custom_formulas(session, user.id, category=category)
+        return {"formulas": [f.to_dict() for f in formulas]}
+
+@app.post("/api/formulas")
+async def create_formula_api(req: FormulaCreate, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required to save formulas")
+    with db.get_db_context() as session:
+        formula = repository.create_custom_formula(
+            session,
+            user_id=user.id,
+            name=req.name,
+            latex=req.latex,
+            category=req.category or "general",
+            expression=req.expression or "",
+            description=req.description or "",
+            variables=req.variables or "",
+            is_favorite=bool(req.is_favorite)
+        )
+        return {"success": True, "formula": formula.to_dict()}
+
+@app.get("/api/formulas/{formula_id}")
+async def get_formula_api(formula_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        formula = repository.get_custom_formula(session, user.id, formula_id)
+        if not formula:
+            raise HTTPException(status_code=404, detail="Formula not found")
+        return {"success": True, "formula": formula.to_dict()}
+
+@app.post("/api/formulas/{formula_id}/favorite")
+async def toggle_formula_favorite_api(formula_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        formula = repository.toggle_formula_favorite(session, user.id, formula_id)
+        if not formula:
+            raise HTTPException(status_code=404, detail="Formula not found")
+        return {"success": True, "formula": formula.to_dict()}
+
+@app.delete("/api/formulas/{formula_id}")
+async def delete_formula_api(formula_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        success = repository.delete_custom_formula(session, user.id, formula_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Formula not found")
+        return {"success": True}
+
+
+# --- Chat Sessions Database Endpoints ---
+@app.get("/api/chat/sessions")
+async def list_chat_sessions_api(authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        return {"sessions": []}
+    with db.get_db_context() as session:
+        sessions = repository.list_chat_sessions(session, user.id)
+        return {"sessions": [s.to_dict() for s in sessions]}
+
+@app.post("/api/chat/sessions")
+async def create_chat_session_api(req: ChatSessionCreate, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        new_session = repository.create_chat_session(
+            session,
+            user_id=user.id,
+            title=req.title or "Math Discussion",
+            subject=req.subject or "General"
+        )
+        return {"success": True, "session": new_session.to_dict()}
+
+@app.get("/api/chat/sessions/{session_id}")
+async def get_chat_session_api(session_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        chat_sess = repository.get_chat_session(session, user.id, session_id)
+        if not chat_sess:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        return {"success": True, "session": chat_sess.to_dict(include_messages=True)}
+
+@app.delete("/api/chat/sessions/{session_id}")
+async def delete_chat_session_api(session_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        success = repository.delete_chat_session(session, user.id, session_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        return {"success": True}
+
+@app.get("/api/chat/sessions/{session_id}/messages")
+async def get_chat_messages_api(session_id: str, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        chat_sess = repository.get_chat_session(session, user.id, session_id)
+        if not chat_sess:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        msgs = repository.get_session_messages(session, session_id)
+        return {"messages": [m.to_dict() for m in msgs]}
+
+@app.post("/api/chat/sessions/{session_id}/messages")
+async def add_chat_message_api(session_id: str, req: ChatMessageCreate, authorization: Optional[str] = Header(None)):
+    user = get_user_by_token(authorization) if authorization else None
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    with db.get_db_context() as session:
+        chat_sess = repository.get_chat_session(session, user.id, session_id)
+        if not chat_sess:
+            raise HTTPException(status_code=404, detail="Chat session not found")
+        msg = repository.add_chat_message(
+            session,
+            session_id=session_id,
+            role=req.role,
+            content=req.content,
+            latex=req.latex or ""
+        )
+        return {"success": True, "message": msg.to_dict()}
+
+
 
 @app.get("/api/security/telemetry")
 async def security_telemetry_api(raw_req: Request):
@@ -451,6 +714,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     context: Optional[str] = None
     api_key: Optional[str] = None
+    apiKey: Optional[str] = None
 
 class ChatResponse(BaseModel):
     reply: str
@@ -798,10 +1062,10 @@ def stream_nvidia_nemotron_generator(
 
         reasoning_delta = getattr(delta, "reasoning_content", None)
         if reasoning_delta:
-            yield f"data: {json.dumps({'type': 'reasoning', 'content': reasoning_delta})}\n\n"
+            yield f"data: {json.dumps({'type': 'reasoning', 'content': sanitize_ai_response(reasoning_delta)})}\n\n"
 
         if delta.content is not None:
-            yield f"data: {json.dumps({'type': 'content', 'content': delta.content})}\n\n"
+            yield f"data: {json.dumps({'type': 'content', 'content': sanitize_ai_response(delta.content)})}\n\n"
 
         if getattr(delta, "tool_calls", None):
             for tc in delta.tool_calls:
@@ -853,6 +1117,15 @@ def stream_nvidia_nemotron_generator(
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
 def generate_smart_math_tutor_reply(user_question: str, context: Optional[str] = None) -> str:
+    # Strict Subject Boundary Check: Only answer mathematics / STEM inquiries
+    is_on_subject, _ = is_query_on_subject(user_question, context)
+    if not is_on_subject:
+        return (
+            "I am Axiom, your AI Math Tutor! I specialize exclusively in mathematics, geometry, algebra, "
+            "calculus, trigonometry, and scientific STEM problem-solving. Please ask a question related to "
+            "math, equations, formulas, or this problem!"
+        )
+
     q = user_question.lower().strip()
 
     # Greetings & Persona Questions
@@ -945,11 +1218,33 @@ def generate_smart_math_tutor_reply(user_question: str, context: Optional[str] =
     return "Great question! In mathematics, each step maintains equality while transforming the equation into its simplest, most insightful form. Let me know if you want to explore the next step or solve another equation!"
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat_api(request: ChatRequest):
-    if not request.messages:
-        raise HTTPException(status_code=400, detail="messages array is required.")
+async def chat_api(request: ChatRequest, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
 
-    last_user_message = request.messages[-1].content if request.messages else ""
+    # 1. Strict AI Rate Limiting & Abuse Lockout
+    check_ai_rate_limit(client_ip=client_ip, endpoint="/api/chat", is_stream=False)
+
+    # 2. Extract and sanitize custom API key (if provided)
+    custom_key = request.api_key or request.apiKey or raw_req.headers.get("x-api-key")
+    if custom_key:
+        custom_key = sanitize_ai_api_key(custom_key)
+
+    # 3. Validate messages, payload length, and check for adversarial prompt injections
+    sanitized_messages, sanitized_context, safe_refusal = validate_and_sanitize_ai_messages(
+        messages=request.messages,
+        context=request.context,
+        client_ip=client_ip,
+        endpoint="/api/chat"
+    )
+
+    if safe_refusal:
+        return ChatResponse(reply=safe_refusal)
+
+    last_user_message = ""
+    for m in reversed(sanitized_messages):
+        if m["role"] == "user":
+            last_user_message = m["content"]
+            break
 
     messages_payload = []
     system_content = (
@@ -957,16 +1252,15 @@ async def chat_api(request: ChatRequest):
         "Explain mathematical steps, intuition, and concepts clearly and concisely. "
         "Use standard LaTeX notation ($...$ or $$...$$) where appropriate for math formulas. Keep answers focused (2-4 sentences)."
     )
-    if request.context:
-        system_content += f"\nCurrent Problem / Screen Context:\n{request.context}"
+    if sanitized_context:
+        system_content += f"\nCurrent Problem / Screen Context:\n{sanitized_context}"
 
     messages_payload.append({"role": "system", "content": system_content})
 
-    for m in request.messages:
-        messages_payload.append({"role": m.role, "content": m.content})
+    for m in sanitized_messages:
+        messages_payload.append({"role": m["role"], "content": m["content"]})
 
     # 0. Check for Gemini Key directly if supplied or configured
-    custom_key = request.api_key
     gemini_key = (custom_key if (custom_key and custom_key.startswith("AIzaSy")) else None) or os.environ.get("GEMINI_API_KEY")
     if gemini_key:
         try:
@@ -974,7 +1268,7 @@ async def chat_api(request: ChatRequest):
             client = genai.Client(api_key=gemini_key)
             prompt = (
                 f"You are Axiom, a friendly, brilliant, human-like AI Math Tutor.\n"
-                f"Context: {request.context or ''}\n"
+                f"Context: {sanitized_context or ''}\n"
                 f"User: {last_user_message}\n"
                 f"Answer concisely and intuitively in 2-3 sentences using LaTeX where helpful."
             )
@@ -983,7 +1277,7 @@ async def chat_api(request: ChatRequest):
                 contents=prompt
             )
             if resp and resp.text:
-                return ChatResponse(reply=resp.text.strip())
+                return ChatResponse(reply=sanitize_ai_response(resp.text.strip()))
         except Exception as e:
             print(f"Gemini notice: {e}")
 
@@ -1005,8 +1299,8 @@ async def chat_api(request: ChatRequest):
             )
             if reply_text or reasoning_text:
                 return ChatResponse(
-                    reply=reply_text or "Analysis complete.",
-                    reasoning=reasoning_text
+                    reply=sanitize_ai_response(reply_text or "Analysis complete."),
+                    reasoning=sanitize_ai_response(reasoning_text) if reasoning_text else None
                 )
         except Exception as e:
             print(f"NVIDIA Nemotron notice: {e}")
@@ -1031,13 +1325,13 @@ async def chat_api(request: ChatRequest):
                     res_json = chat_response.json()
                     msg = res_json.get("message", {}).get("content", "")
                     if msg:
-                        return ChatResponse(reply=msg)
+                        return ChatResponse(reply=sanitize_ai_response(msg))
         except Exception as e:
             print(f"Ollama (llama3) notice: {e}")
 
     # 3. Fallback Engine: Built-in High-Intelligence Math Reasoner
-    reply = generate_smart_math_tutor_reply(last_user_message, request.context)
-    return ChatResponse(reply=reply)
+    reply = generate_smart_math_tutor_reply(last_user_message, sanitized_context)
+    return ChatResponse(reply=sanitize_ai_response(reply))
 
 @app.get("/api/chat/status")
 async def chat_status_api():
@@ -1047,25 +1341,47 @@ async def chat_status_api():
         "connected": bool(nvidia_key or gemini_key),
         "engine": "NVIDIA Nemotron 3.5" if nvidia_key else "Google Gemini" if gemini_key else "Built-in Math Engine",
         "model": os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b"),
-        "has_key": bool(nvidia_key or gemini_key)
+        "has_key": bool(nvidia_key or gemini_key),
+        "protected": True
     }
 
 @app.post("/api/chat/stream")
-async def chat_stream_api(request: ChatRequest):
-    if not request.messages:
-        raise HTTPException(status_code=400, detail="messages array is required.")
+async def chat_stream_api(request: ChatRequest, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
+
+    # 1. Strict AI Stream Rate Limiting & Abuse Lockout
+    check_ai_rate_limit(client_ip=client_ip, endpoint="/api/chat/stream", is_stream=True)
+
+    # 2. Extract and sanitize custom API key (if provided)
+    custom_key = request.api_key or request.apiKey or raw_req.headers.get("x-api-key")
+    if custom_key:
+        custom_key = sanitize_ai_api_key(custom_key)
+
+    # 3. Validate messages, payload length, and check for adversarial prompt injections
+    sanitized_messages, sanitized_context, safe_refusal = validate_and_sanitize_ai_messages(
+        messages=request.messages,
+        context=request.context,
+        client_ip=client_ip,
+        endpoint="/api/chat/stream"
+    )
+
+    if safe_refusal:
+        async def refusal_generator():
+            yield f"data: {json.dumps({'type': 'content', 'content': safe_refusal})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return StreamingResponse(refusal_generator(), media_type="text/event-stream")
 
     system_content = (
         "You are Axiom, an expert, encouraging, brilliant AI Math Tutor powered by NVIDIA Nemotron. "
         "Explain mathematical steps, intuition, and concepts clearly and concisely. "
         "Use standard LaTeX notation ($...$ or $$...$$) where appropriate for math formulas. Keep answers focused (2-4 sentences)."
     )
-    if request.context:
-        system_content += f"\nCurrent Problem / Screen Context:\n{request.context}"
+    if sanitized_context:
+        system_content += f"\nCurrent Problem / Screen Context:\n{sanitized_context}"
 
     messages_payload = [{"role": "system", "content": system_content}]
-    for m in request.messages:
-        messages_payload.append({"role": m.role, "content": m.content})
+    for m in sanitized_messages:
+        messages_payload.append({"role": m["role"], "content": m["content"]})
 
     return StreamingResponse(
         stream_nvidia_nemotron_generator(
@@ -2121,11 +2437,24 @@ async def render_video(request: SolveRequest, raw_req: Request, authorization: O
             subprocess.run(cmd, env=env, cwd=BASE_DIR, capture_output=True, text=True, check=True, timeout=120, shell=False)
         await asyncio.to_thread(run_manim_safe, cmd, env)        
         expected_file = os.path.join(MEDIA_DIR, "videos", "video", quality_dir, f"{video_id}.mp4")
-        default_file = os.path.join(MEDIA_DIR, "videos", "video", quality_dir, "UniversalMathAnimation.mp4")
         if not os.path.exists(expected_file) and os.path.exists(default_file):
             os.rename(default_file, expected_file)
             
         web_path = f"/api/media/videos/video/{quality_dir}/{video_id}.mp4"
+        if user:
+            try:
+                with db.get_db_context() as session:
+                    repository.add_video_generation(
+                        db=session,
+                        equation=input_str,
+                        video_filename=f"{video_id}.mp4",
+                        video_url=web_path,
+                        resolution=quality,
+                        status="completed",
+                        user_id=user["id"]
+                    )
+            except Exception:
+                pass
         return {"video_url": web_path}
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Rendering timed out. Please try a simpler expression.")
@@ -2248,6 +2577,54 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
             matrix = ast.literal_eval(matrix_match.group(0))
             equation, steps = eigen.eigenvalue(matrix)
             solution = to_string(equation)
+
+        elif any(vk in input_str.lower() for vk in ['dot(', 'cross(', 'proj(', 'angle(', 'triple(', 'vector(']):
+            equation_type = "Vectors"
+            from engine.vector_engine import solve_vector_operation
+            lower_s = input_str.lower()
+            if 'cross' in lower_s:
+                v_op = 'cross'
+            elif 'proj' in lower_s:
+                v_op = 'projection'
+            elif 'angle' in lower_s:
+                v_op = 'angle'
+            elif 'triple' in lower_s:
+                v_op = 'triple_product'
+            else:
+                v_op = 'dot'
+
+            inner = re.sub(r'^(?:dot|cross|proj|projection|angle|triple)\s*\((.*)\)\s*$', r'\1', input_str, flags=re.I)
+            vecs = re.findall(r'\[.*?\]', inner)
+            if not vecs:
+                vecs = re.findall(r'\(.*?\)', inner)
+            if not vecs:
+                vecs = [p.strip() for p in inner.split(',') if p.strip()]
+
+            u_arg = vecs[0] if len(vecs) > 0 else "[1, 0]"
+            v_arg = vecs[1] if len(vecs) > 1 else "[0, 1]"
+            w_arg = vecs[2] if len(vecs) > 2 else None
+
+            vec_res = solve_vector_operation(v_op, u_arg, v_arg, w_arg)
+            solution = vec_res['final_answer']
+            steps = [MathStep(description=st['description'], latex=st['latex'], type='equation') for st in vec_res['steps']]
+
+        elif any(ck in input_str.lower() for ck in ['polar(', 'cis(', 'roots(']):
+            equation_type = "Complex Numbers"
+            from engine.complex_engine import solve_complex_operation
+            if 'roots' in input_str.lower():
+                m_root = re.search(r'roots\(([^,]+),\s*(\d+)\)', input_str, re.I)
+                if m_root:
+                    z_val, n_val = m_root.group(1), int(m_root.group(2))
+                else:
+                    z_val, n_val = input_str.replace("roots(", "").rstrip(")"), 3
+                c_res = solve_complex_operation('roots', z_val, n_val=n_val)
+            elif 'polar' in input_str.lower():
+                z_val = re.sub(r'^polar\s*\((.*)\)\s*$', r'\1', input_str, flags=re.I)
+                c_res = solve_complex_operation('details', z_val)
+            else:
+                c_res = solve_complex_operation('details', input_str)
+            solution = c_res['final_answer']
+            steps = [MathStep(description=st['description'], latex=st['latex'], type='equation') for st in c_res['steps']]
             
         elif 'det' in input_str.lower() or 'inv' in input_str.lower() or 'cramer' in input_str.lower() or 'cremer' in input_str.lower() or 'solve' in input_str.lower() or '[' in input_str:
             equation_type = "Linear Algebra"
@@ -2455,6 +2832,20 @@ async def solve_api(request: SolveRequest, raw_req: Request, authorization: Opti
             final_solution=solution,
             primary_steps=steps
         )
+        if user:
+            try:
+                with db.get_db_context() as session:
+                    repository.add_problem_history(
+                        db=session,
+                        equation=input_str,
+                        problem_type=equation_type,
+                        result_latex=solution,
+                        steps=steps,
+                        user_id=user["id"],
+                        completed=True
+                    )
+            except Exception:
+                pass
 
         return EquationSolution(
             equation=input_str,
@@ -2549,13 +2940,30 @@ class WordProblemRequest(BaseModel):
     question: str
 
 @app.post("/api/word-problem/solve")
-async def solve_word_problem_api(request: WordProblemRequest):
+async def solve_word_problem_api(request: WordProblemRequest, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
+    is_limited, retry_after = limiter.check_rate_limit(f"wp_solve:{client_ip}", max_requests=25, window_seconds=60)
+    if is_limited:
+        raise HTTPException(status_code=429, detail=f"Word problem rate limit reached. Please wait {retry_after} seconds.")
     if not request.question or not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    clean_q = sanitize_input_text(request.question, max_len=3000, field_name="Word problem question")
+    is_inj, pattern = detect_prompt_injection(clean_q)
+    if is_inj:
+        log_security_event("AI_PROMPT_INJECTION_BLOCKED", "ALERT", client_ip, "/api/word-problem/solve", {"matched_pattern": pattern})
+        raise HTTPException(status_code=400, detail="Adversarial prompt injection pattern detected in input.")
+
+    is_on_subject, subject_reason = is_query_on_subject(clean_q)
+    if not is_on_subject:
+        record_off_topic_blocked()
+        log_security_event("AI_OFF_TOPIC_BLOCKED", "INFO", client_ip, "/api/word-problem/solve", {"reason": subject_reason})
+        raise HTTPException(status_code=400, detail="Word problem solver only accepts mathematical, geometric, algebraic, or STEM word problems.")
     try:
         from word_problem import run_word_problem_pipeline
-        response = await run_word_problem_pipeline(request.question.strip())
+        response = await run_word_problem_pipeline(clean_q)
         return response
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -2640,8 +3048,304 @@ async def render_word_problem_manim_api(request: WordProblemVideoRenderRequest, 
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Manim render error: {str(e)}")
 
+# =============================================================================
+# GEOMETRY SOLVER & AI TEACHER PIPELINE
+# =============================================================================
+
+class GeometrySolveApiRequest(BaseModel):
+    question: str
+    api_key: Optional[str] = None
+
+class GeometryAskTeacherApiRequest(BaseModel):
+    question: Optional[str] = ""
+    context_problem: str
+    student_query: str
+    part_id: Optional[str] = None
+    api_key: Optional[str] = None
+
+@app.post("/api/geometry/solve")
+async def solve_geometry_api(request: GeometrySolveApiRequest):
+    if not request.question or not request.question.strip():
+        raise HTTPException(status_code=400, detail="Geometry question cannot be empty.")
+    try:
+        from engine.geometry_pipeline import run_geometry_pipeline
+        response = await run_geometry_pipeline(request.question.strip(), api_key=request.api_key)
+        return response
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Geometry pipeline error: {str(e)}")
+
+@app.get("/api/geometry/presets")
+def get_geometry_presets():
+    return [
+        {
+            "id": "bagrut_trapezoid_incircle",
+            "category": "Advanced Matriculation (Bagrut 5-Units)",
+            "title": "Trapezoid ABCD with Incircle & Similarity",
+            "question": (
+                "Trapezoid ABCD (AB parallel DC).\n"
+                "It is given that the length of base AB is equal to the length of side BC.\n"
+                "Let AB = BC = k and angle ABC = alpha (where 0^circ < alpha < 90^circ).\n"
+                "a. Show that AC = 2k cos(90^circ - alpha/2) = 2k sin(alpha/2).\n"
+                "It is given that AD = sqrt(3)k and DC = 2k.\n"
+                "b. Find the value of alpha.\n"
+                "c. Find the measure of angle ADC.\n"
+                "The extensions of sides DA and CB intersect at point E.\n"
+                "It is given that the radius of the incircle of triangle EDC is 14.\n"
+                "d. Find the value of k."
+            ),
+            "difficulty": "Advanced",
+            "tags": ["Trapezoid", "Trigonometry", "Law of Cosines", "Incircle", "Similarity"]
+        },
+        {
+            "id": "right_triangle_incircle",
+            "category": "Euclidean Geometry",
+            "title": "Right Triangle Hypotenuse & Inradius",
+            "question": (
+                "In right triangle ABC with right angle at C, leg AC = 12 and leg BC = 5.\n"
+                "a. Find the hypotenuse AB.\n"
+                "b. Find the radius of the incircle of triangle ABC.\n"
+                "c. Find the area of the incircle and the ratio of incircle area to triangle area."
+            ),
+            "difficulty": "Intermediate",
+            "tags": ["Right Triangle", "Pythagorean", "Inradius"]
+        },
+        {
+            "id": "cyclic_quadrilateral_ptolemy",
+            "category": "Olympiad Geometry",
+            "title": "Cyclic Quadrilateral with Inscribed Angles",
+            "question": (
+                "Quadrilateral ABCD is inscribed in a circle with diameter AC = 10.\n"
+                "Given AB = 6, BC = 8, and angle ADC = 90^circ.\n"
+                "a. Prove that AC is a diameter of the circumcircle.\n"
+                "b. Find the perimeter and area of quadrilateral ABCD."
+            ),
+            "difficulty": "Advanced",
+            "tags": ["Circle", "Cyclic Quadrilateral", "Inscribed Angle"]
+        },
+        {
+            "id": "bagrut_582_vectors_pyramid",
+            "category": "Bagrut 582 (3D Vectors)",
+            "title": "Triangular Pyramid Vector Concurrency & Face Orthogonality",
+            "question": (
+                "In triangular pyramid SABC, let SA = u, SB = v, and SC = w.\n"
+                "Given that |u| = |v| = |w| = 6 and u · v = v · w = w · u = 18.\n"
+                "a. Find the angle between each pair of lateral edges.\n"
+                "b. Let M be the centroid of the base ABC. Express SM in terms of u, v, w.\n"
+                "c. Prove that the altitude from S passes through centroid M."
+            ),
+            "difficulty": "Advanced",
+            "tags": ["Vectors", "3D Geometry", "Pyramid", "Centroid", "Dot Product"]
+        },
+        {
+            "id": "bagrut_582_complex_square",
+            "category": "Bagrut 582 (Complex Geometry)",
+            "title": "Square in the Argand Plane & Roots Equation",
+            "question": (
+                "In the complex Argand plane, points A, B, C, D represent the vertices of a square.\n"
+                "The vertices are the solutions to the complex equation (z - 2)^4 = -16.\n"
+                "a. Find the four roots of the equation in rectangular and polar form.\n"
+                "b. Plot the vertices on the complex plane and show they form a square.\n"
+                "c. Find the center and area of the square."
+            ),
+            "difficulty": "Advanced",
+            "tags": ["Complex Numbers", "Argand Plane", "Roots of Unity", "Square"]
+        }
+    ]
+
+@app.post("/api/geometry/ask-teacher")
+async def ask_geometry_teacher_api(request: GeometryAskTeacherApiRequest, raw_req: Request):
+    client_ip = get_client_ip(raw_req)
+
+    # 1. AI Rate Limiting
+    check_ai_rate_limit(client_ip=client_ip, endpoint="/api/geometry/ask-teacher", is_stream=False)
+
+    if not request.student_query or not request.student_query.strip():
+        raise HTTPException(status_code=400, detail="Student query cannot be empty.")
+
+    # 2. Input Sanitization
+    request.student_query = sanitize_input_text(request.student_query, max_len=AI_MAX_MESSAGE_CHARS, field_name="Student query")
+    if request.context_problem:
+        request.context_problem = sanitize_input_text(request.context_problem, max_len=AI_MAX_CONTEXT_CHARS, field_name="Problem context")
+    if request.api_key:
+        request.api_key = sanitize_ai_api_key(request.api_key)
+
+    # 3. Prompt Injection Defense
+    is_inj, pattern = detect_prompt_injection(request.student_query)
+    if is_inj:
+        log_security_event("AI_PROMPT_INJECTION_BLOCKED", "ALERT", client_ip, "/api/geometry/ask-teacher", {"matched_pattern": pattern})
+        return {
+            "reply": "I am Axiom, your AI Geometry Teacher. Let's focus on geometric proofs, theorems, and angle relationships for this problem! What geometric step can I help clarify?",
+            "hints": ["Review angle relationships and parallel transversal theorems."],
+            "suggested_next_steps": ["Examine step-by-step geometric proof"]
+        }
+
+    # 4. Subject Boundary Check (Mathematics & Geometry Only)
+    is_on_subject, subject_reason = is_query_on_subject(request.student_query, request.context_problem)
+    if not is_on_subject:
+        record_off_topic_blocked()
+        log_security_event("AI_OFF_TOPIC_BLOCKED", "INFO", client_ip, "/api/geometry/ask-teacher", {"reason": subject_reason})
+        return {
+            "reply": "I am Axiom, your AI Geometry Teacher! I can only answer questions strictly related to geometry, theorems, and mathematical problems. Please ask a geometry question about this problem!",
+            "hints": ["Review the geometric diagram and theorem relations."],
+            "suggested_next_steps": ["Ask about this geometry step"]
+        }
+
+    try:
+        # Utilize existing LLM (NVIDIA / Gemini / Heuristic)
+        nvidia_key = request.api_key or os.environ.get("NVIDIA_API_KEY")
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+
+        prompt = (
+            f"You are Axiom, an expert, encouraging geometry teacher for high school & competition math.\n"
+            f"Problem context:\n{request.context_problem}\n"
+            f"Current sub-part: {request.part_id or 'General'}\n"
+            f"Student Question: {request.student_query}\n"
+            f"Explain clearly and concisely in 2-4 sentences using LaTeX ($...$) for math formulas. Give an intuitive geometric or trigonometric reason."
+        )
+
+        reply_text = ""
+        if gemini_key:
+            try:
+                from google import genai
+                client = genai.Client(api_key=gemini_key)
+                resp = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=prompt
+                )
+                if resp and resp.text:
+                    reply_text = resp.text.strip()
+            except Exception:
+                pass
+
+        if not reply_text and nvidia_key:
+            try:
+                reply_text, _, _ = call_nvidia_nemotron(
+                    messages=[
+                        {"role": "system", "content": "You are Axiom, a world-class AI Geometry Teacher."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    enable_thinking=False,
+                    api_key=nvidia_key
+                )
+            except Exception:
+                pass
+
+        if not reply_text:
+            # Heuristic high-quality response
+            q_lower = request.student_query.lower()
+            if "similarity" in q_lower or "similar" in q_lower or "eab" in q_lower:
+                reply_text = (
+                    "Triangles $EAB$ and $EDC$ are similar by the **AA (Angle-Angle) Similarity Theorem**! "
+                    "Because $AB \\parallel DC$, line $ED$ acts as a transversal making $\\angle EAB = \\angle EDC$ (corresponding angles), "
+                    "and line $EC$ makes $\\angle EBA = \\angle ECD$. Since two pairs of angles are equal, the triangles are similar with ratio $AB/DC = 1/2$."
+                )
+            elif "part a" in q_lower or "cos" in q_lower or "sin" in q_lower or "ac" in q_lower:
+                reply_text = (
+                    "In isosceles triangle $ABC$, the two legs are $AB = BC = k$. By drawing an altitude from vertex $B$ perpendicular to $AC$, "
+                    "it bisects base $AC$ into two halves of length $k \\sin(\\alpha/2)$ (or $k \\cos(90^\\circ - \\alpha/2)$). "
+                    "Multiplying by 2 yields $AC = 2k \\sin(\\alpha/2)$!"
+                )
+            elif "incircle" in q_lower or "radius" in q_lower or "14" in q_lower or "k" in q_lower:
+                reply_text = (
+                    "For any triangle, the inradius formula is $r = \\frac{\\text{Area}}{s}$, where $s = \\frac{a+b+c}{2}$ is the semiperimeter. "
+                    "Because all side lengths of $\\triangle EDC$ are linear in $k$, the area is proportional to $k^2$ and the semiperimeter is proportional to $k$. "
+                    "Dividing them gives $r = c_r \\cdot k = 14$, allowing us to solve directly for $k$!"
+                )
+            else:
+                reply_text = (
+                    f"Great question! Remember that in trapezoids with parallel bases ($AB \\parallel DC$), "
+                    f"alternate interior angles are equal ($\\angle DCA = \\angle CAB$) and extending the legs yields similar triangles $\\triangle EAB \\sim \\triangle EDC$. "
+                    f"Use this geometric symmetry to relate each part back to the parameter $k$!"
+                )
+
+        return {
+            "reply": sanitize_ai_response(reply_text),
+            "hints": [
+                "Notice that AB ∥ DC gives alternate interior angles ∠DCA = ∠CAB.",
+                "△EAB ∼ △EDC with ratio 1:2 means A and B are midpoints of ED and EC.",
+                "Incircle radius r = Area / semiperimeter connects area to side lengths."
+            ],
+            "suggested_next_steps": [
+                "Examine Part a derivation in the Proof column",
+                "Toggle the extensions and incircle in the diagram",
+                "Verify the 30°-60°-90° right triangle property of △ADC"
+            ]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_security_event("AI_TEACHER_ERROR", "WARNING", client_ip, "/api/geometry/ask-teacher", {"error": str(e)})
+        raise HTTPException(status_code=500, detail="The AI Geometry Teacher encountered a processing error. Please try again.")
+
+# =========================================================================
+# COMPLEX NUMBERS AND VECTOR API ENDPOINTS
+# =========================================================================
+
+class ComplexSolveApiRequest(BaseModel):
+    operation: str
+    z1: str
+    z2: Optional[str] = None
+    n: Optional[int] = None
+
+@app.post("/api/complex/solve")
+async def solve_complex_api(request: ComplexSolveApiRequest):
+    if not request.z1 or not request.z1.strip():
+        raise HTTPException(status_code=400, detail="Complex number z1 cannot be empty.")
+    try:
+        from engine.complex_engine import solve_complex_operation
+        res = solve_complex_operation(
+            op=request.operation,
+            z1_str=request.z1,
+            z2_str=request.z2,
+            n_val=request.n
+        )
+        return res
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Complex engine error: {str(e)}")
+
+@app.get("/api/complex/presets")
+def get_complex_presets_api():
+    from engine.complex_engine import get_complex_presets
+    return get_complex_presets()
+
+class VectorSolveApiRequest(BaseModel):
+    operation: str
+    u: str
+    v: Optional[str] = None
+    w: Optional[str] = None
+    scalar_c: Optional[float] = None
+
+@app.post("/api/vector/solve")
+async def solve_vector_api(request: VectorSolveApiRequest):
+    if not request.u or not request.u.strip():
+        raise HTTPException(status_code=400, detail="Vector u cannot be empty.")
+    try:
+        from engine.vector_engine import solve_vector_operation
+        res = solve_vector_operation(
+            op=request.operation,
+            u_str=request.u,
+            v_str=request.v,
+            w_str=request.w,
+            scalar_c=request.scalar_c
+        )
+        return res
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Vector engine error: {str(e)}")
+
+@app.get("/api/vector/presets")
+def get_vector_presets_api():
+    from engine.vector_engine import get_vector_presets
+    return get_vector_presets()
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=4000, reload=True)
+
 
 

@@ -417,3 +417,270 @@ export interface StepVerificationResult {
   target_reached?: boolean;
   feedback: string;
 }
+
+// ============================================================================
+// GEOMETRY SOLVER PIPELINE TYPES
+// ============================================================================
+
+export interface GeometricPoint {
+  name: string;
+  x: number;
+  y: number;
+  label: string;
+  color?: string;
+  highlight?: boolean;
+}
+
+export interface GeometricSegment {
+  start: string;
+  end: string;
+  length_label?: string;
+  is_dashed?: boolean;
+  is_construction?: boolean;
+  color?: string;
+  stroke_width?: number;
+}
+
+export interface GeometricAngle {
+  vertex: string;
+  p1: string;
+  p2: string;
+  label: string;
+  degrees?: number;
+  is_right_angle?: boolean;
+  color?: string;
+}
+
+export interface GeometricPolygon {
+  name: string;
+  vertices: string[];
+  fill_color?: string;
+  stroke_color?: string;
+}
+
+export interface GeometricCircle {
+  center: [number, number];
+  center_name?: string;
+  radius: number;
+  label: string;
+  is_incircle?: boolean;
+  color?: string;
+  fill_color?: string;
+}
+
+export interface GeometricVector {
+  start: string;
+  end: string;
+  label: string;
+  components?: number[];
+  color?: string;
+  stroke_width?: number;
+  is_dashed?: boolean;
+}
+
+export interface ComplexNumberPoint {
+  name: string;
+  real: number;
+  imag: number;
+  polar_r: number;
+  polar_theta_deg: number;
+  label: string;
+  color?: string;
+}
+
+export interface DiagramData {
+  title: string;
+  viewbox: {
+    min_x: number;
+    min_y: number;
+    width: number;
+    height: number;
+  };
+  points: GeometricPoint[];
+  segments: GeometricSegment[];
+  polygons: GeometricPolygon[];
+  circles: GeometricCircle[];
+  angles: GeometricAngle[];
+  vectors?: GeometricVector[];
+  complex_points?: ComplexNumberPoint[];
+  annotations: string[];
+}
+
+export interface GeometryProofStep {
+  step_num: number;
+  part: string;
+  claim: string;
+  latex: string;
+  justification: string;
+  theorem?: string;
+  figure_highlight?: string[];
+}
+
+export interface GeometrySubQuestion {
+  part_id: string;
+  title: string;
+  prompt: string;
+  answer_latex: string;
+  answer_summary: string;
+  steps: GeometryProofStep[];
+}
+
+export interface GeometryProblemModel {
+  raw_question: string;
+  title: string;
+  shape_type: string;
+  given_facts: string[];
+  target_questions: Array<{ part_id: string; prompt: string }>;
+  symbols: Record<string, string>;
+}
+
+export interface GeometryValidationResult {
+  is_valid: boolean;
+  checks: Array<{ name: string; status: string; detail: string }>;
+  warnings: string[];
+}
+
+export interface GeometryTeacherInsights {
+  conceptual_overview: string;
+  socratic_prompts: string[];
+  key_theorems: string[];
+  common_mistakes: string[];
+  exam_tips: string[];
+}
+
+export interface GeometrySolveResponse {
+  problem_model: GeometryProblemModel;
+  diagram: DiagramData;
+  parts: GeometrySubQuestion[];
+  all_steps: GeometryProofStep[];
+  validation: GeometryValidationResult;
+  teacher: GeometryTeacherInsights;
+  execution_time_ms: number;
+}
+
+export interface GeometryPreset {
+  id: string;
+  category: string;
+  title: string;
+  question: string;
+  difficulty: string;
+  tags: string[];
+}
+
+export interface ComplexNumberData {
+  label: string;
+  real: number;
+  imag: number;
+  modulus: number;
+  argument_rad: number;
+  argument_deg: number;
+  angle_display: string;
+  cartesian_latex: string;
+  polar_latex: string;
+  exponential_latex: string;
+  cis_latex: string;
+  conjugate: {
+    real: number;
+    imag: number;
+    cartesian_latex: string;
+  };
+}
+
+export interface ComplexSolveStep {
+  stepTitle: string;
+  latex: string;
+  description: string;
+}
+
+export interface ComplexPlotPoint {
+  label: string;
+  real: number;
+  imag: number;
+  color?: string;
+}
+
+export interface ComplexSolveResult {
+  operation: string;
+  summary: string;
+  final_answer: string;
+  primary?: ComplexNumberData;
+  secondary?: ComplexNumberData;
+  result?: ComplexNumberData;
+  roots?: ComplexNumberData[];
+  power_n?: number;
+  root_n?: number;
+  root_radius?: number;
+  steps: ComplexSolveStep[];
+  plot_points?: ComplexPlotPoint[];
+}
+
+export interface ComplexPreset {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  op: string;
+  z1: string;
+  z2?: string;
+  n?: number;
+}
+
+export interface VectorDetails {
+  label: string;
+  dimension: number;
+  components: number[];
+  magnitude: number;
+  magnitude_squared: number;
+  unit_vector: number[];
+  latex: string;
+  unit_form: string;
+  unit_vector_latex: string;
+  direction_cosines?: number[];
+  direction_angles_deg?: number[];
+}
+
+export interface VectorSolveStep {
+  stepTitle: string;
+  latex: string;
+  description: string;
+}
+
+export interface VectorSolveResult {
+  operation: string;
+  dimension?: number;
+  summary: string;
+  final_answer: string;
+  primary?: VectorDetails;
+  secondary?: VectorDetails;
+  tertiary?: VectorDetails;
+  result?: VectorDetails;
+  cross_vector?: VectorDetails;
+  projection_vector?: VectorDetails;
+  rejection_vector?: VectorDetails;
+  dot_product?: number;
+  angle_deg?: number;
+  angle_rad?: number;
+  cos_theta?: number;
+  is_orthogonal?: boolean;
+  parallelogram_area?: number;
+  triangle_area?: number;
+  triple_product?: number;
+  volume?: number;
+  is_coplanar?: boolean;
+  plane_latex?: string;
+  steps: VectorSolveStep[];
+  vectors?: VectorDetails[];
+}
+
+export interface VectorPreset {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  op: string;
+  u: string;
+  v?: string;
+  w?: string;
+  scalar_c?: number;
+}
+

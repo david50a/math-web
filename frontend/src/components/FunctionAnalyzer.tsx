@@ -38,6 +38,7 @@ interface FunctionAnalyzerProps {
 
 const PRESET_FUNCTIONS = [
   { name: "Cubic Extrema", expr: "x^3 - 3*x^2 + 2", desc: "Local max at (0,2), local min at (2,-2), inflection at (1,0)" },
+  { name: "Odd Cubic (x³ Area Cancellation)", expr: "x^3", desc: "Odd function: net integral is 0 on [-2, 2], positive area is 4, total geometric area is 8" },
   { name: "Double Well (W-Curve)", expr: "x^4 - 4*x^2", desc: "Two symmetric minima and one local maximum at origin" },
   { name: "Rational with Asymptotes", expr: "(x^2 - 1)/(x - 2)", desc: "Vertical asymptote at x=2 and oblique slant asymptote y=x+2" },
   { name: "Trig Wave Complex", expr: "sin(x) + 0.5*cos(2*x)", desc: "Harmonic superposition with multiple oscillatory peaks" },
@@ -80,10 +81,12 @@ export default function FunctionAnalyzer({
   const [showArea, setShowArea] = useState<boolean>(false);
 
   // Definite Integral bounds for interactive shading
-  const [intBoundA, setIntBoundA] = useState<number>(-1);
+  const [intBoundA, setIntBoundA] = useState<number>(-2);
   const [intBoundB, setIntBoundB] = useState<number>(2);
   const [riemannN, setRiemannN] = useState<number>(12);
   const [showRiemannBars, setShowRiemannBars] = useState<boolean>(false);
+  const [areaDisplayMode, setAreaDisplayMode] = useState<"split" | "positive" | "net" | "geometric">("split");
+  const [showAreaBadges, setShowAreaBadges] = useState<boolean>(true);
 
   // Table generation range
   const [tableStep, setTableStep] = useState<number>(0.5);
@@ -305,27 +308,61 @@ export default function FunctionAnalyzer({
     ctx.fillText("y", originX + 8, 14);
 
     // 3. Shaded Definite Integral Area & Riemann Rectangles
+    // 3. Shaded Definite Integral Area & Riemann Rectangles
     if (showArea) {
       const a = Math.min(intBoundA, intBoundB);
       const b = Math.max(intBoundA, intBoundB);
 
-      // Smooth area fill
-      ctx.fillStyle = isLight ? "rgba(37, 99, 235, 0.15)" : "rgba(56, 189, 248, 0.2)";
-      ctx.beginPath();
-      ctx.moveTo(toCanvasX(a), originY);
+      const posFill = isLight ? "rgba(16, 185, 129, 0.25)" : "rgba(16, 185, 129, 0.32)";
+      const negFill = isLight ? "rgba(244, 63, 94, 0.22)" : "rgba(244, 63, 94, 0.32)";
+      const defaultFill = isLight ? "rgba(37, 99, 235, 0.18)" : "rgba(56, 189, 248, 0.22)";
+      const geomFill = isLight ? "rgba(168, 85, 247, 0.22)" : "rgba(168, 85, 247, 0.32)";
 
-      const areaSteps = 150;
+      const areaSteps = 240;
       const areaDx = (b - a) / areaSteps;
-      for (let i = 0; i <= areaSteps; i++) {
-        const xVal = a + i * areaDx;
-        const yVal = evaluateFn(xVal);
-        if (!isNaN(yVal)) {
-          ctx.lineTo(toCanvasX(xVal), toCanvasY(yVal));
+
+      if (areaDisplayMode === "net") {
+        // Unified Net Signed Area
+        ctx.fillStyle = defaultFill;
+        ctx.beginPath();
+        ctx.moveTo(toCanvasX(a), originY);
+        for (let i = 0; i <= areaSteps; i++) {
+          const xVal = a + i * areaDx;
+          const yVal = evaluateFn(xVal);
+          if (!isNaN(yVal)) ctx.lineTo(toCanvasX(xVal), toCanvasY(yVal));
+        }
+        ctx.lineTo(toCanvasX(b), originY);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        // High-precision decomposed shading (Positive vs Negative regions)
+        for (let i = 0; i < areaSteps; i++) {
+          const x1 = a + i * areaDx;
+          const x2 = a + (i + 1) * areaDx;
+          const y1 = evaluateFn(x1);
+          const y2 = evaluateFn(x2);
+
+          if (isNaN(y1) || isNaN(y2)) continue;
+
+          const avgY = (y1 + y2) / 2;
+          const isPos = avgY >= 0;
+
+          // In positive-only mode, skip negative regions
+          if (areaDisplayMode === "positive" && !isPos) continue;
+
+          ctx.fillStyle = areaDisplayMode === "geometric"
+            ? geomFill
+            : isPos ? posFill : negFill;
+
+          ctx.beginPath();
+          ctx.moveTo(toCanvasX(x1), originY);
+          ctx.lineTo(toCanvasX(x1), toCanvasY(y1));
+          ctx.lineTo(toCanvasX(x2), toCanvasY(y2));
+          ctx.lineTo(toCanvasX(x2), originY);
+          ctx.closePath();
+          ctx.fill();
         }
       }
-      ctx.lineTo(toCanvasX(b), originY);
-      ctx.closePath();
-      ctx.fill();
 
       // Riemann Rectangles overlay
       if (showRiemannBars && riemannN > 0) {
@@ -335,18 +372,88 @@ export default function FunctionAnalyzer({
           const rMid = rx + rDx * 0.5;
           const ry = evaluateFn(rMid);
           if (!isNaN(ry)) {
+            const isBarPos = ry >= 0;
+            if (areaDisplayMode === "positive" && !isBarPos) continue;
+
             const rx1 = toCanvasX(rx);
             const rx2 = toCanvasX(rx + rDx);
             const ryTop = toCanvasY(ry);
             const rw = rx2 - rx1;
             const rh = originY - ryTop;
 
-            ctx.fillStyle = isLight ? "rgba(124, 58, 237, 0.2)" : "rgba(168, 85, 247, 0.25)";
-            ctx.fillRect(rx1, ryTop, rw, rh);
-            ctx.strokeStyle = isLight ? "rgba(124, 58, 237, 0.7)" : "rgba(168, 85, 247, 0.8)";
+            if (areaDisplayMode === "split") {
+              ctx.fillStyle = isBarPos ? "rgba(16, 185, 129, 0.35)" : "rgba(244, 63, 94, 0.35)";
+              ctx.strokeStyle = isBarPos ? "rgba(16, 185, 129, 0.85)" : "rgba(244, 63, 94, 0.85)";
+            } else if (areaDisplayMode === "positive") {
+              ctx.fillStyle = "rgba(16, 185, 129, 0.35)";
+              ctx.strokeStyle = "rgba(16, 185, 129, 0.85)";
+            } else {
+              ctx.fillStyle = isLight ? "rgba(124, 58, 237, 0.2)" : "rgba(168, 85, 247, 0.25)";
+              ctx.strokeStyle = isLight ? "rgba(124, 58, 237, 0.7)" : "rgba(168, 85, 247, 0.8)";
+            }
             ctx.lineWidth = 1;
+            ctx.fillRect(rx1, ryTop, rw, rh);
             ctx.strokeRect(rx1, ryTop, rw, rh);
           }
+        }
+      }
+
+      // Floating Canvas Area Labels
+      if (showAreaBadges && b - a > 0.5) {
+        ctx.font = "bold 9px monospace";
+        ctx.textAlign = "center";
+
+        // Find midpoint of positive region & negative region if present
+        let posSumX = 0, posCount = 0;
+        let negSumX = 0, negCount = 0;
+        for (let i = 0; i < 40; i++) {
+          const sampleX = a + (i + 0.5) * ((b - a) / 40);
+          const sampleY = evaluateFn(sampleX);
+          if (!isNaN(sampleY)) {
+            if (sampleY > 0.1) {
+              posSumX += sampleX;
+              posCount++;
+            } else if (sampleY < -0.1) {
+              negSumX += sampleX;
+              negCount++;
+            }
+          }
+        }
+
+        if (posCount > 0 && (areaDisplayMode === "split" || areaDisplayMode === "positive" || areaDisplayMode === "geometric")) {
+          const avgPosX = posSumX / posCount;
+          const avgPosY = evaluateFn(avgPosX);
+          const badgeX = toCanvasX(avgPosX);
+          const badgeY = Math.max(25, toCanvasY(avgPosY / 2));
+
+          ctx.fillStyle = "rgba(6, 78, 59, 0.85)";
+          ctx.beginPath();
+          ctx.roundRect(badgeX - 32, badgeY - 8, 64, 16, 4);
+          ctx.fill();
+          ctx.strokeStyle = "#10b981";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = "#34d399";
+          ctx.fillText(`+Area: +${integralMetrics.positive}`, badgeX, badgeY + 3);
+        }
+
+        if (negCount > 0 && (areaDisplayMode === "split" || areaDisplayMode === "geometric")) {
+          const avgNegX = negSumX / negCount;
+          const avgNegY = evaluateFn(avgNegX);
+          const badgeX = toCanvasX(avgNegX);
+          const badgeY = Math.min(height - 25, toCanvasY(avgNegY / 2));
+
+          ctx.fillStyle = "rgba(136, 19, 55, 0.85)";
+          ctx.beginPath();
+          ctx.roundRect(badgeX - 32, badgeY - 8, 64, 16, 4);
+          ctx.fill();
+          ctx.strokeStyle = "#f43f5e";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = "#fda4af";
+          ctx.fillText(`-Area: ${integralMetrics.negative}`, badgeX, badgeY + 3);
         }
       }
 
@@ -690,35 +797,79 @@ export default function FunctionAnalyzer({
     setViewPort({ minX: -6, maxX: 6, minY: -5, maxY: 5 });
   };
 
-  // Definite integral numerical calculation (Simpson's 3/8 Rule)
-  const exactDefiniteIntegral = useMemo(() => {
+  // Comprehensive definite integral calculations: Net, Positive Area, Negative Area, and Total Geometric Area
+  const integralMetrics = useMemo(() => {
     const a = Math.min(intBoundA, intBoundB);
     const b = Math.max(intBoundA, intBoundB);
-    const n = 200;
+    const n = 400; // high precision composite Simpson's
     const dx = (b - a) / n;
-    let sum = evaluateFn(a) + evaluateFn(b);
-    for (let i = 1; i < n; i++) {
+
+    let netSum = 0;
+    let posSum = 0;
+    let negSum = 0;
+    let absSum = 0;
+
+    for (let i = 0; i <= n; i++) {
       const x = a + i * dx;
-      sum += evaluateFn(x) * (i % 2 === 0 ? 2 : 4);
+      const y = evaluateFn(x);
+      if (isNaN(y)) continue;
+
+      const weight = (i === 0 || i === n) ? 1 : (i % 2 === 0 ? 2 : 4);
+      netSum += y * weight;
+      posSum += Math.max(0, y) * weight;
+      negSum += Math.min(0, y) * weight;
+      absSum += Math.abs(y) * weight;
     }
-    const res = (sum * dx) / 3;
-    return isNaN(res) ? 0 : Math.round(res * 1000) / 1000;
+
+    const net = (netSum * dx) / 3;
+    const positive = (posSum * dx) / 3;
+    const negative = (negSum * dx) / 3;
+    const geometric = (absSum * dx) / 3;
+
+    return {
+      net: isNaN(net) ? 0 : Math.round(net * 1000) / 1000,
+      positive: isNaN(positive) ? 0 : Math.round(positive * 1000) / 1000,
+      negative: isNaN(negative) ? 0 : Math.round(negative * 1000) / 1000,
+      geometric: isNaN(geometric) ? 0 : Math.round(geometric * 1000) / 1000,
+      isOddCancellation: Math.abs(net) < 1e-4 && (positive > 1e-3 || Math.abs(negative) > 1e-3)
+    };
   }, [intBoundA, intBoundB, evaluateFn]);
 
-  // Riemann Sum approximation
-  const riemannSumValue = useMemo(() => {
+  // Backward compatibility alias
+  const exactDefiniteIntegral = integralMetrics.net;
+
+  // Riemann Sum approximations for Net, Positive, and Geometric
+  const riemannMetrics = useMemo(() => {
     const a = Math.min(intBoundA, intBoundB);
     const b = Math.max(intBoundA, intBoundB);
     const n = Math.max(1, riemannN);
     const dx = (b - a) / n;
-    let sum = 0;
+
+    let net = 0;
+    let positive = 0;
+    let negative = 0;
+    let geometric = 0;
+
     for (let i = 0; i < n; i++) {
       const xMid = a + (i + 0.5) * dx;
       const y = evaluateFn(xMid);
-      if (!isNaN(y)) sum += y * dx;
+      if (!isNaN(y)) {
+        net += y * dx;
+        positive += Math.max(0, y) * dx;
+        negative += Math.min(0, y) * dx;
+        geometric += Math.abs(y) * dx;
+      }
     }
-    return Math.round(sum * 1000) / 1000;
+
+    return {
+      net: Math.round(net * 1000) / 1000,
+      positive: Math.round(positive * 1000) / 1000,
+      negative: Math.round(negative * 1000) / 1000,
+      geometric: Math.round(geometric * 1000) / 1000
+    };
   }, [intBoundA, intBoundB, riemannN, evaluateFn]);
+
+  const riemannSumValue = riemannMetrics.net;
 
   // Dynamic Value Table rows
   const tableRows = useMemo(() => {
@@ -1506,16 +1657,141 @@ export default function FunctionAnalyzer({
                 />
               </div>
 
-              {/* Result Comparison Cards */}
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
-                <div className="p-3 rounded-xl bg-sky-950/30 border border-sky-500/30">
-                  <span className="text-[10px] text-sky-400 font-bold uppercase block">Exact Integral:</span>
-                  <span className="text-lg font-bold text-sky-200">{exactDefiniteIntegral}</span>
+              {/* Area Visualization Mode Selector */}
+              <div className="pt-2 border-t border-white/10 space-y-2">
+                <span className="text-[10px] font-bold uppercase opacity-70 block font-mono">
+                  Integral & Area Interpretation Mode:
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs font-mono">
+                  <button
+                    onClick={() => { setAreaDisplayMode("split"); setShowArea(true); }}
+                    className={`px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                      areaDisplayMode === "split"
+                        ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 font-bold shadow-xs"
+                        : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="block text-[10px] text-emerald-400 font-bold">Split Regions</span>
+                    <span className="text-[11px] truncate">+ Green / - Red</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setAreaDisplayMode("positive"); setShowArea(true); }}
+                    className={`px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                      areaDisplayMode === "positive"
+                        ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 font-bold shadow-xs"
+                        : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="block text-[10px] text-emerald-400 font-bold">Positive Area</span>
+                    <span className="text-[11px] truncate">Only y ≥ 0</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setAreaDisplayMode("geometric"); setShowArea(true); }}
+                    className={`px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                      areaDisplayMode === "geometric"
+                        ? "bg-purple-500/20 border-purple-500/50 text-purple-300 font-bold shadow-xs"
+                        : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="block text-[10px] text-purple-400 font-bold">Total Geometric</span>
+                    <span className="text-[11px] truncate">∫ |f(x)| dx</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setAreaDisplayMode("net"); setShowArea(true); }}
+                    className={`px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                      areaDisplayMode === "net"
+                        ? "bg-sky-500/20 border-sky-500/50 text-sky-300 font-bold shadow-xs"
+                        : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"
+                    }`}
+                  >
+                    <span className="block text-[10px] text-sky-400 font-bold">Net Signed</span>
+                    <span className="text-[11px] truncate">Standard ∫ f(x)</span>
+                  </button>
                 </div>
-                <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30">
-                  <span className="text-[10px] text-purple-400 font-bold uppercase block">Riemann Sum (n={riemannN}):</span>
-                  <span className="text-lg font-bold text-purple-200">{riemannSumValue}</span>
+              </div>
+
+              {/* Comprehensive 4-Metric Area Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono pt-1">
+                {/* 1. Net Signed Integral */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  areaDisplayMode === "net"
+                    ? "bg-sky-950/40 border-sky-400 shadow-sm"
+                    : "bg-sky-950/20 border-sky-500/30"
+                }`}>
+                  <span className="text-[10px] text-sky-400 font-bold uppercase block">Net Signed Integral:</span>
+                  <div className="text-lg font-bold text-sky-200 mt-0.5">{integralMetrics.net}</div>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">∫ₐᵇ f(x) dx (calculus net)</span>
                 </div>
+
+                {/* 2. Positive Area (Above x-axis) */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  areaDisplayMode === "positive" || areaDisplayMode === "split"
+                    ? "bg-emerald-950/40 border-emerald-400 shadow-sm"
+                    : "bg-emerald-950/20 border-emerald-500/30"
+                }`}>
+                  <span className="text-[10px] text-emerald-400 font-bold uppercase block">Positive Area (y ≥ 0):</span>
+                  <div className="text-lg font-bold text-emerald-300 mt-0.5">+{integralMetrics.positive}</div>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">Region above x-axis</span>
+                </div>
+
+                {/* 3. Negative Area (Below x-axis) */}
+                <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-500/30">
+                  <span className="text-[10px] text-rose-400 font-bold uppercase block">Negative Area (y &lt; 0):</span>
+                  <div className="text-lg font-bold text-rose-300 mt-0.5">
+                    {integralMetrics.negative}
+                    <span className="text-[10px] text-slate-400 font-normal ml-1">
+                      (|{Math.abs(integralMetrics.negative)}|)
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">Region below x-axis</span>
+                </div>
+
+                {/* 4. Total Geometric Bounded Area */}
+                <div className={`p-3 rounded-xl border transition-all ${
+                  areaDisplayMode === "geometric"
+                    ? "bg-purple-950/40 border-purple-400 shadow-sm"
+                    : "bg-purple-950/20 border-purple-500/30"
+                }`}>
+                  <span className="text-[10px] text-purple-400 font-bold uppercase block">Total Geometric Area:</span>
+                  <div className="text-lg font-bold text-purple-200 mt-0.5">{integralMetrics.geometric}</div>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">∫ₐᵇ |f(x)| dx (physical area)</span>
+                </div>
+              </div>
+
+              {/* Cancellation Explanation Banner (e.g. for x^3 on [-2, 2] where net = 0) */}
+              {integralMetrics.isOddCancellation && (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-emerald-500/10 to-transparent border border-amber-500/30 text-xs font-mono space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-amber-300 font-bold text-xs">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Area Cancellation Detected: Net Integral is 0, but Positive Area is {integralMetrics.positive}</span>
+                  </div>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    The standard definite integral <span className="font-semibold text-sky-300 font-mono">∫₋₂² x³ dx = 0</span> because the positive area above the x-axis (<span className="text-emerald-400 font-bold">+{integralMetrics.positive}</span>) and the negative area below the x-axis (<span className="text-rose-400 font-bold">{integralMetrics.negative}</span>) cancel out completely.
+                  </p>
+                  <div className="p-2 rounded-lg bg-black/40 border border-white/5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <span className="text-slate-400">Total physical bounded area between curve and x-axis:</span>
+                    <span className="font-bold text-emerald-300 font-mono">
+                      Area = |{-integralMetrics.positive}| + {integralMetrics.positive} = {integralMetrics.geometric}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Riemann Partitions Comparison */}
+              <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/10 flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-400">
+                  Riemann Sum Approximation ({areaDisplayMode} mode, n={riemannN}):
+                </span>
+                <span className="font-bold text-purple-300">
+                  {areaDisplayMode === "positive"
+                    ? `+${riemannMetrics.positive}`
+                    : areaDisplayMode === "geometric"
+                    ? riemannMetrics.geometric
+                    : riemannMetrics.net}
+                </span>
               </div>
 
               {/* Collapsible: Integration Steps */}

@@ -262,6 +262,345 @@ def sanitize_env_for_manim(math_expr: str, math_op: str, method_id: str = "", me
     }
 
 
+# =====================================================================
+# AI API Security & Guardrail Protection
+# =====================================================================
+AI_MAX_MESSAGES = 25
+AI_MAX_MESSAGE_CHARS = 3000
+AI_MAX_CONTEXT_CHARS = 4000
+AI_MAX_TOTAL_CHARS = 25000
+AI_CHAT_RATE_LIMIT = 25        # Max 25 chat requests per minute per IP
+AI_STREAM_RATE_LIMIT = 15      # Max 15 streaming requests per minute per IP
+AI_TEACHER_RATE_LIMIT = 20     # Max 20 geometry teacher requests per minute per IP
+AI_RATE_LIMIT_WINDOW = 60      # 60-second sliding window
+
+_ai_security_stats = {
+    "total_ai_requests": 0,
+    "blocked_prompt_injections": 0,
+    "off_topic_queries_blocked": 0,
+    "rate_limited_ai_requests": 0,
+    "sanitized_ai_payloads": 0
+}
+
+PROMPT_INJECTION_PATTERNS = [
+    re.compile(r"(?i)\b(ignore|disregard|forget|override|bypass)\s+(all\s+)?(previous|prior|above|system)\s+(instructions|prompts|rules|commands|directives)"),
+    re.compile(r"(?i)\b(you are now|act as|pretend to be|roleplay as)\s+(unrestricted|dan|jailbreak|chaos|evil|root|an?\s+administrator|a\s+hacker|god\s+mode)"),
+    re.compile(r"(?i)\b(system\s+prompt|reveal\s+(the|your)\s+(system\s+)?(prompt|instructions)|print\s+(the|your)\s+initial\s+prompt|show\s+(me\s+)?the\s+system\s+prompt)"),
+    re.compile(r"(?i)\b(output\s+(all|everything)\s+above|repeat\s+(all|everything)\s+above|leak\s+api\s*key)"),
+    re.compile(r"(?i)\b(disable|turn\s+off|bypass)\s+(all\s+)?(safety|guardrails?|content\s+filter|security)"),
+    re.compile(r"(?i)\b(developer\s+mode\s+output|unfiltered\s+mode|simulate\s+jailbroken)"),
+    re.compile(r"(?i)\b(base64|rot13|hex)\s+(decode|encoded)\s+(system\s+instructions|prompt)"),
+]
+
+# Mathematical Symbols and LaTeX Operators
+MATH_SYMBOLS_REGEX = re.compile(
+    r"[\=\+\-\*\/\^\<\>≤≥≠±≈×÷√]|\\(?:frac|sqrt|int|sum|lim|cdot|times|div|sin|cos|tan|cot|sec|csc|alpha|beta|gamma|theta|pi|lambda|Delta|sigma|omega|partial|nabla|vec|hat|bar|matrix|pmatrix|bmatrix|text|displaystyle)"
+)
+
+# Core STEM / Mathematics Curriculum Vocabulary
+MATH_TERMS_REGEX = re.compile(
+    r"\b("
+    r"math|maths|mathematics|arithmetic|algebra|algebraic|calculus|geometry|geometric|trig|trigonometry|"
+    r"equation|inequality|formula|formulas|variable|variables|unknown|coefficient|coefficients|constant|constants|term|terms|"
+    r"polynomial|binomial|quadratic|linear|cubic|quartic|monomial|degree|"
+    r"factor|factoring|factorize|factorization|simplify|simplification|expand|expansion|isolate|fraction|fractions|numerator|denominator|"
+    r"ratio|ratios|proportion|proportions|percent|percentage|exponent|exponents|exponential|power|powers|root|roots|square\s+root|cube\s+root|radical|radicals|"
+    r"log|logarithm|logarithms|ln|modulus|modulo|prime|primes|gcd|lcm|integer|integers|rational|irrational|complex\s+numbers?|imaginary|"
+    r"matrix|matrices|determinant|determinants|eigen|eigenvalue|eigenvalues|eigenvector|eigenvectors|vector|vectors|dot\s+product|cross\s+product|magnitude|transpose|inverse|"
+    r"shape|shapes|polygon|polygons|triangle|triangles|quadrilateral|quadrilaterals|rectangle|rectangles|square|squares|parallelogram|rhombus|trapezoid|trapezium|"
+    r"pentagon|hexagon|octagon|circle|circles|ellipse|ellipses|parabola|parabolas|hyperbola|hyperbolas|"
+    r"sphere|cylinder|cone|pyramid|prism|polyhedron|angle|angles|degree|degrees|radian|radians|vertex|vertices|edge|edges|side|sides|diagonal|diagonals|"
+    r"perimeter|area|volume|surface\s+area|circumference|radius|radii|diameter|chord|chords|arc|arcs|sector|sectors|segment|segments|tangent|secant|inradius|circumradius|"
+    r"altitude|altitudes|median|medians|bisector|bisectors|perpendicular|parallel|hypotenuse|pythagoras|pythagorean|similar|similarity|congruent|congruence|"
+    r"sin|sine|cos|cosine|tan|tangent|cot|cotangent|sec|secant|csc|cosecant|arcsin|arccos|arctan|unit\s+circle|"
+    r"theorem|theorems|proof|proofs|prove|proving|axiom|axioms|postulate|lemma|corollary|q\.e\.d|"
+    r"limit|limits|continuity|continuous|derivative|derivatives|differentiation|differentiate|differentiating|derive|deriving|slope|slopes|tangent\s+line|normal\s+line|"
+    r"inflection|extrema|maximum|maxima|minimum|minima|concave|convex|integral|integrals|integration|integrate|integrating|antiderivative|antiderivatives|"
+    r"riemann|chain\s+rule|product\s+rule|quotient\s+rule|l'?hopital|by\s+parts|partial\s+fraction|series|sequence|sequences|convergence|divergence|taylor|maclaurin|"
+    r"statistics|statistical|probability|mean|median|mode|average|standard\s+deviation|variance|distribution|normal\s+distribution|binomial|sample|hypothesis|combinatorics|permutation|combination|factorial|"
+    r"solve|solving|solution|solutions|solver|calculate|calculating|calculation|compute|computing|computation|evaluate|evaluating|evaluation|"
+    r"graph|graphing|graphs|plot|plotting|intercept|intercepts|asymptote|asymptotes|domain|range|function|functions|"
+    r"speed|velocity|acceleration|distance|kinematics|motion"
+    r")\b",
+    re.IGNORECASE
+)
+
+# Tutoring and educational interactions that are on-topic
+TUTORING_INTERACTION_REGEX = re.compile(
+    r"\b("
+    r"why|how|what\s+does|what\s+is|what\s+are|explain|explanation|intuition|understand|help|hint|steps?|show\s+me|"
+    r"correct|wrong|check|verify|practice|exercise|example|problem|next\s+step|"
+    r"hello|hi|hey|greetings|who\s+are\s+you|what\s+can\s+you\s+do|introduce\s+yourself"
+    r")\b",
+    re.IGNORECASE
+)
+
+# Explicit off-topic subjects (sports, politics, cooking, pop culture, entertainment)
+OFF_TOPIC_DOMAINS_REGEX = re.compile(
+    r"\b("
+    r"president|presidential|election|prime\s+minister|senator|congress|democrat|republican|parliament|geopolitics|military|warfare|"
+    r"celebrity|celebrities|hollywood|kardashian|taylor\s+swift|actor|actress|pop\s+star|gossip|grammy|oscar|box\s+office|"
+    r"recipe|recipes|bake|baking|cook|cooking|ingredient|ingredients|pasta|soup|pizza|burger|delicious|kitchen|cuisine|"
+    r"football|soccer|basketball|nba|nfl|fifa|champions\s+league|world\s+cup|messi|ronaldo|baseball|tennis|olympics|"
+    r"movie|movies|film|cinema|netflix|anime|manga|superhero|marvel|batman|avengers|disney|"
+    r"horoscope|zodiac|astrology|tarot|psychic|fortune\s+telling|"
+    r"dating|romance|tinder|boyfriend|girlfriend|crush|love\s+poem|"
+    r"crypto|cryptocurrency|bitcoin|ethereum|forex|stock\s+tips|day\s+trading"
+    r")\b",
+    re.IGNORECASE
+)
+
+NUMERIC_PATTERN = re.compile(r"\b\d+([.,]\d+)?\b")
+
+
+def is_query_on_subject(query: Optional[str], context: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+    """
+    Evaluates whether the user's inquiry strictly pertains to the mathematical, geometric,
+    algebraic, or pedagogical tutoring scope of the Axiom Engine.
+    Returns (is_on_subject, reason_or_category).
+    """
+    if not query:
+        return True, "empty"
+
+    clean_q = query.strip()
+    if not clean_q:
+        return True, "empty"
+
+    has_context = bool(context and len(context.strip()) > 5)
+
+    has_off_topic_term = bool(OFF_TOPIC_DOMAINS_REGEX.search(clean_q))
+    has_math_symbol = bool(MATH_SYMBOLS_REGEX.search(clean_q))
+    has_math_term = bool(MATH_TERMS_REGEX.search(clean_q))
+    has_tutoring = bool(TUTORING_INTERACTION_REGEX.search(clean_q))
+    has_numbers = bool(NUMERIC_PATTERN.search(clean_q))
+
+    # 1. Immediate rejection if explicit off-topic domain keyword is matched without strong math formula
+    if has_off_topic_term and not (has_math_symbol or (has_math_term and has_numbers)):
+        return False, "off_topic_domain"
+
+    # 2. Check for explicit mathematical vocabulary or symbols/operators
+    if has_math_term or has_math_symbol:
+        return True, "math_terms"
+
+    # 3. Arithmetic or numeric expressions (e.g. "what is 45 * 12", "solve 5 + 3", "20 / 4")
+    if has_numbers and (has_math_symbol or any(op in clean_q.lower() for op in ["plus", "minus", "times", "divided", "over", "mod", "percent", "squared", "cubed"])):
+        return True, "arithmetic_expression"
+
+    # 4. Tutoring interactions with active problem context (e.g. "why?", "explain this step", "is this right?")
+    if has_context and (has_tutoring or has_numbers):
+        return True, "contextual_tutoring"
+
+    # 5. Generic tutor greetings / onboarding (e.g. "hello", "who are you")
+    if re.search(r'^(hi|hello|hey|greetings|who are you|what can you do|how does this work)\b', clean_q, re.IGNORECASE):
+        return True, "tutor_greeting"
+
+    # If query has none of the above, it's outside the math curriculum scope
+    return False, "outside_math_curriculum"
+
+
+def detect_prompt_injection(text: Optional[str]) -> Tuple[bool, Optional[str]]:
+    """
+    Scans text for adversarial prompt injection, jailbreak attempts, or system prompt leaks.
+    Returns (is_injection, matched_snippet).
+    """
+    if not text:
+        return False, None
+    for pattern in PROMPT_INJECTION_PATTERNS:
+        match = pattern.search(text)
+        if match:
+            return True, match.group(0)
+    return False, None
+
+
+def sanitize_ai_api_key(api_key: Optional[str]) -> Optional[str]:
+    """
+    Validates and cleanses user-supplied API keys, preventing header injection or malformed data.
+    """
+    if not api_key:
+        return None
+    clean = api_key.strip()
+    if "\x00" in clean or "\r" in clean or "\n" in clean:
+        raise HTTPException(status_code=400, detail="Invalid characters in API key.")
+    if len(clean) < 10 or len(clean) > 256:
+        raise HTTPException(status_code=400, detail="API key length is invalid.")
+    if not re.match(r"^[A-Za-z0-9_\-\.]+$", clean):
+        raise HTTPException(status_code=400, detail="API key contains invalid characters.")
+    return clean
+
+
+def mask_api_key(api_key: Optional[str]) -> str:
+    """Safely masks an API key for logs and security audits."""
+    if not api_key:
+        return "none"
+    clean = api_key.strip()
+    if len(clean) <= 8:
+        return "****"
+    return clean[:6] + "..." + clean[-4:]
+
+
+def record_off_topic_blocked():
+    """Increments the telemetry counter for blocked off-topic queries."""
+    _ai_security_stats["off_topic_queries_blocked"] += 1
+
+
+def check_ai_rate_limit(client_ip: str, endpoint: str = "/api/chat", is_stream: bool = False):
+    """
+    Enforces strict rate limiting and brute-force lockout on AI endpoints to protect API quotas and compute.
+    """
+    _ai_security_stats["total_ai_requests"] += 1
+
+    # Check if client IP is currently locked out from AI endpoints due to repeat violations
+    is_locked, remaining = limiter.is_locked_out(f"lock:ai:{client_ip}", max_failures=6, lock_duration=600)
+    if is_locked:
+        log_security_event("AI_ACCOUNT_LOCKED", "ALERT", client_ip, endpoint, {
+            "reason": "AI rate abuse lockout",
+            "retry_in": remaining
+        })
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many repeated requests to AI engine. Temporary cooldown active. Please wait {remaining} seconds.",
+            headers={"Retry-After": str(remaining)}
+        )
+
+    max_reqs = AI_STREAM_RATE_LIMIT if is_stream else AI_CHAT_RATE_LIMIT
+    key = f"ai:{'stream' if is_stream else 'chat'}:{client_ip}"
+    is_limited, retry_after = limiter.check_rate_limit(key, max_requests=max_reqs, window_seconds=AI_RATE_LIMIT_WINDOW)
+
+    if is_limited:
+        limiter.record_failure(f"lock:ai:{client_ip}")
+        _ai_security_stats["rate_limited_ai_requests"] += 1
+        log_security_event("AI_RATE_LIMIT_EXCEEDED", "WARNING", client_ip, endpoint, {
+            "retry_after": retry_after,
+            "stream_mode": is_stream
+        })
+        raise HTTPException(
+            status_code=429,
+            detail=f"AI query rate limit reached ({max_reqs} requests/min). Please wait {retry_after} seconds before asking another question.",
+            headers={"Retry-After": str(retry_after)}
+        )
+
+
+def validate_and_sanitize_ai_messages(
+    messages: List[Any],
+    context: Optional[str] = None,
+    client_ip: str = "127.0.0.1",
+    endpoint: str = "/api/chat"
+) -> Tuple[List[Dict[str, str]], Optional[str], Optional[str]]:
+    """
+    Validates and cleanses message history, context, and checks for prompt injection.
+    Returns: (sanitized_messages_list, sanitized_context_str, optional_safe_refusal_reply)
+    If optional_safe_refusal_reply is not None, prompt injection was detected and the safe reply
+    should be returned immediately without invoking external LLMs.
+    """
+    if not messages:
+        raise HTTPException(status_code=400, detail="Messages array cannot be empty.")
+
+    if len(messages) > AI_MAX_MESSAGES:
+        # Keep the latest messages within window
+        messages = messages[-AI_MAX_MESSAGES:]
+        _ai_security_stats["sanitized_ai_payloads"] += 1
+
+    sanitized_messages: List[Dict[str, str]] = []
+    total_chars = 0
+
+    for m in messages:
+        if isinstance(m, dict):
+            role = m.get("role", "user")
+            content = m.get("content", "")
+        else:
+            role = getattr(m, "role", "user")
+            content = getattr(m, "content", "")
+
+        role = str(role).strip().lower()
+        if role not in ("user", "assistant", "system"):
+            role = "user"
+
+        content = str(content)
+        if "\x00" in content:
+            raise HTTPException(status_code=400, detail="Null bytes are disallowed in messages.")
+
+        # Truncate overly long individual messages
+        if len(content) > AI_MAX_MESSAGE_CHARS:
+            content = content[:AI_MAX_MESSAGE_CHARS]
+            _ai_security_stats["sanitized_ai_payloads"] += 1
+
+        total_chars += len(content)
+        if total_chars > AI_MAX_TOTAL_CHARS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Total conversation payload exceeds safety limit ({AI_MAX_TOTAL_CHARS} characters)."
+            )
+
+        sanitized_messages.append({"role": role, "content": content})
+
+    # Validate Context
+    clean_context: Optional[str] = None
+    if context:
+        if "\x00" in context:
+            raise HTTPException(status_code=400, detail="Null bytes are disallowed in context.")
+        clean_context = context.strip()
+        if len(clean_context) > AI_MAX_CONTEXT_CHARS:
+            clean_context = clean_context[:AI_MAX_CONTEXT_CHARS]
+            _ai_security_stats["sanitized_ai_payloads"] += 1
+
+    # Check for Prompt Injection on the latest user message & context
+    last_user_message = ""
+    for m in reversed(sanitized_messages):
+        if m["role"] == "user":
+            last_user_message = m["content"]
+            break
+
+    is_inj_user, pattern_user = detect_prompt_injection(last_user_message)
+    is_inj_ctx, pattern_ctx = detect_prompt_injection(clean_context)
+
+    if is_inj_user or is_inj_ctx:
+        matched = pattern_user or pattern_ctx or "injection_signature"
+        _ai_security_stats["blocked_prompt_injections"] += 1
+        limiter.record_failure(f"lock:ai:{client_ip}")
+        log_security_event("AI_PROMPT_INJECTION_BLOCKED", "ALERT", client_ip, endpoint, {
+            "matched_pattern": matched,
+            "snippet": (last_user_message or clean_context or "")[:120]
+        })
+        safe_reply = (
+            "I am Axiom, your dedicated AI Math Tutor. I focus exclusively on mathematics, geometry, calculus, "
+            "and scientific problem solving. I cannot process directives that attempt to override my tutoring role "
+            "or safety guidelines. How can I help you with your math problem today?"
+        )
+        return sanitized_messages, clean_context, safe_reply
+
+    # Check for Off-Topic / Non-Subject query
+    is_on_subject, subject_reason = is_query_on_subject(last_user_message, clean_context)
+    if not is_on_subject:
+        _ai_security_stats["off_topic_queries_blocked"] += 1
+        log_security_event("AI_OFF_TOPIC_BLOCKED", "INFO", client_ip, endpoint, {
+            "reason": subject_reason,
+            "snippet": (last_user_message or "")[:120]
+        })
+        safe_reply = (
+            "I am Axiom, your AI Math Tutor! I specialize exclusively in mathematics, geometry, algebra, "
+            "calculus, trigonometry, and scientific STEM problem-solving. Please ask a question related to "
+            "math, equations, formulas, or this problem!"
+        )
+        return sanitized_messages, clean_context, safe_reply
+
+    return sanitized_messages, clean_context, None
+
+
+def sanitize_ai_response(text: Optional[str]) -> str:
+    """
+    Guards outgoing AI response to prevent accidental leakage of server secrets or environment variables.
+    """
+    if not text:
+        return ""
+    scrubbed = text
+    # Mask active server keys if they accidentally appear in model output
+    for key_env in ["GEMINI_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY"]:
+        val = os.environ.get(key_env)
+        if val and len(val) > 8 and val in scrubbed:
+            scrubbed = scrubbed.replace(val, "[REDACTED_API_KEY]")
+    return scrubbed
+
+
 def get_security_telemetry() -> Dict[str, Any]:
     """
     Returns real-time cybersecurity telemetry metrics and system protection status.
@@ -281,5 +620,18 @@ def get_security_telemetry() -> Dict[str, Any]:
             "Referrer-Policy: strict-origin-when-cross-origin",
             "Content-Security-Policy"
         ],
+        "ai_protection": {
+            "active": True,
+            "guardrail_version": "2.1-subject-restricted",
+            "subject_enforced": True,
+            "curriculum_scope": "Mathematics, Geometry, Algebra, Calculus, Trigonometry, STEM",
+            "chat_rate_limit_per_min": AI_CHAT_RATE_LIMIT,
+            "stream_rate_limit_per_min": AI_STREAM_RATE_LIMIT,
+            "teacher_rate_limit_per_min": AI_TEACHER_RATE_LIMIT,
+            "max_messages_history": AI_MAX_MESSAGES,
+            "max_message_chars": AI_MAX_MESSAGE_CHARS,
+            "stats": _ai_security_stats
+        },
         "recent_audit_events": list(reversed(_recent_security_events[-15:]))
     }
+

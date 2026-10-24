@@ -37,10 +37,15 @@ import {
   Grid,
   Brain,
   TrendingUp,
-  ShieldCheck
+  ShieldCheck,
+  Compass,
+  Boxes
 } from "lucide-react";
 import FunctionAnalyzer from "./components/FunctionAnalyzer";
 import ProofEngine from "./components/ProofEngine";
+import GeometrySolver from "./components/GeometrySolver";
+import ComplexStudio from "./components/ComplexStudio";
+import VectorStudio from "./components/VectorStudio";
 import MathGraph from "./components/MathGraph";
 
 import UnifiedBoardContainer from "./components/boards/UnifiedBoardContainer";
@@ -86,7 +91,12 @@ const PRESET_EQUATIONS = [
   { name: "5-Number Summary", expr: "summary([12, 15, 18, 20, 24, 28, 30, 45])" },
   { name: "Linear Regression", expr: "regression([(1, 2), (2, 3), (3, 5), (4, 4), (5, 7)])" },
   { name: "Normal Z-Score", expr: "z_score([10, 20, 30, 40, 50], 35)" },
-  { name: "Binomial Dist", expr: "binomial(10, 3, 0.5)" }
+  { name: "Binomial Dist", expr: "binomial(10, 3, 0.5)" },
+  { name: "Complex Polar Form", expr: "polar(3 + 4i)" },
+  { name: "Roots of Unity", expr: "roots(1, 5)" },
+  { name: "Vector Dot Product", expr: "dot([1, 2, 3], [4, 5, 6])" },
+  { name: "3D Cross Product", expr: "cross([1, 2, 3], [3, -1, 2])" },
+  { name: "Vector Projection", expr: "proj([4, 3], [2, 0])" }
 ];
 
 interface ThemeInfo {
@@ -261,7 +271,7 @@ const THEME_CLASSES: Record<ThemeType, ThemeInfo> = {
 
 
 export default function App() {
-  const [equationInput, setEquationInput] = useState<string>("x^2 - 5x + 6");
+  const [equationInput, setEquationInput] = useState<string>("");
   const extractedMatrix = React.useMemo(() => parseMatrixFromText(equationInput), [equationInput]);
   const [loading, setLoading] = useState<boolean>(false);
   const [solution, setSolution] = useState<EquationSolution | null>(null);
@@ -276,7 +286,7 @@ export default function App() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [renderingVideo, setRenderingVideo] = useState<boolean>(false);
   const [videoQuality, setVideoQuality] = useState<string>("medium");
-  const [currentView, setCurrentView] = useState<"dashboard" | "methods" | "matrix" | "aichat" | "word_problems" | "functions" | "proofs">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "methods" | "matrix" | "aichat" | "word_problems" | "functions" | "proofs" | "geometry" | "complex" | "vectors">("dashboard");
   const [showMatrixBackground, setShowMatrixBackground] = useState<boolean>(true);
 
 
@@ -328,7 +338,7 @@ export default function App() {
       fetch("/api/auth/signout", {
         method: "POST",
         headers: { "Authorization": `Bearer ${userToken}` }
-      }).catch(() => {});
+      }).catch(() => { });
     }
     setUserToken(null);
     setUserEmail(null);
@@ -1116,6 +1126,36 @@ export default function App() {
             <GraduationCap className="w-3.5 h-3.5 text-amber-400" />
             Proof Engine
           </button>
+          <button
+            onClick={() => setCurrentView("geometry")}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "geometry"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
+          >
+            <Compass className="w-3.5 h-3.5 text-cyan-400" />
+            Geometry
+          </button>
+          <button
+            onClick={() => setCurrentView("complex")}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "complex"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
+          >
+            <Compass className="w-3.5 h-3.5 text-cyan-300" />
+            Complex
+          </button>
+          <button
+            onClick={() => setCurrentView("vectors")}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${currentView === "vectors"
+              ? (isLightAcademic ? "bg-white text-blue-700 font-bold shadow-xs" : "bg-white/15 text-white font-bold shadow-xs")
+              : "hover:text-white hover:bg-white/5"
+              }`}
+          >
+            <Boxes className="w-3.5 h-3.5 text-emerald-400" />
+            Vectors
+          </button>
         </nav>
 
 
@@ -1319,6 +1359,36 @@ export default function App() {
         <ProofEngine
           theme={theme}
           initialStatement="sum(i, 1, n) = n*(n+1)/2"
+          onSendToStudio={(formula) => {
+            setEquationInput(formula);
+            handleSolve(formula);
+            setCurrentView("dashboard");
+          }}
+        />
+      ) : currentView === "geometry" ? (
+        <GeometrySolver
+          theme={theme}
+          userToken={userToken}
+          onSendToStudio={(formula) => {
+            setEquationInput(formula);
+            handleSolve(formula);
+            setCurrentView("dashboard");
+          }}
+        />
+      ) : currentView === "complex" ? (
+        <ComplexStudio
+          theme={theme}
+          initialZ={equationInput || "3 + 4i"}
+          onSendToStudio={(formula) => {
+            setEquationInput(formula);
+            handleSolve(formula);
+            setCurrentView("dashboard");
+          }}
+        />
+      ) : currentView === "vectors" ? (
+        <VectorStudio
+          theme={theme}
+          initialU={equationInput || "[3, 4]"}
           onSendToStudio={(formula) => {
             setEquationInput(formula);
             handleSolve(formula);
