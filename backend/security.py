@@ -5,11 +5,17 @@ import json
 import secrets
 import hashlib
 import sqlite3
+import jwt
 from typing import Optional, Tuple, Dict, List, Any
 from fastapi import HTTPException, Request
 
 # Security Configuration Constants
 SESSION_EXPIRY_SECONDS = 7 * 24 * 3600  # 7 days
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "scholar-axiom-mathematical-jwt-secure-secret-key-32bytes-hex-99221144")
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_SECONDS = 3600 * 24  # 24 hours
+REFRESH_TOKEN_EXPIRE_SECONDS = 3600 * 24 * 30  # 30 days
+RESET_CODE_EXPIRE_SECONDS = 900  # 15 minutes
 MAX_PASSWORD_LENGTH = 128
 MIN_PASSWORD_LENGTH = 8
 MAX_EQUATION_LENGTH = 2000
@@ -192,6 +198,93 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
     return True, ""
 
 
+# --- JWT Token Management & Authentication Helpers ---
+
+def create_access_token(user_id: str, email: str, is_premium: bool = False, custom_claims: Optional[Dict[str, Any]] = None) -> str:
+    """
+    Creates a signed JWT Access Token with 24h validity.
+    """
+    now = time.time()
+    payload = {
+        "sub": user_id,
+        "email": email.strip().lower(),
+        "is_premium": bool(is_premium),
+        "type": "access",
+        "iat": int(now),
+        "exp": int(now + ACCESS_TOKEN_EXPIRE_SECONDS)
+    }
+    if custom_claims:
+        payload.update(custom_claims)
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def create_refresh_token(user_id: str, email: str) -> str:
+    """
+    Creates a signed JWT Refresh Token with 30-day validity.
+    """
+    now = time.time()
+    payload = {
+        "sub": user_id,
+        "email": email.strip().lower(),
+        "type": "refresh",
+        "iat": int(now),
+        "exp": int(now + REFRESH_TOKEN_EXPIRE_SECONDS)
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+
+def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Decodes and verifies a JWT token. Returns payload dict or None if invalid or expired.
+    """
+    if not token:
+        return None
+    clean = token.replace("Bearer ", "").strip()
+    try:
+        return jwt.decode(clean, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    except Exception:
+        return None
+
+
+# --- Ephemeral Password Reset Verification Code Store ---
+_password_reset_codes: Dict[str, Dict[str, Any]] = {}
+
+def create_password_reset_code(email: str) -> str:
+    """
+    Generates a secure 6-digit verification code with 15-minute expiration.
+    """
+    code = f"{secrets.randbelow(900000) + 100000:06d}"
+    now = time.time()
+    _password_reset_codes[email.strip().lower()] = {
+        "code": code,
+        "expires_at": now + RESET_CODE_EXPIRE_SECONDS
+    }
+    return code
+
+
+def verify_password_reset_code(email: str, code: str) -> bool:
+    """
+    Verifies that a reset code matches and has not expired.
+    """
+    clean_email = email.strip().lower()
+    entry = _password_reset_codes.get(clean_email)
+    if not entry:
+        return False
+    if entry["expires_at"] < time.time():
+        del _password_reset_codes[clean_email]
+        return False
+    return secrets.compare_digest(str(entry["code"]), str(code).strip())
+
+
+def consume_password_reset_code(email: str):
+    """
+    Invalidates a used password reset code.
+    """
+    clean_email = email.strip().lower()
+    if clean_email in _password_reset_codes:
+        del _password_reset_codes[clean_email]
+
+
 def sanitize_input_text(text: Optional[str], max_len: int = MAX_EQUATION_LENGTH, field_name: str = "Input") -> str:
     if text is None:
         return ""
@@ -320,7 +413,12 @@ MATH_TERMS_REGEX = re.compile(
     r"statistics|statistical|probability|mean|median|mode|average|standard\s+deviation|variance|distribution|normal\s+distribution|binomial|sample|hypothesis|combinatorics|permutation|combination|factorial|"
     r"solve|solving|solution|solutions|solver|calculate|calculating|calculation|compute|computing|computation|evaluate|evaluating|evaluation|"
     r"graph|graphing|graphs|plot|plotting|intercept|intercepts|asymptote|asymptotes|domain|range|function|functions|"
-    r"speed|velocity|acceleration|distance|kinematics|motion"
+    r"speed|velocity|acceleration|distance|kinematics|motion|"
+    r"mph|km\/?h|km|miles|meters?|cm|mm|inches|feet|yards|hours?|minutes?|seconds?|days?|weeks?|years?|"
+    r"train|trains|car|cars|vehicle|vehicles|travel|travels|traveling|traveled|depart|departs|arrive|arrives|station|direction|catch\s*up|"
+    r"work|worker|workers|job|jobs|task|together|alone|pipe|pipes|tank|tanks|drain|drains|fill|fills|empty|empties|pool|pump|rate|rates|"
+    r"cost|costs|price|prices|sell|sells|sold|buy|buys|bought|dollar|dollars|\$|cents?|discount|tax|interest|invest|investment|profit|loss|total|amount|"
+    r"ratio|ratios|proportion|proportions|mixture|solution|concentration|acid|water|alloy|liters?|gallons?|ounces?|grams?|kg|pounds?"
     r")\b",
     re.IGNORECASE
 )
@@ -386,11 +484,24 @@ def is_query_on_subject(query: Optional[str], context: Optional[str] = None) -> 
     if has_numbers and (has_math_symbol or any(op in clean_q.lower() for op in ["plus", "minus", "times", "divided", "over", "mod", "percent", "squared", "cubed"])):
         return True, "arithmetic_expression"
 
-    # 4. Tutoring interactions with active problem context (e.g. "why?", "explain this step", "is this right?")
+    # 4. Word problem quantitative scenarios (numbers + physical units or inquiry triggers)
+    if has_numbers and (
+        re.search(
+            r"\b(how\s+many|how\s+much|how\s+long|when\s+will|where\s+will|find|calculate|determine|"
+            r"total|rate|together|alone|cost|price|each|per|mph|km|hours?|mins?|minutes?|seconds?|"
+            r"miles|meters?|liters?|gallons?|dollars?|catch\s*up|reach|fill|empty|pipe|train|worker)\b",
+            clean_q,
+            re.IGNORECASE
+        )
+        or len(re.findall(r"\b\d+([.,]\d+)?\b", clean_q)) >= 2
+    ):
+        return True, "word_problem"
+
+    # 5. Tutoring interactions with active problem context (e.g. "why?", "explain this step", "is this right?")
     if has_context and (has_tutoring or has_numbers):
         return True, "contextual_tutoring"
 
-    # 5. Generic tutor greetings / onboarding (e.g. "hello", "who are you")
+    # 6. Generic tutor greetings / onboarding (e.g. "hello", "who are you")
     if re.search(r'^(hi|hello|hey|greetings|who are you|what can you do|how does this work)\b', clean_q, re.IGNORECASE):
         return True, "tutor_greeting"
 

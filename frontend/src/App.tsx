@@ -39,7 +39,8 @@ import {
   TrendingUp,
   ShieldCheck,
   Compass,
-  Boxes
+  Boxes,
+  Database
 } from "lucide-react";
 import FunctionAnalyzer from "./components/FunctionAnalyzer";
 import ProofEngine from "./components/ProofEngine";
@@ -50,8 +51,10 @@ import MathGraph from "./components/MathGraph";
 
 import UnifiedBoardContainer from "./components/boards/UnifiedBoardContainer";
 import Whiteboard, { KatexMath } from "./components/Whiteboard";
-import { EquationSolution, VideoScene, ThemeType, NarratorType } from "./types";
+import { EquationSolution, VideoScene, ThemeType, NarratorType, PaymentInvoice } from "./types";
 import AuthModal from "./components/AuthModal";
+import AccountSettingsModal from "./components/AccountSettingsModal";
+import DatabaseHubModal from "./components/DatabaseHubModal";
 import CyberShieldModal from "./components/CyberShieldModal";
 import PaymentModal from "./components/PaymentModal";
 import AIChat from "./components/AIChat";
@@ -292,40 +295,135 @@ export default function App() {
 
   // Auth & Session States
   const [userToken, setUserToken] = useState<string | null>(localStorage.getItem("math_token"));
+  const [refreshToken, setRefreshToken] = useState<string | null>(localStorage.getItem("math_refresh_token"));
   const [userEmail, setUserEmail] = useState<string | null>(localStorage.getItem("math_email"));
+  const [userName, setUserName] = useState<string | null>(localStorage.getItem("math_user_name"));
+  const [authProvider, setAuthProvider] = useState<string | null>(localStorage.getItem("math_provider") || "email");
   const [isPremium, setIsPremium] = useState<boolean>(localStorage.getItem("math_premium") === "true");
+  const [guestSolvesCount, setGuestSolvesCount] = useState<number>(parseInt(localStorage.getItem("math_guest_solves") || "0", 10));
+  const [guestLimitNotice, setGuestLimitNotice] = useState<string | null>(null);
 
   // Modal Control States
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<"signin" | "signup">("signin");
+  const [authModalMode, setAuthModalMode] = useState<"signin" | "signup" | "forgot">("signin");
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isCyberModalOpen, setIsCyberModalOpen] = useState(false);
+  const [isDatabaseHubOpen, setIsDatabaseHubOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [paymentSuccessInvoice, setPaymentSuccessInvoice] = useState<PaymentInvoice | null>(null);
   const handleTheme = (newTheme: ThemeType) => {
     setTheme(newTheme);
     localStorage.setItem('math_theme', newTheme);
   };
+
+  // Check for Stripe Checkout success/cancel return parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentSuccess = params.get("payment_success");
+    const sessionId = params.get("session_id");
+    const paymentCancel = params.get("payment_cancel");
+
+    if (paymentSuccess === "true" && sessionId) {
+      const activeToken = localStorage.getItem("math_token");
+      fetch(`/api/payment/verify-session?session_id=${encodeURIComponent(sessionId)}`, {
+        headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {}
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.invoice) {
+            setIsPremium(true);
+            localStorage.setItem("math_premium", "true");
+            setPaymentSuccessInvoice(data.invoice);
+            setIsPaymentModalOpen(true);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to verify Stripe checkout session:", err);
+        })
+        .finally(() => {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
+    } else if (paymentCancel === "true") {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   // Initialize speech voices cache on mount
   useEffect(() => {
     initSpeechVoices();
   }, []);
 
-  // Verify token on mount
+  // Attempt automatic token refresh
+  const tryRefreshToken = async (refreshTok: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshTok })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUserToken(data.session_token);
+        setRefreshToken(data.refresh_token);
+        setUserEmail(data.email);
+        setUserName(data.display_name || data.email.split("@")[0]);
+        setIsPremium(data.is_premium);
+        localStorage.setItem("math_token", data.session_token);
+        localStorage.setItem("math_refresh_token", data.refresh_token);
+        localStorage.setItem("math_email", data.email);
+        localStorage.setItem("math_user_name", data.display_name || data.email.split("@")[0]);
+        localStorage.setItem("math_premium", String(data.is_premium));
+        return true;
+      }
+    } catch {
+      // Refresh failed
+    }
+    return false;
+  };
+
+  // Verify token on mount and fetch database history
   useEffect(() => {
     if (userToken) {
       fetch("/api/auth/me", {
         headers: { "Authorization": `Bearer ${userToken}` }
       })
-        .then(res => {
+        .then(async res => {
           if (res.ok) return res.json();
+          const curRefresh = localStorage.getItem("math_refresh_token");
+          if (curRefresh) {
+            const refreshed = await tryRefreshToken(curRefresh);
+            if (refreshed) return null;
+          }
           throw new Error("Invalid token");
         })
         .then(data => {
+          if (!data) return;
           setIsPremium(data.is_premium);
           setUserEmail(data.email);
+          setUserName(data.display_name || data.email.split("@")[0]);
+          setAuthProvider(data.provider || "email");
           localStorage.setItem("math_premium", String(data.is_premium));
           localStorage.setItem("math_email", data.email);
+          localStorage.setItem("math_user_name", data.display_name || data.email.split("@")[0]);
+          localStorage.setItem("math_provider", data.provider || "email");
+
+          // Synchronize calculation history from database
+          fetch("/api/history", {
+            headers: { "Authorization": `Bearer ${userToken}` }
+          })
+            .then(hRes => hRes.ok ? hRes.json() : null)
+            .then(hData => {
+              if (hData?.items?.length) {
+                setHistoryList(hData.items.slice(0, 15).map((item: any) => ({
+                  equation: item.equation,
+                  type: item.problem_type || "Saved Calculation",
+                  completed: true,
+                  date: item.created_at ? new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recent"
+                })));
+              }
+            })
+            .catch(() => {});
         })
         .catch(() => {
           handleSignOut();
@@ -341,20 +439,45 @@ export default function App() {
       }).catch(() => { });
     }
     setUserToken(null);
+    setRefreshToken(null);
     setUserEmail(null);
+    setUserName(null);
+    setAuthProvider(null);
     setIsPremium(false);
     localStorage.removeItem("math_token");
+    localStorage.removeItem("math_refresh_token");
     localStorage.removeItem("math_email");
+    localStorage.removeItem("math_user_name");
+    localStorage.removeItem("math_provider");
     localStorage.removeItem("math_premium");
   };
 
-  const handleAuthSuccess = (token: string, email: string, premium: boolean) => {
+  const handleAuthSuccess = (
+    token: string,
+    email: string,
+    premium: boolean,
+    extra?: { refreshToken?: string; displayName?: string; avatarUrl?: string; provider?: string }
+  ) => {
     setUserToken(token);
     setUserEmail(email);
     setIsPremium(premium);
     localStorage.setItem("math_token", token);
     localStorage.setItem("math_email", email);
     localStorage.setItem("math_premium", String(premium));
+
+    if (extra?.refreshToken) {
+      setRefreshToken(extra.refreshToken);
+      localStorage.setItem("math_refresh_token", extra.refreshToken);
+    }
+    const name = extra?.displayName || email.split("@")[0];
+    setUserName(name);
+    localStorage.setItem("math_user_name", name);
+
+    if (extra?.provider) {
+      setAuthProvider(extra.provider);
+      localStorage.setItem("math_provider", extra.provider);
+    }
+    setGuestLimitNotice(null);
   };
 
 
@@ -690,6 +813,23 @@ export default function App() {
   // Query Backend solver (either mock fallback template or true Gemini parsing engine)
   const handleSolve = async (eq: string) => {
     if (!eq || eq.trim() === "") return;
+
+    // Enforce guest limits for unauthenticated visitors
+    if (!userToken) {
+      const MAX_GUEST_SOLVES = 5;
+      const count = parseInt(localStorage.getItem("math_guest_solves") || "0", 10);
+      if (count >= MAX_GUEST_SOLVES) {
+        setGuestLimitNotice(`You have completed ${MAX_GUEST_SOLVES} free guest calculations. Create a free Scholar account or sign in to unlock unlimited equations, 1080p Manim animations, and cloud notebook persistence.`);
+        setAuthModalMode("signup");
+        setIsAuthModalOpen(true);
+        setStatusMessage("Guest limit reached (5/5). Sign in to continue.");
+        return;
+      }
+      const newCount = count + 1;
+      setGuestSolvesCount(newCount);
+      localStorage.setItem("math_guest_solves", String(newCount));
+    }
+
     setLoading(true);
     setStatusMessage("Parsing expression syntax...");
     stopSpeech();
@@ -733,6 +873,23 @@ export default function App() {
         { equation: eq, type: data.equationType || "Parsed Equation", completed: true, date: timeStr },
         ...filtered.slice(0, 5)
       ]);
+
+      // Automatically persist calculation to user's database account
+      if (userToken) {
+        fetch("/api/history", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${userToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            equation: eq,
+            problem_type: data.equationType || "general",
+            result_latex: (data.scenes?.[data.scenes.length - 1] as any)?.primaryMath || (data.scenes?.[data.scenes.length - 1] as any)?.latex || null,
+            steps: data.scenes || null
+          })
+        }).catch((err) => console.warn("Could not auto-save to database:", err));
+      }
     } catch (err: any) {
       console.error(err);
       setStatusMessage(`Error: ${err.message}`);
@@ -1239,7 +1396,19 @@ export default function App() {
             <span className="hidden md:inline">Randomize</span>
           </button>
 
-          {/* Upgrade Modal Trigger */}
+          {/* Database Hub Trigger */}
+          <button
+            onClick={() => setIsDatabaseHubOpen(true)}
+            title="Scholar Database Hub (Saved Calculations, Notebooks, Custom Formulas & Video Archive)"
+            className={`px-2.5 sm:px-3 py-1.5 border text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${isLightAcademic
+              ? "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 shadow-xs"
+              : "bg-blue-600/15 hover:bg-blue-600/25 border-blue-500/30 text-blue-300"
+              }`}
+          >
+            <Database className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden sm:inline">Database Hub</span>
+          </button>
+
           {/* Cyber Guard Shield Button */}
           <button
             onClick={() => setIsCyberModalOpen(true)}
@@ -1264,29 +1433,56 @@ export default function App() {
             <span>Pro</span>
           </button>
 
-          {/* User Session */}
+          {/* User Session & Authentication Controls */}
           {userToken ? (
-            <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs ${isChalkboard ? "bg-[#101d16] border-amber-900/40" : "bg-white/5 border-white/10"
-              }`}>
-              <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[11px]">
-                {userEmail?.slice(0, 1) || "U"}
-              </div>
+            <div className={`flex items-center gap-2 px-2 sm:px-2.5 py-1 rounded-lg border text-xs ${
+              isChalkboard ? "bg-[#101d16] border-amber-900/40" : "bg-white/5 border-white/10"
+            }`}>
+              <button
+                onClick={() => setIsAccountSettingsOpen(true)}
+                className="flex items-center gap-1.5 hover:opacity-90 transition-opacity cursor-pointer"
+                title="Scholar Profile & Account Settings"
+              >
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-amber-100 border border-amber-400/40 flex items-center justify-center font-bold text-[11px] shadow-xs">
+                  {(userName || userEmail || "S").slice(0, 1).toUpperCase()}
+                </div>
+                <span className="hidden lg:inline text-amber-200/90 font-scholar-title font-bold text-[11px] truncate max-w-[110px]">
+                  {userName || userEmail?.split('@')[0]}
+                </span>
+              </button>
               <button
                 onClick={handleSignOut}
-                className="opacity-50 hover:opacity-100 transition-opacity p-0.5 cursor-pointer"
+                className="opacity-50 hover:opacity-100 transition-opacity p-0.5 cursor-pointer ml-0.5 text-amber-200/60 hover:text-red-400"
                 title="Sign Out"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => { setAuthModalMode("signin"); setIsAuthModalOpen(true); }}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${isLightAcademic ? "bg-blue-600 text-white hover:bg-blue-500 border-blue-600" : "bg-white/10 hover:bg-white/20 text-white border-white/15"
+            <div className="flex items-center gap-1.5">
+              <span 
+                className={`hidden md:inline-flex items-center text-[10px] font-mono px-2 py-1 rounded border ${
+                  isChalkboard ? "bg-[#101d16] border-amber-900/40 text-amber-300/80" : "bg-white/5 border-white/10 text-white/60"
                 }`}
-            >
-              Sign In
-            </button>
+                title="Guest solves remaining before sign-in is required"
+              >
+                Guest: {Math.max(0, 5 - guestSolvesCount)}/5
+              </span>
+              <button
+                onClick={() => { setGuestLimitNotice(null); setAuthModalMode("signin"); setIsAuthModalOpen(true); }}
+                className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                  isLightAcademic ? "bg-blue-600 text-white hover:bg-blue-500 border-blue-600" : "bg-white/10 hover:bg-white/20 text-white border-white/15"
+                }`}
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => { setGuestLimitNotice(null); setAuthModalMode("signup"); setIsAuthModalOpen(true); }}
+                className="hidden sm:inline-flex px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg border bg-[#1a3829] hover:bg-[#254f3a] text-amber-200 border-amber-500/40 transition-all cursor-pointer font-scholar-title shadow-xs"
+              >
+                Register
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -2353,19 +2549,78 @@ export default function App() {
       {/* Auth Modal popup */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setGuestLimitNotice(null);
+        }}
         initialMode={authModalMode}
         onAuthSuccess={handleAuthSuccess}
+        guestLimitMessage={guestLimitNotice}
+      />
+
+      {/* Scholar Account Settings & Profile Modal */}
+      <AccountSettingsModal
+        isOpen={isAccountSettingsOpen}
+        onClose={() => setIsAccountSettingsOpen(false)}
+        userToken={userToken}
+        userEmail={userEmail}
+        userName={userName}
+        isPremium={isPremium}
+        authProvider={authProvider}
+        onSignOut={handleSignOut}
+        onOpenUpgrade={() => setIsPaymentModalOpen(true)}
+        onOpenDatabaseHub={() => setIsDatabaseHubOpen(true)}
+        onProfileUpdated={(newName) => {
+          setUserName(newName);
+          localStorage.setItem("math_user_name", newName);
+        }}
+        onSubscriptionStatusChange={() => {
+          if (userToken) {
+            fetch("/api/auth/me", { headers: { Authorization: `Bearer ${userToken}` } })
+              .then((res) => res.json())
+              .then((data) => {
+                if (data.is_premium !== undefined) {
+                  setIsPremium(data.is_premium);
+                  localStorage.setItem("math_premium", String(data.is_premium));
+                }
+              })
+              .catch(() => {});
+          }
+        }}
+      />
+
+      {/* Database Hub & History Modal */}
+      <DatabaseHubModal
+        isOpen={isDatabaseHubOpen}
+        onClose={() => setIsDatabaseHubOpen(false)}
+        userToken={userToken}
+        userEmail={userEmail}
+        onOpenAuth={() => {
+          setAuthModalMode("signin");
+          setIsAuthModalOpen(true);
+        }}
+        onSelectEquation={(eq) => {
+          setEquationInput(eq);
+          handleSolve(eq);
+        }}
       />
 
       {/* Payment Upgrade Modal popup */}
       <PaymentModal
         isOpen={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setPaymentSuccessInvoice(null);
+        }}
         userToken={userToken}
-        onPaymentSuccess={() => {
+        initialInvoice={paymentSuccessInvoice}
+        initialStep={paymentSuccessInvoice ? "success" : "plans"}
+        onPaymentSuccess={(invoice) => {
           setIsPremium(true);
           localStorage.setItem("math_premium", "true");
+          if (invoice) {
+            setPaymentSuccessInvoice(invoice);
+          }
         }}
       />
 

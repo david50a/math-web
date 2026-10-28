@@ -684,3 +684,38 @@ export interface VectorPreset {
   scalar_c?: number;
 }
 
+export interface PaymentInvoice {
+  id: string;
+  user_id: string;
+  invoice_number: string;
+  amount: number;
+  currency: string;
+  plan_name: string;
+  billing_cycle: "monthly" | "yearly" | "lifetime" | string;
+  status: "paid" | "refunded" | "pending" | string;
+  payment_method: string;
+  card_last4?: string;
+  card_brand?: string;
+  discount_applied: number;
+  coupon_code?: string;
+  receipt_url?: string;
+  stripe_payment_intent_id?: string;
+  stripe_invoice_id?: string;
+  created_at?: string;
+}
+
+export interface SubscriptionInfo {
+  is_premium: boolean;
+  tier: "free" | "fellow" | "patron" | string;
+  cycle: "monthly" | "yearly" | "lifetime" | string;
+  status: "none" | "active" | "canceled" | string;
+  renews_at?: string | null;
+  payment_method_last4?: string | null;
+  payment_method_brand?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  recent_invoices?: PaymentInvoice[];
+}
+
+
+

@@ -70,6 +70,40 @@ def init_db():
                     conn.execute(text("ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT NULL"))
                 if "updated_at" not in existing_cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT NULL"))
+                if "provider" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN provider VARCHAR(32) DEFAULT 'email'"))
+                if "display_name" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN display_name VARCHAR(128) DEFAULT NULL"))
+                if "avatar_url" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(512) DEFAULT NULL"))
+                if "reset_token" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN reset_token VARCHAR(255) DEFAULT NULL"))
+                if "reset_token_expires_at" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN reset_token_expires_at FLOAT DEFAULT 0.0"))
+                if "subscription_tier" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN subscription_tier VARCHAR(32) DEFAULT 'free'"))
+                if "subscription_cycle" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN subscription_cycle VARCHAR(32) DEFAULT 'monthly'"))
+                if "subscription_status" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN subscription_status VARCHAR(32) DEFAULT 'none'"))
+                if "subscription_renews_at" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN subscription_renews_at TIMESTAMP DEFAULT NULL"))
+                if "payment_method_last4" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN payment_method_last4 VARCHAR(8) DEFAULT NULL"))
+                if "payment_method_brand" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN payment_method_brand VARCHAR(32) DEFAULT NULL"))
+                if "stripe_customer_id" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR(255) DEFAULT NULL"))
+                if "stripe_subscription_id" not in existing_cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN stripe_subscription_id VARCHAR(255) DEFAULT NULL"))
+                conn.commit()
+
+            if "payment_invoices" in inspector.get_table_names():
+                inv_cols = {c["name"] for c in inspector.get_columns("payment_invoices")}
+                if "stripe_payment_intent_id" not in inv_cols:
+                    conn.execute(text("ALTER TABLE payment_invoices ADD COLUMN stripe_payment_intent_id VARCHAR(255) DEFAULT NULL"))
+                if "stripe_invoice_id" not in inv_cols:
+                    conn.execute(text("ALTER TABLE payment_invoices ADD COLUMN stripe_invoice_id VARCHAR(255) DEFAULT NULL"))
                 conn.commit()
         except Exception as e:
             logger.warning(f"Schema auto-migration check notice: {e}")

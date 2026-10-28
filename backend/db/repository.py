@@ -3,7 +3,7 @@ import logging
 from typing import Optional, List, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from .models import User, ProblemHistory, VideoGeneration, Notebook, CustomFormula, ChatSession, ChatMessage
+from .models import User, ProblemHistory, VideoGeneration, Notebook, CustomFormula, ChatSession, ChatMessage, PaymentInvoice
 
 logger = logging.getLogger("math_web.repository")
 
@@ -64,6 +64,68 @@ def set_premium_status(db: Session, user: User, is_premium: bool = True) -> User
     db.commit()
     db.refresh(user)
     return user
+
+def create_oauth_user(
+    db: Session,
+    user_id: str,
+    email: str,
+    display_name: Optional[str] = None,
+    avatar_url: Optional[str] = None,
+    provider: str = "google",
+    session_token_hash: Optional[str] = None,
+    session_expires_at: float = 0.0
+) -> User:
+    user = User(
+        id=user_id,
+        email=email.strip().lower(),
+        password=f"oauth:{provider}:{user_id}",
+        display_name=display_name,
+        avatar_url=avatar_url,
+        provider=provider,
+        is_premium=False,
+        session_token=session_token_hash,
+        session_expires_at=session_expires_at
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+def update_user_password(db: Session, user: User, new_password_hash: str) -> User:
+    user.password = new_password_hash
+    user.session_token = None
+    user.session_expires_at = 0.0
+    user.reset_token = None
+    user.reset_token_expires_at = 0.0
+    db.commit()
+    db.refresh(user)
+    return user
+
+def update_user_profile(
+    db: Session,
+    user: User,
+    display_name: Optional[str] = None,
+    avatar_url: Optional[str] = None
+) -> User:
+    if display_name is not None:
+        user.display_name = display_name.strip()
+    if avatar_url is not None:
+        user.avatar_url = avatar_url.strip()
+    db.commit()
+    db.refresh(user)
+    return user
+
+def set_reset_token(db: Session, user: User, token_hash: str, expires_at: float) -> User:
+    user.reset_token = token_hash
+    user.reset_token_expires_at = expires_at
+    db.commit()
+    db.refresh(user)
+    return user
+
+def get_user_by_reset_token(db: Session, token_hash: str) -> Optional[User]:
+    if not token_hash:
+        return None
+    return db.query(User).filter(User.reset_token == token_hash).first()
 
 
 # --- Problem History Repository ---
@@ -360,3 +422,107 @@ def delete_chat_session(db: Session, user_id: str, session_id: str) -> bool:
         db.commit()
         return True
     return False
+
+# --- Payment & Invoice Repository ---
+
+def create_payment_invoice(
+    db: Session,
+    user_id: str,
+    invoice_number: str,
+    amount: float,
+    currency: str = "USD",
+    plan_name: str = "Academy Fellow",
+    billing_cycle: str = "monthly",
+    status: str = "paid",
+    payment_method: str = "Credit Card",
+    card_last4: Optional[str] = None,
+    card_brand: Optional[str] = None,
+    discount_applied: float = 0.0,
+    coupon_code: Optional[str] = None,
+    receipt_url: Optional[str] = None,
+    stripe_payment_intent_id: Optional[str] = None,
+    stripe_invoice_id: Optional[str] = None
+) -> PaymentInvoice:
+    invoice = PaymentInvoice(
+        user_id=user_id,
+        invoice_number=invoice_number,
+        amount=amount,
+        currency=currency,
+        plan_name=plan_name,
+        billing_cycle=billing_cycle,
+        status=status,
+        payment_method=payment_method,
+        card_last4=card_last4,
+        card_brand=card_brand,
+        discount_applied=discount_applied,
+        coupon_code=coupon_code,
+        receipt_url=receipt_url,
+        stripe_payment_intent_id=stripe_payment_intent_id,
+        stripe_invoice_id=stripe_invoice_id
+    )
+    db.add(invoice)
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+def get_user_invoices(db: Session, user_id: str, limit: int = 50) -> List[PaymentInvoice]:
+    return (
+        db.query(PaymentInvoice)
+        .filter(PaymentInvoice.user_id == user_id)
+        .order_by(desc(PaymentInvoice.created_at))
+        .limit(limit)
+        .all()
+    )
+
+def get_invoice_by_number(db: Session, invoice_number: str) -> Optional[PaymentInvoice]:
+    return db.query(PaymentInvoice).filter(PaymentInvoice.invoice_number == invoice_number).first()
+
+def get_user_by_stripe_customer_id(db: Session, stripe_customer_id: str) -> Optional[User]:
+    if not stripe_customer_id:
+        return None
+    return db.query(User).filter(User.stripe_customer_id == stripe_customer_id).first()
+
+def update_user_subscription(
+    db: Session,
+    user: User,
+    is_premium: bool = True,
+    subscription_tier: str = "fellow",
+    subscription_cycle: str = "monthly",
+    subscription_status: str = "active",
+    subscription_renews_at = None,
+    payment_method_last4: Optional[str] = None,
+    payment_method_brand: Optional[str] = None,
+    stripe_customer_id: Optional[str] = None,
+    stripe_subscription_id: Optional[str] = None
+) -> User:
+    user.is_premium = is_premium
+    user.subscription_tier = subscription_tier
+    user.subscription_cycle = subscription_cycle
+    user.subscription_status = subscription_status
+    if subscription_renews_at is not None:
+        user.subscription_renews_at = subscription_renews_at
+    if payment_method_last4:
+        user.payment_method_last4 = payment_method_last4
+    if payment_method_brand:
+        user.payment_method_brand = payment_method_brand
+    if stripe_customer_id:
+        user.stripe_customer_id = stripe_customer_id
+    if stripe_subscription_id:
+        user.stripe_subscription_id = stripe_subscription_id
+    db.commit()
+    db.refresh(user)
+    return user
+
+def cancel_user_subscription(db: Session, user: User) -> User:
+    user.subscription_status = "canceled"
+    db.commit()
+    db.refresh(user)
+    return user
+
+def reactivate_user_subscription(db: Session, user: User) -> User:
+    user.subscription_status = "active"
+    user.is_premium = True
+    db.commit()
+    db.refresh(user)
+    return user
+

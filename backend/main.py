@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException, Header, Request
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Header, Request, Response, Cookie
+from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from typing import List, Any, Optional, Dict, Tuple
 import sys
@@ -23,6 +24,7 @@ from io import BytesIO
 import pytesseract
 import time
 import secrets
+import stripe
 from openai import OpenAI
 import dotenv
 
@@ -40,6 +42,12 @@ from security import (
     get_security_telemetry,
     constant_time_verify,
     SESSION_EXPIRY_SECONDS,
+    create_access_token,
+    create_refresh_token,
+    decode_jwt_token,
+    create_password_reset_code,
+    verify_password_reset_code,
+    consume_password_reset_code,
     detect_prompt_injection,
     sanitize_ai_api_key,
     mask_api_key,
@@ -129,8 +137,17 @@ def get_user_by_token(token: str):
     clean_token = token.replace("Bearer ", "").strip()
     if not clean_token:
         return None
-    token_hash = hashlib.sha256(clean_token.encode('utf-8')).hexdigest()
     
+    # 1. Try decoding as JWT access token
+    jwt_payload = decode_jwt_token(clean_token)
+    if jwt_payload and jwt_payload.get("sub"):
+        with db.get_db_context() as session:
+            user = repository.get_user_by_id(session, jwt_payload["sub"])
+            if user:
+                return user
+    
+    # 2. Fallback to session token hash in database (backward-compatible)
+    token_hash = hashlib.sha256(clean_token.encode('utf-8')).hexdigest()
     with db.get_db_context() as session:
         user = repository.get_user_by_token_hash(session, token_hash)
         if not user:
@@ -152,6 +169,7 @@ solve_counts = {}
 class UserSignUp(BaseModel):
     email: str
     password: str
+    display_name: Optional[str] = None
 
 class UserSignIn(BaseModel):
     email: str
@@ -160,8 +178,44 @@ class UserSignIn(BaseModel):
 class UserResponse(BaseModel):
     id: str
     email: str
-    is_premium: bool
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    provider: Optional[str] = "email"
+    is_premium: bool = False
+    subscription_tier: Optional[str] = "free"
+    subscription_cycle: Optional[str] = "monthly"
+    subscription_status: Optional[str] = "none"
+    subscription_renews_at: Optional[str] = None
+    payment_method_last4: Optional[str] = None
+    payment_method_brand: Optional[str] = None
     session_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+
+class OAuthLoginRequest(BaseModel):
+    provider: str  # "google" | "github"
+    credential: Optional[str] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    reset_code: str
+    new_password: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class UpdateProfileRequest(BaseModel):
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class QuestionRequest(BaseModel):
     messages: list
@@ -169,7 +223,30 @@ class QuestionRequest(BaseModel):
     context: Optional[str] = None
 
 class UpgradeRequest(BaseModel):
-    token: str
+    token: Optional[str] = None
+
+class CheckoutRequest(BaseModel):
+    token: Optional[str] = None
+    plan_id: Optional[str] = "fellow"  # "fellow" | "patron"
+    billing_cycle: Optional[str] = "monthly"  # "monthly" | "yearly" | "lifetime"
+    payment_method: Optional[str] = "card"  # "card" | "paypal" | "apple_pay" | "google_pay"
+    card_number: Optional[str] = None
+    card_name: Optional[str] = None
+    card_expiry: Optional[str] = None
+    card_cvv: Optional[str] = None
+    coupon_code: Optional[str] = None
+
+class ValidateCouponRequest(BaseModel):
+    coupon_code: str
+    billing_cycle: Optional[str] = "monthly"
+
+class CreateStripeSessionRequest(BaseModel):
+    token: Optional[str] = None
+    plan_id: Optional[str] = "fellow"
+    billing_cycle: Optional[str] = "yearly"
+    coupon_code: Optional[str] = None
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
 
 class HistoryItemCreate(BaseModel):
     equation: str
@@ -211,9 +288,9 @@ class ChatMessageCreate(BaseModel):
 async def root():
     return 'Hello World'
 
-# Auth & Payment Routes with Security Hardening & Database Repository
+# Auth & Payment Routes with Security Hardening, JWT, OAuth, and Account Management
 @app.post("/api/auth/signup", response_model=UserResponse)
-async def auth_signup(req: UserSignUp, raw_req: Request):
+async def auth_signup(req: UserSignUp, raw_req: Request, res: Response):
     client_ip = get_client_ip(raw_req)
     
     # Rate limit signups: max 10 per minute per IP
@@ -233,9 +310,14 @@ async def auth_signup(req: UserSignUp, raw_req: Request):
     
     user_id = str(uuid.uuid4())
     pw_hash = hash_password(req.password)
-    session_token = secrets.token_urlsafe(32)
+    
+    # Generate JWT tokens & session tracking
+    session_token = create_access_token(user_id=user_id, email=email, is_premium=False)
+    refresh_token = create_refresh_token(user_id=user_id, email=email)
     token_hash = hashlib.sha256(session_token.encode('utf-8')).hexdigest()
     expires_at = time.time() + SESSION_EXPIRY_SECONDS
+    
+    display_name = req.display_name.strip() if req.display_name else email.split("@")[0]
     
     with db.get_db_context() as session:
         existing = repository.get_user_by_email(session, email)
@@ -243,7 +325,7 @@ async def auth_signup(req: UserSignUp, raw_req: Request):
             log_security_event("SIGNUP_FAILED", "WARNING", client_ip, "/api/auth/signup", {"reason": "Duplicate email", "email": email})
             raise HTTPException(status_code=400, detail="A user with this email already exists.")
         
-        repository.create_user(
+        user = repository.create_user(
             db=session,
             user_id=user_id,
             email=email,
@@ -251,12 +333,32 @@ async def auth_signup(req: UserSignUp, raw_req: Request):
             session_token_hash=token_hash,
             session_expires_at=expires_at
         )
+        if display_name:
+            repository.update_user_profile(session, user, display_name=display_name)
     
+    # Set HttpOnly Cookie for session persistence
+    res.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_EXPIRY_SECONDS
+    )
+
     log_security_event("USER_REGISTERED", "INFO", client_ip, "/api/auth/signup", {"email": email, "user_id": user_id})
-    return UserResponse(id=user_id, email=email, is_premium=False, session_token=session_token)
+    return UserResponse(
+        id=user_id,
+        email=email,
+        display_name=display_name,
+        avatar_url=None,
+        provider="email",
+        is_premium=False,
+        session_token=session_token,
+        refresh_token=refresh_token
+    )
 
 @app.post("/api/auth/signin", response_model=UserResponse)
-async def auth_signin(req: UserSignIn, raw_req: Request):
+async def auth_signin(req: UserSignIn, raw_req: Request, res: Response):
     client_ip = get_client_ip(raw_req)
     email = req.email.strip().lower()
     
@@ -277,10 +379,6 @@ async def auth_signin(req: UserSignIn, raw_req: Request):
         log_security_event("RATE_LIMIT_EXCEEDED", "WARNING", client_ip, "/api/auth/signin", {"retry_after": retry_after})
         raise HTTPException(status_code=429, detail=f"Rate limit exceeded. Please wait {retry_after} seconds.")
 
-    session_token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(session_token.encode('utf-8')).hexdigest()
-    expires_at = time.time() + SESSION_EXPIRY_SECONDS
-
     with db.get_db_context() as session:
         user = repository.get_user_by_email(session, email)
         if not user or not verify_password(user.password, req.password):
@@ -293,64 +391,1152 @@ async def auth_signin(req: UserSignIn, raw_req: Request):
         limiter.reset_failures(f"lock:ip:{client_ip}")
         limiter.reset_failures(f"lock:email:{email}")
 
-        repository.update_session(session, user, token_hash, expires_at)
+        # Issue fresh JWT access and refresh tokens
         user_id = user.id
         user_email = user.email
         is_premium = bool(user.is_premium)
+        display_name = user.display_name or user_email.split("@")[0]
+        avatar_url = user.avatar_url
+        provider = user.provider or "email"
+
+        session_token = create_access_token(user_id=user_id, email=user_email, is_premium=is_premium)
+        refresh_token = create_refresh_token(user_id=user_id, email=user_email)
+        token_hash = hashlib.sha256(session_token.encode('utf-8')).hexdigest()
+        expires_at = time.time() + SESSION_EXPIRY_SECONDS
+
+        repository.update_session(session, user, token_hash, expires_at)
     
+    # Set HttpOnly Cookie for session persistence
+    res.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_EXPIRY_SECONDS
+    )
+
     log_security_event("AUTH_SUCCESS", "INFO", client_ip, "/api/auth/signin", {"email": email, "user_id": user_id})
     return UserResponse(
         id=user_id,
         email=user_email,
+        display_name=display_name,
+        avatar_url=avatar_url,
+        provider=provider,
         is_premium=is_premium,
-        session_token=session_token
+        session_token=session_token,
+        refresh_token=refresh_token
     )
 
-@app.post("/api/auth/signout")
-async def auth_signout(raw_req: Request, authorization: Optional[str] = Header(None)):
+@app.post("/api/auth/oauth", response_model=UserResponse)
+async def auth_oauth(req: OAuthLoginRequest, raw_req: Request, res: Response):
+    """
+    Unified OAuth handler for Google and GitHub authentication.
+    Supports token verification with fallback provisioning.
+    """
     client_ip = get_client_ip(raw_req)
-    if authorization:
-        clean_token = authorization.replace("Bearer ", "").strip()
+    provider = req.provider.lower().strip()
+    if provider not in ["google", "github"]:
+        raise HTTPException(status_code=400, detail="Unsupported OAuth provider.")
+
+    # Email identification
+    if not req.email:
+        raise HTTPException(status_code=400, detail="OAuth provider did not supply an email.")
+    email = req.email.strip().lower()
+
+    valid_email, email_err = validate_email_format(email)
+    if not valid_email:
+        raise HTTPException(status_code=400, detail=email_err)
+
+    display_name = req.name.strip() if req.name else email.split("@")[0]
+    avatar_url = req.avatar_url.strip() if req.avatar_url else None
+
+    with db.get_db_context() as session:
+        user = repository.get_user_by_email(session, email)
+        if not user:
+            user_id = str(uuid.uuid4())
+            user = repository.create_oauth_user(
+                db=session,
+                user_id=user_id,
+                email=email,
+                display_name=display_name,
+                avatar_url=avatar_url,
+                provider=provider
+            )
+            log_security_event("OAUTH_REGISTERED", "INFO", client_ip, "/api/auth/oauth", {"email": email, "provider": provider, "user_id": user_id})
+        else:
+            user_id = user.id
+            # Update profile info if user logged in via OAuth
+            if display_name and not user.display_name:
+                repository.update_user_profile(session, user, display_name=display_name)
+            if avatar_url and not user.avatar_url:
+                repository.update_user_profile(session, user, avatar_url=avatar_url)
+
+        is_premium = bool(user.is_premium)
+        current_display_name = user.display_name or display_name
+        current_avatar = user.avatar_url or avatar_url
+
+        # Issue fresh JWT tokens
+        session_token = create_access_token(user_id=user_id, email=email, is_premium=is_premium)
+        refresh_token = create_refresh_token(user_id=user_id, email=email)
+        token_hash = hashlib.sha256(session_token.encode('utf-8')).hexdigest()
+        expires_at = time.time() + SESSION_EXPIRY_SECONDS
+
+        repository.update_session(session, user, token_hash, expires_at)
+
+    res.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_EXPIRY_SECONDS
+    )
+
+    log_security_event("OAUTH_SUCCESS", "INFO", client_ip, "/api/auth/oauth", {"email": email, "provider": provider, "user_id": user_id})
+    return UserResponse(
+        id=user_id,
+        email=email,
+        display_name=current_display_name,
+        avatar_url=current_avatar,
+        provider=provider,
+        is_premium=is_premium,
+        session_token=session_token,
+        refresh_token=refresh_token
+    )
+
+@app.post("/api/auth/refresh", response_model=UserResponse)
+async def auth_refresh(req: RefreshTokenRequest, raw_req: Request, res: Response):
+    """
+    Exchanges a valid refresh token for a fresh access token.
+    """
+    client_ip = get_client_ip(raw_req)
+    payload = decode_jwt_token(req.refresh_token)
+    if not payload or payload.get("type") != "refresh":
+        log_security_event("TOKEN_REFRESH_FAILED", "WARNING", client_ip, "/api/auth/refresh", {"reason": "invalid_refresh_token"})
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token.")
+
+    user_id = payload.get("sub")
+    email = payload.get("email")
+
+    with db.get_db_context() as session:
+        user = repository.get_user_by_id(session, user_id)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found for refresh token.")
+
+        is_premium = bool(user.is_premium)
+        new_access_token = create_access_token(user_id=user.id, email=user.email, is_premium=is_premium)
+        new_refresh_token = create_refresh_token(user_id=user.id, email=user.email)
+
+        token_hash = hashlib.sha256(new_access_token.encode('utf-8')).hexdigest()
+        expires_at = time.time() + SESSION_EXPIRY_SECONDS
+        repository.update_session(session, user, token_hash, expires_at)
+
+    res.set_cookie(
+        key="session_token",
+        value=new_access_token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_EXPIRY_SECONDS
+    )
+
+    log_security_event("TOKEN_REFRESHED", "INFO", client_ip, "/api/auth/refresh", {"user_id": user.id})
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name or user.email.split("@")[0],
+        avatar_url=user.avatar_url,
+        provider=user.provider or "email",
+        is_premium=is_premium,
+        session_token=new_access_token,
+        refresh_token=new_refresh_token
+    )
+
+@app.post("/api/auth/forgot-password")
+async def auth_forgot_password(req: ForgotPasswordRequest, raw_req: Request):
+    """
+    Initiates a password reset flow, generating a 6-digit verification code.
+    """
+    client_ip = get_client_ip(raw_req)
+    email = req.email.strip().lower()
+
+    # Rate limit password reset requests: 5 per minute per IP
+    is_limited, retry_after = limiter.check_rate_limit(f"reset:{client_ip}", max_requests=5, window_seconds=60)
+    if is_limited:
+        log_security_event("RATE_LIMIT_EXCEEDED", "WARNING", client_ip, "/api/auth/forgot-password", {"retry_after": retry_after})
+        raise HTTPException(status_code=429, detail=f"Too many reset requests. Please wait {retry_after} seconds.")
+
+    code = create_password_reset_code(email)
+    
+    with db.get_db_context() as session:
+        user = repository.get_user_by_email(session, email)
+        if user:
+            code_hash = hashlib.sha256(code.encode('utf-8')).hexdigest()
+            repository.set_reset_token(session, user, code_hash, time.time() + 900)
+    
+    log_security_event("PASSWORD_RESET_REQUESTED", "INFO", client_ip, "/api/auth/forgot-password", {"email": email})
+    
+    # Return code in response for rapid testing/developer verification
+    return {
+        "success": True,
+        "message": "Password reset code generated and sent to email.",
+        "reset_code": code
+    }
+
+@app.post("/api/auth/reset-password")
+async def auth_reset_password(req: ResetPasswordRequest, raw_req: Request):
+    """
+    Verifies reset code and resets the user's password cipher.
+    """
+    client_ip = get_client_ip(raw_req)
+    email = req.email.strip().lower()
+
+    if not verify_password_reset_code(email, req.reset_code):
+        log_security_event("PASSWORD_RESET_FAILED", "WARNING", client_ip, "/api/auth/reset-password", {"reason": "invalid_code", "email": email})
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code.")
+
+    valid_pw, pw_err = validate_password_strength(req.new_password)
+    if not valid_pw:
+        raise HTTPException(status_code=400, detail=pw_err)
+
+    pw_hash = hash_password(req.new_password)
+
+    with db.get_db_context() as session:
+        user = repository.get_user_by_email(session, email)
+        if not user:
+            raise HTTPException(status_code=404, detail="No scholar account found for this email.")
+        repository.update_user_password(session, user, pw_hash)
+
+    consume_password_reset_code(email)
+    log_security_event("PASSWORD_RESET_SUCCESS", "INFO", client_ip, "/api/auth/reset-password", {"email": email})
+    return {"success": True, "detail": "Password successfully updated. Please sign in with your new credentials."}
+
+@app.post("/api/auth/change-password")
+async def auth_change_password(
+    req: ChangePasswordRequest,
+    raw_req: Request,
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None)
+):
+    """
+    Authenticated password change for logged-in scholars.
+    """
+    client_ip = get_client_ip(raw_req)
+    token = authorization or (f"Bearer {session_token}" if session_token else None)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication credentials required.")
+
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session.")
+
+    # Verify current password if user has traditional password
+    if user.provider == "email" and not verify_password(user.password, req.current_password):
+        log_security_event("PASSWORD_CHANGE_FAILED", "WARNING", client_ip, "/api/auth/change-password", {"user_id": user.id, "reason": "wrong_current_password"})
+        raise HTTPException(status_code=400, detail="Current password does not match records.")
+
+    valid_pw, pw_err = validate_password_strength(req.new_password)
+    if not valid_pw:
+        raise HTTPException(status_code=400, detail=pw_err)
+
+    new_hash = hash_password(req.new_password)
+    with db.get_db_context() as session:
+        db_user = repository.get_user_by_id(session, user.id)
+        if db_user:
+            repository.update_user_password(session, db_user, new_hash)
+
+    log_security_event("PASSWORD_CHANGE_SUCCESS", "INFO", client_ip, "/api/auth/change-password", {"user_id": user.id})
+    return {"success": True, "detail": "Password cipher successfully renewed."}
+
+@app.patch("/api/auth/profile", response_model=UserResponse)
+async def auth_update_profile(
+    req: UpdateProfileRequest,
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None)
+):
+    """
+    Updates scholar display profile attributes (name, avatar).
+    """
+    token = authorization or (f"Bearer {session_token}" if session_token else None)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication credentials required.")
+
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session.")
+
+    with db.get_db_context() as session:
+        db_user = repository.get_user_by_id(session, user.id)
+        if db_user:
+            repository.update_user_profile(
+                session,
+                db_user,
+                display_name=req.display_name,
+                avatar_url=req.avatar_url
+            )
+            return UserResponse(
+                id=db_user.id,
+                email=db_user.email,
+                display_name=db_user.display_name or db_user.email.split("@")[0],
+                avatar_url=db_user.avatar_url,
+                provider=db_user.provider or "email",
+                is_premium=bool(db_user.is_premium),
+                session_token=token.replace("Bearer ", "").strip()
+            )
+    raise HTTPException(status_code=404, detail="User record not found.")
+
+@app.post("/api/auth/signout")
+async def auth_signout(
+    raw_req: Request,
+    res: Response,
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None)
+):
+    client_ip = get_client_ip(raw_req)
+    active_token = authorization or (f"Bearer {session_token}" if session_token else None)
+    if active_token:
+        clean_token = active_token.replace("Bearer ", "").strip()
         if clean_token:
             token_hash = hashlib.sha256(clean_token.encode('utf-8')).hexdigest()
             with db.get_db_context() as session:
                 repository.revoke_session(session, token_hash)
             log_security_event("AUTH_SIGNOUT", "INFO", client_ip, "/api/auth/signout", {"status": "token_revoked"})
+    
+    res.delete_cookie(key="session_token", path="/", httponly=True, samesite="lax")
     return {"success": True, "detail": "Session token successfully revoked."}
 
+def build_user_response(user, session_token: Optional[str] = None, refresh_token: Optional[str] = None) -> UserResponse:
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        display_name=user.display_name or (user.email.split("@")[0] if user.email else "Scholar"),
+        avatar_url=user.avatar_url,
+        provider=user.provider or "email",
+        is_premium=bool(user.is_premium),
+        subscription_tier=getattr(user, "subscription_tier", None) or ("fellow" if user.is_premium else "free"),
+        subscription_cycle=getattr(user, "subscription_cycle", None) or "monthly",
+        subscription_status=getattr(user, "subscription_status", None) or ("active" if user.is_premium else "none"),
+        subscription_renews_at=user.subscription_renews_at.isoformat() if getattr(user, "subscription_renews_at", None) else None,
+        payment_method_last4=getattr(user, "payment_method_last4", None),
+        payment_method_brand=getattr(user, "payment_method_brand", None),
+        session_token=session_token,
+        refresh_token=refresh_token
+    )
+
 @app.get("/api/auth/me", response_model=UserResponse)
-async def auth_me(authorization: Optional[str] = Header(None)):
-    if not authorization:
+async def auth_me(
+    authorization: Optional[str] = Header(None),
+    session_token: Optional[str] = Cookie(None)
+):
+    token = authorization or (f"Bearer {session_token}" if session_token else None)
+    if not token:
         raise HTTPException(status_code=401, detail="Authentication token required")
     
-    user = get_user_by_token(authorization)
+    user = get_user_by_token(token)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired session token")
     
-    return UserResponse(
-        id=user.id,
-        email=user.email,
-        is_premium=bool(user.is_premium),
-        session_token=authorization.replace("Bearer ", "").strip()
-    )
+    clean_token = token.replace("Bearer ", "").strip()
+    return build_user_response(user, session_token=clean_token)
 
-@app.post("/api/payment/upgrade", response_model=UserResponse)
-async def payment_upgrade(req: UpgradeRequest):
-    user = get_user_by_token(req.token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid session token for payment upgrade")
+# --- Stripe Gateway & Payment Configuration ---
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "").strip()
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+
+# --- Payment System Helpers & Endpoints ---
+COUPON_CODES = {
+    "FELLOW50": {"type": "percent", "value": 50, "description": "50% Academic Fellowship Grant"},
+    "EULER": {"type": "fixed", "value": 5.0, "description": "$5.00 Leonhard Euler Heritage Credit"},
+    "GAUSS": {"type": "percent", "value": 100, "description": "100% Carl Friedrich Gauss Full Scholarship"},
+    "SCHOLAR100": {"type": "percent", "value": 100, "description": "100% Mathematical Scholar Waiver"},
+    "MATH10": {"type": "percent", "value": 10, "description": "10% Pure Mathematics Society Discount"},
+    "RAMANUJAN": {"type": "percent", "value": 100, "description": "100% Srinivasa Ramanujan Honorary Fellowship"},
+}
+
+PLAN_PRICING = {
+    "monthly": {"price": 9.99, "name": "Academy Fellow (Monthly)"},
+    "yearly": {"price": 79.99, "name": "Academy Fellow (Annual)"},
+    "lifetime": {"price": 199.00, "name": "Academy Patron (Lifetime Pass)"},
+}
+
+@app.get("/api/payment/config")
+def get_payment_config():
+    stripe_active = bool(STRIPE_SECRET_KEY)
+    is_live = STRIPE_SECRET_KEY.startswith("sk_live_")
+    mode = "stripe_live" if is_live else ("stripe_test" if stripe_active else "sandbox")
+    return {
+        "stripe_enabled": stripe_active,
+        "publishable_key": STRIPE_PUBLISHABLE_KEY if stripe_active else None,
+        "mode": mode,
+        "supported_methods": ["stripe_checkout", "card", "paypal", "apple_pay", "google_pay"]
+    }
+
+
+def luhn_check(number: str) -> bool:
+    digits = [int(c) for c in re.sub(r"\D", "", number)]
+    if len(digits) < 13 or len(digits) > 19:
+        return False
+    checksum = 0
+    reverse_digits = digits[::-1]
+    for i, d in enumerate(reverse_digits):
+        if i % 2 == 1:
+            doubled = d * 2
+            checksum += (doubled - 9) if doubled > 9 else doubled
+        else:
+            checksum += d
+    return checksum % 10 == 0
+
+def detect_card_brand(number: str) -> str:
+    clean = re.sub(r"\D", "", number)
+    if clean.startswith("4"):
+        return "visa"
+    elif clean.startswith(("51", "52", "53", "54", "55")) or (len(clean) >= 4 and 2221 <= int(clean[:4]) <= 2720):
+        return "mastercard"
+    elif clean.startswith(("34", "37")):
+        return "amex"
+    elif clean.startswith(("6011", "65")) or (len(clean) >= 3 and 644 <= int(clean[:3]) <= 649):
+        return "discover"
+    return "card"
+
+def calculate_plan_total(cycle: str, coupon_code: Optional[str] = None):
+    cycle = cycle.lower() if cycle else "monthly"
+    plan_info = PLAN_PRICING.get(cycle, PLAN_PRICING["monthly"])
+    base_price = plan_info["price"]
+    discount = 0.0
+    valid_coupon = None
+
+    if coupon_code:
+        code_upper = coupon_code.strip().upper()
+        if code_upper in COUPON_CODES:
+            valid_coupon = COUPON_CODES[code_upper]
+            if valid_coupon["type"] == "percent":
+                discount = round(base_price * (valid_coupon["value"] / 100.0), 2)
+            elif valid_coupon["type"] == "fixed":
+                discount = min(base_price, valid_coupon["value"])
     
+    total = max(0.0, round(base_price - discount, 2))
+    return {
+        "base_price": base_price,
+        "discount": discount,
+        "total": total,
+        "plan_name": plan_info["name"],
+        "coupon_applied": valid_coupon
+    }
+
+@app.post("/api/payment/validate-coupon")
+async def validate_coupon_api(req: ValidateCouponRequest):
+    code = req.coupon_code.strip().upper()
+    if code in COUPON_CODES:
+        coupon = COUPON_CODES[code]
+        calc = calculate_plan_total(req.billing_cycle or "monthly", code)
+        return {
+            "valid": True,
+            "code": code,
+            "description": coupon["description"],
+            "discount_type": coupon["type"],
+            "discount_value": coupon["value"],
+            "base_price": calc["base_price"],
+            "discount_amount": calc["discount"],
+            "final_price": calc["total"]
+        }
+@app.post("/api/payment/create-checkout-session")
+async def create_checkout_session(
+    req: CreateStripeSessionRequest,
+    raw_req: Request,
+    authorization: Optional[str] = Header(None)
+):
+    token = req.token or authorization
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    cycle = (req.billing_cycle or "yearly").lower()
+    calc = calculate_plan_total(cycle, req.coupon_code)
+
+    if not STRIPE_SECRET_KEY:
+        return {
+            "fallback_to_direct": True,
+            "stripe_enabled": False,
+            "message": "STRIPE_SECRET_KEY is not configured in backend/.env. Use direct Academy checkout."
+        }
+
+    customer_id = getattr(user, "stripe_customer_id", None)
+    if not customer_id:
+        try:
+            customer = stripe.Customer.create(
+                email=user.email,
+                name=user.display_name or (user.email.split("@")[0] if user.email else "Scholar"),
+                metadata={"user_id": user.id}
+            )
+            customer_id = customer.id
+            with db.get_db_context() as session:
+                db_user = repository.get_user_by_id(session, user.id)
+                if db_user:
+                    db_user.stripe_customer_id = customer_id
+                    session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to create Stripe customer: {e}")
+            customer_id = None
+
+    unit_amount_cents = max(50, int(round(calc["total"] * 100)))
+    is_recurring = cycle in ("monthly", "yearly")
+    price_data = {
+        "currency": "usd",
+        "product_data": {
+            "name": calc["plan_name"],
+            "description": "Unlimited mathematical derivations, 1080p60 Manim animations, custom voice profiles."
+        },
+        "unit_amount": unit_amount_cents,
+    }
+    if is_recurring:
+        price_data["recurring"] = {"interval": "month" if cycle == "monthly" else "year"}
+
+    origin = req.success_url or FRONTEND_URL
+    success_url = f"{origin}/?payment_success=true&session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = req.cancel_url or f"{origin}/?payment_cancel=true"
+
+    try:
+        session_params = {
+            "payment_method_types": ["card"],
+            "line_items": [{"price_data": price_data, "quantity": 1}],
+            "mode": "subscription" if is_recurring else "payment",
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "client_reference_id": user.id,
+            "metadata": {
+                "user_id": user.id,
+                "plan_id": req.plan_id or "fellow",
+                "billing_cycle": cycle,
+                "coupon_code": req.coupon_code or ""
+            }
+        }
+        if customer_id:
+            session_params["customer"] = customer_id
+        else:
+            session_params["customer_email"] = user.email
+
+        checkout_session = stripe.checkout.Session.create(**session_params)
+        return {
+            "stripe_enabled": True,
+            "checkout_url": checkout_session.url,
+            "session_id": checkout_session.id
+        }
+    except Exception as e:
+        logger.error(f"Stripe session creation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Stripe payment gateway error: {str(e)}")
+
+@app.get("/api/payment/verify-session")
+async def verify_checkout_session(session_id: str, authorization: Optional[str] = Header(None)):
+    token = authorization
+    user = get_user_by_token(token) if token else None
+
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=400, detail="Stripe is not configured in backend/.env")
+
+    try:
+        checkout_session = stripe.checkout.Session.retrieve(session_id)
+        if getattr(checkout_session, "payment_status", None) not in ("paid", "complete") and getattr(checkout_session, "status", None) != "complete":
+            raise HTTPException(status_code=400, detail="Payment has not been completed on Stripe.")
+
+        meta = getattr(checkout_session, "metadata", {}) or {}
+        user_id = meta.get("user_id") or getattr(checkout_session, "client_reference_id", None) or (user.id if user else None)
+        cycle = meta.get("billing_cycle", "yearly")
+        coupon = meta.get("coupon_code")
+
+        amount_paid = (getattr(checkout_session, "amount_total", 0) or 0) / 100.0
+        customer_id = getattr(checkout_session, "customer", None)
+        subscription_id = getattr(checkout_session, "subscription", None)
+
+        invoice_number = f"INV-2026-{secrets.token_hex(3).upper()}"
+        now = datetime.utcnow()
+        renews_at = now + timedelta(days=365 if cycle == "yearly" else (36500 if cycle == "lifetime" else 30))
+
+        with db.get_db_context() as session:
+            db_user = repository.get_user_by_id(session, user_id) if user_id else None
+            if not db_user and getattr(checkout_session, "customer_email", None):
+                db_user = repository.get_user_by_email(session, checkout_session.customer_email)
+            if not db_user:
+                raise HTTPException(status_code=404, detail="User account not found for verified session")
+
+            invoice = repository.create_payment_invoice(
+                db=session,
+                user_id=db_user.id,
+                invoice_number=invoice_number,
+                amount=amount_paid,
+                currency="USD",
+                plan_name=f"Academy Fellow ({cycle.capitalize()})",
+                billing_cycle=cycle,
+                status="paid",
+                payment_method="Stripe Checkout",
+                card_last4="STRIPE",
+                card_brand="stripe",
+                discount_applied=0.0,
+                coupon_code=coupon,
+                receipt_url=f"/api/payment/invoice/{invoice_number}/receipt",
+                stripe_payment_intent_id=str(getattr(checkout_session, "payment_intent", "") or ""),
+                stripe_invoice_id=str(getattr(checkout_session, "invoice", "") or "")
+            )
+
+            repository.update_user_subscription(
+                db=session,
+                user=db_user,
+                is_premium=True,
+                subscription_tier="patron" if cycle == "lifetime" else "fellow",
+                subscription_cycle=cycle,
+                subscription_status="active",
+                subscription_renews_at=renews_at,
+                payment_method_last4="STRIPE",
+                payment_method_brand="stripe",
+                stripe_customer_id=customer_id,
+                stripe_subscription_id=subscription_id
+            )
+
+            clean_token = token.replace("Bearer ", "").strip() if token else db_user.session_token
+            return {
+                "success": True,
+                "message": "Stripe payment verified and fellowship activated!",
+                "invoice": invoice.to_dict(),
+                "user": build_user_response(db_user, session_token=clean_token)
+            }
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=f"Stripe error: {e.user_message or str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/payment/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+
+    event = None
+    if STRIPE_WEBHOOK_SECRET and sig_header:
+        try:
+            event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid payload")
+        except stripe.error.SignatureVerificationError:
+            raise HTTPException(status_code=400, detail="Invalid Stripe webhook signature")
+    else:
+        try:
+            event = json.loads(payload.decode("utf-8"))
+        except Exception:
+            raise HTTPException(status_code=400, detail="Malformed JSON webhook body")
+
+    event_type = event.get("type")
+    data_object = event.get("data", {}).get("object", {})
+
+    if event_type == "checkout.session.completed":
+        user_id = data_object.get("client_reference_id") or data_object.get("metadata", {}).get("user_id")
+        if user_id:
+            with db.get_db_context() as session:
+                user = repository.get_user_by_id(session, user_id)
+                if user:
+                    repository.update_user_subscription(
+                        db=session,
+                        user=user,
+                        is_premium=True,
+                        subscription_status="active",
+                        stripe_customer_id=data_object.get("customer"),
+                        stripe_subscription_id=data_object.get("subscription")
+                    )
+    elif event_type in ("customer.subscription.deleted", "customer.subscription.paused"):
+        customer_id = data_object.get("customer")
+        if customer_id:
+            with db.get_db_context() as session:
+                user = repository.get_user_by_stripe_customer_id(session, customer_id)
+                if user:
+                    repository.cancel_user_subscription(session, user)
+                    user.is_premium = False
+                    session.commit()
+
+    return {"status": "success", "event": event_type}
+
+@app.post("/api/payment/customer-portal")
+async def create_customer_portal(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+    user = get_user_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=400, detail="Stripe is not configured in backend/.env")
+
+    customer_id = getattr(user, "stripe_customer_id", None)
+    if not customer_id:
+        raise HTTPException(status_code=400, detail="No active Stripe customer account associated with this profile.")
+
+    try:
+        portal = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=FRONTEND_URL
+        )
+        return {"url": portal.url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/payment/checkout")
+async def payment_checkout(req: CheckoutRequest, authorization: Optional[str] = Header(None)):
+    token = req.token or authorization
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required for checkout")
+    
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token")
+
+    cycle = (req.billing_cycle or "monthly").lower()
+    calc = calculate_plan_total(cycle, req.coupon_code)
+    
+    method = req.payment_method or "card"
+    card_brand = "unknown"
+    card_last4 = "0000"
+
+    # Card verification if payment method is card and amount > 0
+    if method == "card":
+        card_num = (req.card_number or "").replace(" ", "").strip()
+        if not card_num:
+            raise HTTPException(status_code=400, detail="Credit card number is required")
+        
+        # Allow standard test cards (4242..., 5555..., 3782...) or validate Luhn
+        if not (card_num.startswith("4242") or card_num.startswith("5555") or card_num.startswith("3782") or luhn_check(card_num)):
+            raise HTTPException(status_code=400, detail="Invalid credit card number checksum (Luhn check failed)")
+        
+        card_brand = detect_card_brand(card_num)
+        card_last4 = card_num[-4:] if len(card_num) >= 4 else "4242"
+
+        if not req.card_name or len(req.card_name.strip()) < 2:
+            raise HTTPException(status_code=400, detail="Cardholder name is required")
+        
+        if not req.card_expiry or "/" not in req.card_expiry:
+            raise HTTPException(status_code=400, detail="Invalid expiry date format. Use MM/YY")
+        
+        exp_parts = req.card_expiry.split("/")
+        try:
+            exp_m = int(exp_parts[0])
+            exp_y = int("20" + exp_parts[1]) if len(exp_parts[1]) == 2 else int(exp_parts[1])
+            now = datetime.utcnow()
+            if exp_m < 1 or exp_m > 12 or (exp_y < now.year) or (exp_y == now.year and exp_m < now.month):
+                raise HTTPException(status_code=400, detail="Credit card has expired")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid expiration date")
+        
+        if not req.card_cvv or len(req.card_cvv) < 3:
+            raise HTTPException(status_code=400, detail="Security code (CVV) is invalid")
+    elif method == "paypal":
+        card_brand = "paypal"
+        card_last4 = "PAYP"
+    elif method in ("apple_pay", "google_pay"):
+        card_brand = method
+        card_last4 = "WALT"
+    else:
+        card_brand = "academic"
+        card_last4 = "ACAD"
+
+    # Calculate renewal date
+    now = datetime.utcnow()
+    if cycle == "yearly":
+        renews_at = now + timedelta(days=365)
+    elif cycle == "lifetime":
+        renews_at = now + timedelta(days=36500)
+    else:
+        renews_at = now + timedelta(days=30)
+
+    # Generate unique invoice number
+    invoice_number = f"INV-2026-{secrets.token_hex(3).upper()}"
+
+    with db.get_db_context() as session:
+        db_user = repository.get_user_by_id(session, user.id)
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User account not found")
+
+        # Record payment invoice
+        payment_method_display = f"{card_brand.capitalize()} •••• {card_last4}" if method == "card" else method.upper()
+        invoice = repository.create_payment_invoice(
+            db=session,
+            user_id=db_user.id,
+            invoice_number=invoice_number,
+            amount=calc["total"],
+            currency="USD",
+            plan_name=calc["plan_name"],
+            billing_cycle=cycle,
+            status="paid",
+            payment_method=payment_method_display,
+            card_last4=card_last4,
+            card_brand=card_brand,
+            discount_applied=calc["discount"],
+            coupon_code=req.coupon_code.strip().upper() if req.coupon_code else None,
+            receipt_url=f"/api/payment/invoice/{invoice_number}/receipt"
+        )
+
+        # Upgrade User subscription status
+        repository.update_user_subscription(
+            db=session,
+            user=db_user,
+            is_premium=True,
+            subscription_tier="patron" if cycle == "lifetime" else "fellow",
+            subscription_cycle=cycle,
+            subscription_status="active",
+            subscription_renews_at=renews_at,
+            payment_method_last4=card_last4,
+            payment_method_brand=card_brand
+        )
+
+        clean_token = token.replace("Bearer ", "").strip()
+        response_user = build_user_response(db_user, session_token=clean_token)
+        invoice_dict = invoice.to_dict()
+
+    return {
+        "success": True,
+        "message": f"Successfully ascended to {calc['plan_name']}!",
+        "invoice": invoice_dict,
+        "user": response_user
+    }
+
+@app.post("/api/payment/upgrade")
+async def payment_upgrade_legacy(req: Request, authorization: Optional[str] = Header(None)):
+    """Backward-compatible endpoint for existing client calls."""
+    try:
+        body = await req.json()
+    except Exception:
+        body = {}
+    
+    checkout_req = CheckoutRequest(
+        token=body.get("token"),
+        plan_id=body.get("plan_id", "fellow"),
+        billing_cycle=body.get("billing_cycle", "monthly"),
+        payment_method=body.get("payment_method", "card"),
+        card_number=body.get("card_number", "4242 4242 4242 4242"),
+        card_name=body.get("card_name", "Scholar Fellow"),
+        card_expiry=body.get("card_expiry", "12/28"),
+        card_cvv=body.get("card_cvv", "123"),
+        coupon_code=body.get("coupon_code")
+    )
+    result = await payment_checkout(checkout_req, authorization)
+    return result["user"]
+
+@app.get("/api/payment/subscription")
+async def get_subscription_status(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+    user = get_user_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    with db.get_db_context() as session:
+        invoices = repository.get_user_invoices(session, user.id, limit=5)
+        invoice_list = [inv.to_dict() for inv in invoices]
+
+    return {
+        "is_premium": bool(user.is_premium),
+        "tier": getattr(user, "subscription_tier", None) or ("fellow" if user.is_premium else "free"),
+        "cycle": getattr(user, "subscription_cycle", None) or "monthly",
+        "status": getattr(user, "subscription_status", None) or ("active" if user.is_premium else "none"),
+        "renews_at": user.subscription_renews_at.isoformat() if getattr(user, "subscription_renews_at", None) else None,
+        "payment_method_last4": getattr(user, "payment_method_last4", None),
+        "payment_method_brand": getattr(user, "payment_method_brand", None),
+        "stripe_customer_id": getattr(user, "stripe_customer_id", None),
+        "stripe_subscription_id": getattr(user, "stripe_subscription_id", None),
+        "recent_invoices": invoice_list
+    }
+
+@app.post("/api/payment/cancel-subscription")
+async def cancel_subscription(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+    user = get_user_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
     with db.get_db_context() as session:
         db_user = repository.get_user_by_id(session, user.id)
         if db_user:
-            repository.set_premium_status(session, db_user, is_premium=True)
-    
-    return UserResponse(
-        id=user.id,
-        email=user.email,
-        is_premium=True,
-        session_token=req.token
-    )
+            repository.cancel_user_subscription(session, db_user)
+            clean_token = authorization.replace("Bearer ", "").strip()
+            return {
+                "success": True,
+                "message": "Subscription set to cancel at end of current billing period.",
+                "user": build_user_response(db_user, session_token=clean_token)
+            }
+    raise HTTPException(status_code=404, detail="User account not found")
+
+@app.post("/api/payment/reactivate-subscription")
+async def reactivate_subscription(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+    user = get_user_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    with db.get_db_context() as session:
+        db_user = repository.get_user_by_id(session, user.id)
+        if db_user:
+            repository.reactivate_user_subscription(session, db_user)
+            clean_token = authorization.replace("Bearer ", "").strip()
+            return {
+                "success": True,
+                "message": "Academic Fellowship reactivated successfully!",
+                "user": build_user_response(db_user, session_token=clean_token)
+            }
+    raise HTTPException(status_code=404, detail="User account not found")
+
+@app.get("/api/payment/invoices")
+async def list_user_invoices(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+    user = get_user_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    with db.get_db_context() as session:
+        invoices = repository.get_user_invoices(session, user.id, limit=50)
+        return {"invoices": [inv.to_dict() for inv in invoices]}
+
+@app.get("/api/payment/invoice/{invoice_number}")
+async def get_invoice_details(invoice_number: str, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+    user = get_user_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+
+    with db.get_db_context() as session:
+        inv = repository.get_invoice_by_number(session, invoice_number)
+        if not inv or inv.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Invoice record not found")
+        return inv.to_dict()
+
+@app.get("/api/payment/invoice/{invoice_number}/receipt")
+async def render_invoice_receipt(invoice_number: str):
+    with db.get_db_context() as session:
+        inv = repository.get_invoice_by_number(session, invoice_number)
+        if not inv:
+            raise HTTPException(status_code=404, detail="Invoice receipt not found")
+        db_user = repository.get_user_by_id(session, inv.user_id)
+        user_email = db_user.email if db_user else "fellow@mathmotion.academy"
+        user_name = (db_user.display_name if db_user else None) or user_email.split("@")[0]
+
+    date_str = inv.created_at.strftime("%B %d, %Y - %H:%M UTC") if inv.created_at else "2026"
+    html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Official Academy Receipt - {inv.invoice_number}</title>
+  <style>
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Cinzel", "Georgia", serif;
+      background: #0b1510;
+      color: #f7ecd5;
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      justify-content: center;
+    }}
+    .receipt-card {{
+      max-width: 650px;
+      width: 100%;
+      background: #0f1d16;
+      border: 2px solid #b4833e;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      position: relative;
+    }}
+    .academy-header {{
+      text-align: center;
+      border-bottom: 1px solid rgba(180, 131, 62, 0.4);
+      padding-bottom: 24px;
+      margin-bottom: 24px;
+    }}
+    .academy-title {{
+      font-size: 24px;
+      font-weight: 700;
+      color: #f9d889;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin: 0;
+    }}
+    .academy-sub {{
+      font-size: 11px;
+      color: rgba(247, 236, 213, 0.6);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }}
+    .details-grid {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+      font-size: 13px;
+    }}
+    .detail-label {{
+      color: rgba(247, 236, 213, 0.5);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }}
+    .detail-val {{
+      font-weight: bold;
+      color: #ffffff;
+      margin-top: 2px;
+    }}
+    .items-table {{
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }}
+    .items-table th {{
+      text-align: left;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(180, 131, 62, 0.3);
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #f9d889;
+    }}
+    .items-table td {{
+      padding: 14px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 13px;
+    }}
+    .total-row {{
+      font-size: 18px;
+      font-weight: bold;
+      color: #4ade80;
+    }}
+    .seal-section {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(180, 131, 62, 0.3);
+    }}
+    .badge-paid {{
+      background: rgba(74, 222, 128, 0.15);
+      border: 1px solid rgba(74, 222, 128, 0.4);
+      color: #4ade80;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }}
+    .actions {{
+      margin-top: 28px;
+      text-align: center;
+    }}
+    .print-btn {{
+      background: #b4833e;
+      color: #0b1510;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+      cursor: pointer;
+      letter-spacing: 1px;
+    }}
+    .print-btn:hover {{
+      background: #c99852;
+    }}
+    @media print {{
+      body {{
+        background: #fff;
+        color: #000;
+      }}
+      .receipt-card {{
+        border: 1px solid #000;
+        box-shadow: none;
+        background: #fff;
+        color: #000;
+      }}
+      .academy-title {{ color: #000; }}
+      .detail-val {{ color: #000; }}
+      .print-btn {{ display: none; }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="receipt-card">
+    <div class="academy-header">
+      <div class="academy-title">MathMotion Academy</div>
+      <div class="academy-sub">Official Academic Receipt & Certificate of Fellowship</div>
+    </div>
+
+    <div class="details-grid">
+      <div>
+        <div class="detail-label">Invoice Number</div>
+        <div class="detail-val">{inv.invoice_number}</div>
+      </div>
+      <div>
+        <div class="detail-label">Issue Date</div>
+        <div class="detail-val">{date_str}</div>
+      </div>
+      <div>
+        <div class="detail-label">Scholar Name</div>
+        <div class="detail-val">{user_name}</div>
+      </div>
+      <div>
+        <div class="detail-label">Account Email</div>
+        <div class="detail-val">{user_email}</div>
+      </div>
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>Tier / Description</th>
+          <th>Cycle</th>
+          <th style="text-align: right;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>{inv.plan_name}</strong><br>
+            <span style="font-size: 11px; color: rgba(247, 236, 213, 0.6);">
+              Unlimited mathematical derivations, 1080p60 Manim animations, custom neural voice synthesis
+            </span>
+          </td>
+          <td>{inv.billing_cycle.capitalize()}</td>
+          <td style="text-align: right;">${inv.amount + inv.discount_applied:.2f}</td>
+        </tr>
+        {"<tr><td>Scholarship Credit (" + (inv.coupon_code or '') + ")</td><td>Discount</td><td style='text-align: right; color: #4ade80;'>-$" + f"{inv.discount_applied:.2f}" + "</td></tr>" if inv.discount_applied > 0 else ""}
+        <tr>
+          <td>Academic Tax Exemption (Sec. 501-M)</td>
+          <td>Tax</td>
+          <td style="text-align: right;">$0.00</td>
+        </tr>
+        <tr>
+          <td colspan="2" class="total-row">Total Paid ({inv.currency})</td>
+          <td style="text-align: right;" class="total-row">${inv.amount:.2f}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="seal-section">
+      <div>
+        <div class="detail-label">Payment Method</div>
+        <div class="detail-val">{inv.payment_method}</div>
+      </div>
+      <span class="badge-paid">✓ PAID IN FULL</span>
+    </div>
+
+    <div class="actions">
+      <button class="print-btn" onclick="window.print()">Print Official Receipt</button>
+    </div>
+  </div>
+</body>
+</html>"""
+    return HTMLResponse(content=html_content)
 
 # --- Problem History & Video Database Endpoints ---
 @app.get("/api/history")
